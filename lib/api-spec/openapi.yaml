@@ -3,13 +3,23 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: WorkRate API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: company
+    description: Company profile operations
+  - name: enquiries
+    description: Customer enquiry operations
+  - name: quotes
+    description: Quote operations
+  - name: chat
+    description: Public customer AI chat operations
+  - name: dashboard
+    description: Dashboard summary operations
 paths:
   /healthz:
     get:
@@ -24,6 +34,362 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # Company Profile
+  /company:
+    get:
+      operationId: getCompany
+      tags: [company]
+      summary: Get company profile
+      responses:
+        "200":
+          description: Company profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+    put:
+      operationId: updateCompany
+      tags: [company]
+      summary: Update company profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyInput"
+      responses:
+        "200":
+          description: Updated company profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+
+  # Enquiries
+  /enquiries:
+    get:
+      operationId: listEnquiries
+      tags: [enquiries]
+      summary: List all enquiries
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of enquiries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Enquiry"
+    post:
+      operationId: createEnquiry
+      tags: [enquiries]
+      summary: Create a new enquiry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnquiryInput"
+      responses:
+        "201":
+          description: Created enquiry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enquiry"
+
+  /enquiries/{id}:
+    get:
+      operationId: getEnquiry
+      tags: [enquiries]
+      summary: Get enquiry by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Enquiry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enquiry"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateEnquiry
+      tags: [enquiries]
+      summary: Update enquiry (status, notes, etc.)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnquiryUpdate"
+      responses:
+        "200":
+          description: Updated enquiry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enquiry"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: deleteEnquiry
+      tags: [enquiries]
+      summary: Delete an enquiry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /enquiries/{id}/messages:
+    get:
+      operationId: listEnquiryMessages
+      tags: [enquiries]
+      summary: Get chat messages for an enquiry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EnquiryMessage"
+
+  /enquiries/{id}/generate-summary:
+    post:
+      operationId: generateEnquirySummary
+      tags: [enquiries]
+      summary: Generate AI job summary for an enquiry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Updated enquiry with AI summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enquiry"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  # Quotes
+  /enquiries/{id}/quote:
+    get:
+      operationId: getQuote
+      tags: [quotes]
+      summary: Get quote for an enquiry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quote"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: generateQuote
+      tags: [quotes]
+      summary: Generate a draft AI quote for an enquiry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "201":
+          description: Generated quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quote"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateQuote
+      tags: [quotes]
+      summary: Update a quote
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteUpdate"
+      responses:
+        "200":
+          description: Updated quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quote"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  # Dashboard
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Get dashboard statistics and recent activity
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  # Public customer chat (no auth required)
+  /chat/start:
+    post:
+      operationId: startChat
+      tags: [chat]
+      summary: Start a new customer chat session (public)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatStartInput"
+      responses:
+        "201":
+          description: New chat session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSession"
+
+  /chat/{token}/message:
+    post:
+      operationId: sendChatMessage
+      tags: [chat]
+      summary: Send a message in a customer chat session (public, SSE response)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageInput"
+      responses:
+        "200":
+          description: SSE stream of AI response chunks
+          content:
+            text/event-stream: {}
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /chat/{token}:
+    get:
+      operationId: getChatSession
+      tags: [chat]
+      summary: Get chat session and messages (public)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chat session with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSessionWithMessages"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +400,346 @@ components:
       required:
         - status
 
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        tradeType:
+          type: string
+        serviceArea:
+          type: string
+        labourRatePerHour:
+          type: number
+        materialMarkupPercent:
+          type: number
+        preferredSuppliers:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - tradeType
+        - serviceArea
+        - labourRatePerHour
+        - materialMarkupPercent
+        - createdAt
+        - updatedAt
+
+    CompanyInput:
+      type: object
+      properties:
+        name:
+          type: string
+        tradeType:
+          type: string
+        serviceArea:
+          type: string
+        labourRatePerHour:
+          type: number
+        materialMarkupPercent:
+          type: number
+        preferredSuppliers:
+          type: string
+        logoUrl:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+
+    Enquiry:
+      type: object
+      properties:
+        id:
+          type: number
+        customerName:
+          type: string
+        customerEmail:
+          type: ["string", "null"]
+        customerPhone:
+          type: ["string", "null"]
+        projectType:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        budget:
+          type: ["string", "null"]
+        timescale:
+          type: ["string", "null"]
+        status:
+          type: string
+        aiSummary:
+          type: ["string", "null"]
+        attachmentUrls:
+          type: ["string", "null"]
+        chatToken:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - customerName
+        - status
+        - createdAt
+        - updatedAt
+
+    EnquiryInput:
+      type: object
+      properties:
+        customerName:
+          type: string
+        customerEmail:
+          type: string
+        customerPhone:
+          type: string
+        projectType:
+          type: string
+        location:
+          type: string
+        description:
+          type: string
+        budget:
+          type: string
+        timescale:
+          type: string
+        status:
+          type: string
+      required:
+        - customerName
+
+    EnquiryUpdate:
+      type: object
+      properties:
+        customerName:
+          type: string
+        customerEmail:
+          type: string
+        customerPhone:
+          type: string
+        projectType:
+          type: string
+        location:
+          type: string
+        description:
+          type: string
+        budget:
+          type: string
+        timescale:
+          type: string
+        status:
+          type: string
+        aiSummary:
+          type: string
+
+    EnquiryMessage:
+      type: object
+      properties:
+        id:
+          type: number
+        enquiryId:
+          type: number
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - enquiryId
+        - role
+        - content
+        - createdAt
+
+    Quote:
+      type: object
+      properties:
+        id:
+          type: number
+        enquiryId:
+          type: number
+        customerDetails:
+          type: ["string", "null"]
+        projectDescription:
+          type: ["string", "null"]
+        materialsAllowance:
+          type: number
+        labourAllowance:
+          type: number
+        estimatedTotal:
+          type: number
+        vatAmount:
+          type: number
+        totalWithVat:
+          type: number
+        notes:
+          type: ["string", "null"]
+        assumptions:
+          type: ["string", "null"]
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - enquiryId
+        - materialsAllowance
+        - labourAllowance
+        - estimatedTotal
+        - vatAmount
+        - totalWithVat
+        - status
+        - createdAt
+        - updatedAt
+
+    QuoteUpdate:
+      type: object
+      properties:
+        customerDetails:
+          type: string
+        projectDescription:
+          type: string
+        materialsAllowance:
+          type: number
+        labourAllowance:
+          type: number
+        estimatedTotal:
+          type: number
+        vatAmount:
+          type: number
+        totalWithVat:
+          type: number
+        notes:
+          type: string
+        assumptions:
+          type: string
+        status:
+          type: string
+
+    DashboardStats:
+      type: object
+      properties:
+        totalEnquiries:
+          type: number
+        newEnquiries:
+          type: number
+        reviewing:
+          type: number
+        surveyRequired:
+          type: number
+        quoteSent:
+          type: number
+        won:
+          type: number
+        lost:
+          type: number
+        totalQuoteValue:
+          type: number
+        recentEnquiries:
+          type: array
+          items:
+            $ref: "#/components/schemas/Enquiry"
+      required:
+        - totalEnquiries
+        - newEnquiries
+        - reviewing
+        - surveyRequired
+        - quoteSent
+        - won
+        - lost
+        - totalQuoteValue
+        - recentEnquiries
+
+    ChatStartInput:
+      type: object
+      properties:
+        tradeType:
+          type: string
+      required:
+        - tradeType
+
+    ChatSession:
+      type: object
+      properties:
+        token:
+          type: string
+        enquiryId:
+          type: number
+        tradeType:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - token
+        - enquiryId
+        - tradeType
+        - createdAt
+
+    ChatSessionWithMessages:
+      type: object
+      properties:
+        token:
+          type: string
+        enquiryId:
+          type: number
+        tradeType:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/EnquiryMessage"
+      required:
+        - token
+        - enquiryId
+        - tradeType
+        - createdAt
+        - messages
+
+    ChatMessageInput:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content

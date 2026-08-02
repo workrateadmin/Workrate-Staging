@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "WorkRate"
+description = "WorkRate is an AI operating system for trade businesses (joiners, builders, electricians, plumbers, kitchen installers). It provides an AI customer enquiry assistant that gathers project details via chat, a lead management dashboard for the business owner showing enquiry pipeline by status, AI-generated job summaries, a draft quote generator, and a company profile editor."
+version = "1.0.0"
+id = "artifacts/workrate"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20493
+
+[services.development]
+run = "pnpm --filter @workspace/workrate run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/workrate", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/workrate/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20493"
+BASE_PATH = "/"

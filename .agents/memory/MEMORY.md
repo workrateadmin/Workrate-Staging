@@ -1,0 +1,3 @@
+- [WorkRate app overview](workrate-overview.md) — full-stack SaaS for UK trades; React+Vite frontend, Express 5 API, Drizzle+Postgres, Clerk auth, OpenAI
+- [WorkRate query hook pattern](workrate-query-hooks.md) — queryKey is required in query options or TS errors; always pass getGet*QueryKey()
+- [WorkRate API zod integer quirk](workrate-zod-int-quirk.md) — use type: number not integer in OpenAPI spec; zod.int() doesn't exist in this zod version

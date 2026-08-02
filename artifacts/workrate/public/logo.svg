@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Navy Blue Background -->
+  <rect width="512" height="512" rx="128" fill="#0E1629"/>
+  <!-- Industrial Orange Construct -->
+  <path d="M124 350L180 200L236 350H276L332 200L388 350H430L352 140H312L256 290L200 140H160L82 350H124Z" fill="#F97316"/>
+  <!-- Accent highlight -->
+  <path d="M388 350L332 200H312L352 140L430 350H388Z" fill="#EA580C"/>
+</svg>
