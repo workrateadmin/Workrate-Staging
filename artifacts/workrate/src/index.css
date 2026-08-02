@@ -66,50 +66,50 @@
   --button-outline: rgba(0, 0, 0, 0.1);
   --badge-outline: rgba(0, 0, 0, 0.05);
   --opaque-button-border-intensity: -8;
-  --elevate-1: rgba(0, 0, 0, 0.03);
-  --elevate-2: rgba(0, 0, 0, 0.08);
+  --elevate-1: rgba(30, 20, 10, 0.03);
+  --elevate-2: rgba(30, 20, 10, 0.06);
 
-  --background: 210 20% 98%;
+  --background: 40 20% 98%; /* Warm off-white */
   --foreground: 224 47% 11%;
   
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
+  --border: 35 15% 88%; /* Warm low-opacity border */
+  --input: 35 15% 88%;
   --ring: 24 95% 53%;
 
   --card: 0 0% 100%;
   --card-foreground: 224 47% 11%;
-  --card-border: 214 32% 91%;
+  --card-border: 35 15% 88%;
 
-  --sidebar: 224 47% 11%;
-  --sidebar-foreground: 210 20% 98%;
-  --sidebar-border: 224 47% 11%;
+  --sidebar: 222 47% 8%; /* Near-black navy */
+  --sidebar-foreground: 210 20% 80%; /* Warm light */
+  --sidebar-border: 222 47% 8%;
   --sidebar-primary: 24 95% 53%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 222 47% 15%;
-  --sidebar-accent-foreground: 210 20% 98%;
+  --sidebar-accent: 24 95% 53%; /* Active accent */
+  --sidebar-accent-foreground: 24 95% 53%;
   --sidebar-ring: 24 95% 53%;
 
   --popover: 0 0% 100%;
   --popover-foreground: 224 47% 11%;
-  --popover-border: 214 32% 91%;
+  --popover-border: 35 15% 88%;
 
   --primary: 24 95% 53%; /* Industrial Orange */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 214 32% 91%;
+  --secondary: 35 20% 96%;
   --secondary-foreground: 224 47% 11%;
 
-  --muted: 210 20% 96%;
-  --muted-foreground: 215 16% 47%;
+  --muted: 35 20% 96%;
+  --muted-foreground: 30 8% 46%; /* Warm gray */
 
-  --accent: 214 32% 91%;
+  --accent: 35 20% 96%;
   --accent-foreground: 224 47% 11%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 40% 98%;
 
   --chart-1: 24 95% 53%;
-  --chart-2: 215 16% 47%;
+  --chart-2: 30 8% 46%;
   --chart-3: 224 47% 11%;
   --chart-4: 43 74% 66%;
   --chart-5: 27 87% 67%;
@@ -119,14 +119,14 @@
   --app-font-mono: 'Spline Sans Mono', monospace;
   --radius: 0.5rem;
   
-  --shadow-2xs: 0px 2px 0px 0px rgba(0, 0, 0, 0.02);
-  --shadow-xs: 0px 2px 0px 0px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0px 2px 0px 0px rgba(0, 0, 0, 0.04), 0px 1px 2px -1px rgba(0, 0, 0, 0.02);
-  --shadow: 0px 2px 0px 0px rgba(0, 0, 0, 0.04), 0px 1px 2px -1px rgba(0, 0, 0, 0.02);
-  --shadow-md: 0px 2px 0px 0px rgba(0, 0, 0, 0.04), 0px 2px 4px -1px rgba(0, 0, 0, 0.02);
-  --shadow-lg: 0px 2px 0px 0px rgba(0, 0, 0, 0.04), 0px 4px 6px -1px rgba(0, 0, 0, 0.02);
-  --shadow-xl: 0px 2px 0px 0px rgba(0, 0, 0, 0.04), 0px 8px 10px -1px rgba(0, 0, 0, 0.02);
-  --shadow-2xl: 0px 2px 0px 0px rgba(0, 0, 0, 0.04);
+  --shadow-2xs: 0px 1px 2px rgba(30, 20, 10, 0.02);
+  --shadow-xs: 0px 1px 3px rgba(30, 20, 10, 0.04);
+  --shadow-sm: 0px 1px 3px rgba(30, 20, 10, 0.06), 0px 1px 2px -1px rgba(30, 20, 10, 0.03);
+  --shadow: 0px 2px 4px rgba(30, 20, 10, 0.06), 0px 1px 2px -1px rgba(30, 20, 10, 0.03);
+  --shadow-md: 0px 4px 6px -1px rgba(30, 20, 10, 0.06), 0px 2px 4px -1px rgba(30, 20, 10, 0.03);
+  --shadow-lg: 0px 10px 15px -3px rgba(30, 20, 10, 0.06), 0px 4px 6px -2px rgba(30, 20, 10, 0.03);
+  --shadow-xl: 0px 20px 25px -5px rgba(30, 20, 10, 0.06), 0px 10px 10px -5px rgba(30, 20, 10, 0.03);
+  --shadow-2xl: 0px 25px 50px -12px rgba(30, 20, 10, 0.15);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
