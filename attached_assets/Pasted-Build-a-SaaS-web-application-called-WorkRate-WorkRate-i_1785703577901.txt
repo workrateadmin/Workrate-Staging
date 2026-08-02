@@ -1,0 +1,103 @@
+Build a SaaS web application called WorkRate.
+
+WorkRate is an AI operating system for trade businesses. The first version should focus on helping trades handle customer enquiries and prepare draft quotes.
+
+The target users are small trade businesses such as joiners, builders, electricians, plumbers and kitchen installers.
+
+Create a clean, professional dashboard with a modern construction/software feel.
+
+Core features:
+
+1. Customer AI enquiry assistant:
+- Create a chat interface where customers can describe their project.
+- The AI should ask relevant questions based on the trade and job type.
+- Collect:
+  - Customer name
+  - Contact details
+  - Job description
+  - Project type
+  - Location/postcode
+  - Measurements
+  - Materials required
+  - Preferred finishes/styles
+  - Budget range
+  - Timescale
+  - Photos/uploads
+
+2. Lead management dashboard:
+Create a business owner dashboard showing:
+- New enquiries
+- Customer details
+- Job summaries
+- Uploaded images
+- Project status:
+  - New enquiry
+  - Reviewing
+  - Survey required
+  - Quote sent
+  - Won
+  - Lost
+
+3. AI job summary:
+After a customer completes the chat, automatically create a professional job summary for the business owner.
+
+Example:
+
+Customer:
+John Smith
+
+Project:
+Bespoke fitted wardrobes
+
+Details:
+3.2m wide alcove, painted MDF doors, internal shelving, soft close hardware.
+
+Estimated next action:
+Arrange site survey.
+
+4. Draft quote generator:
+Create a feature that generates a draft quote based on the information collected.
+
+The quote should include:
+- Customer details
+- Project description
+- Materials allowance
+- Labour allowance
+- Estimated total
+- Notes and assumptions
+
+Allow the business owner to edit the quote before sending.
+
+5. Company profile:
+Allow each trade business to set:
+- Company name
+- Trade type
+- Service area
+- Labour rates
+- Material markups
+- Preferred suppliers
+- Branding/logo
+
+6. AI behaviour:
+The AI should act like an experienced office assistant for a trade company.
+It should:
+- Be friendly and professional.
+- Ask useful questions.
+- Avoid giving final prices without enough information.
+- Know when a site visit is required.
+
+7. Build the application so it can later integrate with:
+- Facebook Messenger
+- Instagram messages
+- WhatsApp Business
+- Website chat widgets
+- Accounting software
+
+Technical requirements:
+- Create a responsive web application.
+- Use a modern UI.
+- Include authentication for business users.
+- Store customer enquiries and projects in a database.
+- Structure the code so more trade categories can be added later.
+
+Start by building a working prototype with realistic demo data for a joinery business.
