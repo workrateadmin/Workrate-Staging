@@ -10,10 +10,9 @@ import { quoteSchema } from "@/lib/schemas";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Sparkles, Send } from "lucide-react";
+import { ArrowLeft, Save, Sparkles, Send, Receipt, FileText } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -72,9 +71,9 @@ export default function QuoteEditor() {
     }
   }, [quote, form]);
 
-  if (isLoadingQuote) return <div className="p-8 max-w-4xl mx-auto"><Skeleton className="h-[600px] w-full" /></div>;
+  if (isLoadingQuote) return <div className="p-8 max-w-5xl mx-auto"><Skeleton className="h-[600px] w-full rounded-2xl" /></div>;
 
-  if (!quote) return <div className="p-8 text-center text-muted-foreground font-medium">Quote not found. <Link href={`/enquiries/${id}`} className="text-primary hover:underline">Back to enquiry</Link></div>;
+  if (!quote) return <div className="p-16 text-center text-muted-foreground font-bold text-lg bg-card rounded-2xl border border-border/60 max-w-3xl mx-auto mt-12 shadow-sm">Quote not found. <Link href={`/enquiries/${id}`} className="text-primary hover:underline ml-2">Back to enquiry</Link></div>;
 
   const materials = Number(form.watch("materialsAllowance")) || 0;
   const labour = Number(form.watch("labourAllowance")) || 0;
@@ -102,28 +101,28 @@ export default function QuoteEditor() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto pb-24 space-y-6 animate-in fade-in-0 duration-500">
-      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <Link href={`/enquiries/${id}`} className="hover:text-primary flex items-center gap-1 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to Enquiry
+    <div className="max-w-5xl mx-auto pb-24 space-y-8 animate-in fade-in-0 duration-500">
+      <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground">
+        <Link href={`/enquiries/${id}`} className="hover:text-foreground flex items-center gap-1.5 transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Back to Enquiry Details
         </Link>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-border/50 pb-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border/60 pb-8">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-3xl font-black tracking-tight">Quote #ENQ-{id}</h1>
-            <span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider border ${form.watch("status") === "sent" ? "bg-violet-100 text-violet-800 border-violet-200" : "bg-gray-100 text-gray-800 border-gray-200"}`}>
+          <div className="flex items-center gap-4 mb-2">
+            <h1 className="text-4xl font-black tracking-tight">Quote #ENQ-{id}</h1>
+            <span className={`px-3 py-1 rounded-md text-xs font-bold uppercase tracking-widest border shadow-sm ${form.watch("status") === "sent" ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-gray-50 text-gray-700 border-gray-200"}`}>
               {form.watch("status")}
             </span>
           </div>
-          <p className="text-muted-foreground font-medium">For {enquiry?.customerName || "Customer"}</p>
+          <p className="text-muted-foreground font-semibold text-lg">Prepared for <span className="text-foreground">{enquiry?.customerName || "Customer"}</span></p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button type="button" variant="outline" onClick={() => form.handleSubmit(onSubmit)()} disabled={updateQuote.isPending} className="font-semibold bg-card">
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <Button type="button" variant="outline" onClick={() => form.handleSubmit(onSubmit)()} disabled={updateQuote.isPending} className="font-bold bg-background border-border/60 hover:bg-secondary flex-1 md:flex-none h-12 px-6 rounded-xl">
             <Save className="w-4 h-4 mr-2"/> Save Draft
           </Button>
-          <Button type="button" onClick={handleMarkAsSent} disabled={updateQuote.isPending} className="font-semibold shadow-sm hover-elevate">
+          <Button type="button" onClick={handleMarkAsSent} disabled={updateQuote.isPending} className="font-bold shadow-md hover-elevate flex-1 md:flex-none h-12 px-6 rounded-xl">
             <Send className="w-4 h-4 mr-2"/> Mark as Sent
           </Button>
         </div>
@@ -131,133 +130,138 @@ export default function QuoteEditor() {
 
       <Form {...form}>
         <form className="space-y-8">
-          {/* Customer Section */}
-          <div className="bg-secondary/30 p-5 rounded-xl border border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Customer Details</p>
-              <p className="font-semibold text-lg">{enquiry?.customerName}</p>
-              <p className="text-sm text-muted-foreground">{enquiry?.customerEmail} • {enquiry?.customerPhone}</p>
+          <Card className="shadow-sm border-border/60 overflow-hidden rounded-2xl bg-card">
+            <div className="px-8 py-5 border-b border-border/60 bg-secondary/30 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-muted-foreground" />
+              <h2 className="font-bold text-lg">Project Scope</h2>
             </div>
-            <div className="text-right">
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Location</p>
-              <p className="text-sm font-medium">{enquiry?.location || "No location provided"}</p>
-            </div>
-          </div>
+            <CardContent className="p-8">
+              <FormField
+                control={form.control}
+                name="projectDescription"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Textarea rows={6} className="bg-background resize-none border-border/60 text-base p-4 font-medium rounded-xl focus-visible:ring-primary/20" placeholder="Detailed description of works..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
 
-          <Card className="shadow-sm border-border/50 overflow-hidden">
+          <Card className="shadow-sm border-border/60 overflow-hidden rounded-2xl bg-card">
+            <div className="px-8 py-5 border-b border-border/60 bg-secondary/30 flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-muted-foreground" />
+              <h2 className="font-bold text-lg">Financial Breakdown</h2>
+            </div>
             <CardContent className="p-0">
-              <div className="p-6 border-b border-border/40">
-                <FormField
-                  control={form.control}
-                  name="projectDescription"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-base font-bold">Project Description</FormLabel>
-                      <FormControl>
-                        <Textarea rows={4} className="bg-card resize-none mt-2" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Financials Section */}
-              <div className="p-6 bg-secondary/5">
-                <h3 className="text-base font-bold mb-4">Financial Breakdown</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                  <FormField
-                    control={form.control}
-                    name="materialsAllowance"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Materials (£)</FormLabel>
-                        <FormControl>
-                          <Input type="number" step="0.01" className="text-lg font-medium bg-card" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="labourAllowance"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Labour (£)</FormLabel>
-                        <FormControl>
-                          <Input type="number" step="0.01" className="text-lg font-medium bg-card" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <div className="space-y-2">
-                    <FormLabel className="text-sm font-semibold text-muted-foreground uppercase tracking-wider block">Subtotal</FormLabel>
-                    <div className="h-10 flex items-center text-xl font-bold px-3">
-                      {formatCurrency(subtotal)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-border/40 pt-6 flex flex-col items-end space-y-4">
-                  <div className="w-full sm:w-64">
+              <div className="p-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className="space-y-8">
+                    <FormField
+                      control={form.control}
+                      name="materialsAllowance"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Materials Allowance (£)</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.01" className="text-xl font-bold bg-background h-14 border-border/60 rounded-xl focus-visible:ring-primary/20 px-4" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="labourAllowance"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Labour Allowance (£)</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.01" className="text-xl font-bold bg-background h-14 border-border/60 rounded-xl focus-visible:ring-primary/20 px-4" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <FormField
                       control={form.control}
                       name="vatAmount"
                       render={({ field }) => (
-                        <FormItem className="flex items-center justify-between gap-4 space-y-0">
-                          <FormLabel className="text-sm font-semibold text-muted-foreground">VAT 20% (£)</FormLabel>
+                        <FormItem>
+                          <FormLabel className="text-sm font-bold text-muted-foreground uppercase tracking-widest">VAT Amount (£)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.01" className="w-32 text-right bg-card font-medium" {...field} />
+                            <Input type="number" step="0.01" className="text-xl font-bold bg-background h-14 border-border/60 rounded-xl focus-visible:ring-primary/20 px-4" {...field} />
                           </FormControl>
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
                   </div>
-                  
-                  <div className="w-full sm:w-72 bg-sidebar text-sidebar-foreground p-5 rounded-xl shadow-md flex items-center justify-between">
-                    <span className="font-bold text-sidebar-foreground/80 uppercase tracking-wider text-sm">Total inc. VAT</span>
-                    <span className="text-3xl font-black text-primary">{formatCurrency(total)}</span>
+
+                  {/* Totals Summary */}
+                  <div className="bg-secondary/40 rounded-2xl p-8 border border-border/40 flex flex-col justify-center space-y-6">
+                    <div className="flex items-center justify-between border-b border-border/60 pb-4">
+                      <span className="font-bold text-muted-foreground text-lg">Subtotal</span>
+                      <span className="font-black text-2xl">{formatCurrency(subtotal)}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-b border-border/60 pb-4">
+                      <span className="font-bold text-muted-foreground text-lg">VAT (20%)</span>
+                      <span className="font-black text-2xl">{formatCurrency(vat)}</span>
+                    </div>
+                    <div className="flex items-center justify-between bg-sidebar text-sidebar-foreground p-6 rounded-xl shadow-md mt-4">
+                      <span className="font-bold text-sidebar-foreground/80 uppercase tracking-widest text-sm">Total inc. VAT</span>
+                      <span className="text-4xl font-black text-primary">{formatCurrency(total)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="font-bold">Additional Notes</FormLabel>
-                  <FormControl>
-                    <Textarea rows={4} className="bg-card resize-none" placeholder="Special requirements, timescales..." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="assumptions"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="font-bold">Assumptions / Exclusions</FormLabel>
-                  <FormControl>
-                    <Textarea rows={4} className="bg-card resize-none" placeholder="What is not included in this quote..." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <Card className="shadow-sm border-border/60 rounded-2xl bg-card">
+              <CardContent className="p-6">
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-bold text-lg mb-3 block">Additional Notes</FormLabel>
+                      <FormControl>
+                        <Textarea rows={5} className="bg-background resize-none border-border/60 rounded-xl focus-visible:ring-primary/20 font-medium" placeholder="Special requirements, timescales..." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+            
+            <Card className="shadow-sm border-border/60 rounded-2xl bg-card">
+              <CardContent className="p-6">
+                <FormField
+                  control={form.control}
+                  name="assumptions"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-bold text-lg mb-3 block">Assumptions / Exclusions</FormLabel>
+                      <FormControl>
+                        <Textarea rows={5} className="bg-background resize-none border-border/60 rounded-xl focus-visible:ring-primary/20 font-medium" placeholder="What is not included in this quote..." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
           </div>
 
-          <div className="flex justify-start border-t border-border/50 pt-8">
-            <Button type="button" variant="outline" className="font-semibold hover-elevate">
-              <Sparkles className="w-4 h-4 mr-2 text-primary" />
+          <div className="flex justify-start border-t border-border/60 pt-8 mt-12">
+            <Button type="button" variant="outline" className="font-bold hover-elevate h-12 px-6 rounded-xl border-2 border-primary/30 text-primary hover:bg-primary/5 bg-background">
+              <Sparkles className="w-5 h-5 mr-2 text-primary" />
               Re-generate with AI
             </Button>
           </div>

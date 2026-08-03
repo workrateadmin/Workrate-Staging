@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useRef } from "react";
-import { Save, Building2, UploadCloud } from "lucide-react";
+import { Save, Building2, UploadCloud, MapPin, PoundSterling } from "lucide-react";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
@@ -68,7 +68,7 @@ export default function Settings() {
     }
   }, [company, form]);
 
-  if (isLoading) return <div className="p-8 max-w-3xl mx-auto"><Skeleton className="h-[600px] w-full" /></div>;
+  if (isLoading) return <div className="p-8 max-w-4xl mx-auto"><Skeleton className="h-[600px] w-full rounded-2xl" /></div>;
 
   function onSubmit(values: FormValues) {
     updateCompany.mutate({
@@ -84,50 +84,50 @@ export default function Settings() {
   const exampleJob = currentRate * 4;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 pb-24 animate-in fade-in-0 duration-500">
-      <div className="border-b border-border/50 pb-6">
-        <h1 className="text-3xl font-black tracking-tight mb-1">Company Profile</h1>
-        <p className="text-muted-foreground font-medium">How your business appears to customers and on quotes.</p>
+    <div className="max-w-4xl mx-auto space-y-8 pb-24 animate-in fade-in-0 duration-500">
+      <div className="border-b border-border/60 pb-8 mb-8">
+        <h1 className="text-4xl font-black tracking-tight mb-3">Company Profile</h1>
+        <p className="text-muted-foreground font-semibold text-lg max-w-2xl">Configure how your business appears to customers and set your pricing defaults for AI quotes.</p>
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 relative">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 relative">
           
-          <Card className="shadow-sm border-border/50 overflow-hidden">
-            <div className="px-6 py-4 border-b border-border/40 bg-secondary/30">
-              <h2 className="text-base font-bold flex items-center gap-2">
+          <Card className="shadow-sm border-border/60 overflow-hidden rounded-2xl bg-card">
+            <div className="px-8 py-5 border-b border-border/60 bg-secondary/30">
+              <h2 className="text-lg font-bold flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-primary" /> Business Details
               </h2>
             </div>
-            <CardContent className="p-6 space-y-6">
-              <div className="flex flex-col sm:flex-row gap-6 items-start">
-                <div className="w-24 h-24 shrink-0 rounded-xl border-2 border-dashed border-border/80 flex flex-col items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer group bg-secondary/20">
-                  <UploadCloud className="w-6 h-6 mb-1 group-hover:scale-110 transition-transform" />
-                  <span className="text-[10px] font-bold uppercase tracking-wide">Upload Logo</span>
+            <CardContent className="p-8 space-y-8">
+              <div className="flex flex-col sm:flex-row gap-8 items-start">
+                <div className="w-32 h-32 shrink-0 rounded-2xl border-2 border-dashed border-border/80 flex flex-col items-center justify-center text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-all cursor-pointer group bg-secondary/20 shadow-sm">
+                  <UploadCloud className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform duration-300" />
+                  <span className="text-xs font-bold uppercase tracking-widest">Logo</span>
                 </div>
-                <div className="flex-1 space-y-4 w-full">
+                <div className="flex-1 space-y-6 w-full">
                   <FormField control={form.control} name="name" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-semibold">Company Name</FormLabel>
-                      <FormControl><Input className="bg-card" {...field} /></FormControl>
+                      <FormLabel className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Company Name</FormLabel>
+                      <FormControl><Input className="bg-background h-12 font-semibold text-lg border-border/60 rounded-xl" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 <FormField control={form.control} name="tradeType" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-semibold">Trade Type</FormLabel>
-                    <FormControl><Input className="bg-card" placeholder="e.g. Joinery, Plumbing" {...field} /></FormControl>
+                    <FormLabel className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Trade Type</FormLabel>
+                    <FormControl><Input className="bg-background h-12 font-medium border-border/60 rounded-xl" placeholder="e.g. Joinery, Plumbing" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="serviceArea" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-semibold">Service Area</FormLabel>
-                    <FormControl><Input className="bg-card" placeholder="e.g. London & South East" {...field} /></FormControl>
+                    <FormLabel className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Service Area</FormLabel>
+                    <FormControl><Input className="bg-background h-12 font-medium border-border/60 rounded-xl" placeholder="e.g. London & South East" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -135,23 +135,25 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm border-border/50 overflow-hidden">
-            <div className="px-6 py-4 border-b border-border/40 bg-secondary/30">
-              <h2 className="text-base font-bold">Contact & Location</h2>
+          <Card className="shadow-sm border-border/60 overflow-hidden rounded-2xl bg-card">
+            <div className="px-8 py-5 border-b border-border/60 bg-secondary/30">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                 <MapPin className="w-5 h-5 text-primary" /> Contact & Location
+              </h2>
             </div>
-            <CardContent className="p-6 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <CardContent className="p-8 space-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 <FormField control={form.control} name="email" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-semibold">Contact Email</FormLabel>
-                    <FormControl><Input className="bg-card" type="email" {...field} /></FormControl>
+                    <FormLabel className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Contact Email</FormLabel>
+                    <FormControl><Input className="bg-background h-12 font-medium border-border/60 rounded-xl" type="email" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="phone" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-semibold">Phone Number</FormLabel>
-                    <FormControl><Input className="bg-card" {...field} /></FormControl>
+                    <FormLabel className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Phone Number</FormLabel>
+                    <FormControl><Input className="bg-background h-12 font-medium border-border/60 rounded-xl" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -159,39 +161,43 @@ export default function Settings() {
 
               <FormField control={form.control} name="address" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="font-semibold">Business Address</FormLabel>
-                  <FormControl><Textarea className="bg-card resize-none" rows={3} {...field} /></FormControl>
+                  <FormLabel className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Business Address</FormLabel>
+                  <FormControl><Textarea className="bg-background resize-none border-border/60 rounded-xl p-4 font-medium" rows={3} {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm border-border/50 overflow-hidden">
-            <div className="px-6 py-4 border-b border-border/40 bg-secondary/30">
-              <h2 className="text-base font-bold">Pricing Defaults</h2>
+          <Card className="shadow-sm border-border/60 overflow-hidden rounded-2xl bg-card">
+            <div className="px-8 py-5 border-b border-border/60 bg-secondary/30">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <PoundSterling className="w-5 h-5 text-primary" /> Pricing Defaults
+              </h2>
             </div>
-            <CardContent className="p-6 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <CardContent className="p-8 space-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 <FormField control={form.control} name="labourRatePerHour" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-semibold">Labour Rate (£/hr)</FormLabel>
+                    <FormLabel className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Labour Rate (£/hr)</FormLabel>
                     <FormControl>
-                      <Input className="bg-card" type="number" {...field} />
+                      <Input className="bg-background h-12 font-bold text-lg border-border/60 rounded-xl" type="number" {...field} />
                     </FormControl>
                     {currentRate > 0 && (
-                      <p className="text-sm font-medium text-muted-foreground mt-2">
-                        e.g. A 4-hour job at this rate = <span className="text-foreground">{formatCurrency(exampleJob)}</span>
-                      </p>
+                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mt-3">
+                         <p className="text-sm font-semibold text-foreground/80">
+                           AI quotes will estimate <span className="text-primary font-bold">{formatCurrency(exampleJob)}</span> for a typical half-day (4hr) job.
+                         </p>
+                      </div>
                     )}
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="materialMarkupPercent" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-semibold">Materials Markup (%)</FormLabel>
-                    <FormControl><Input className="bg-card" type="number" {...field} /></FormControl>
-                    <p className="text-sm font-medium text-muted-foreground mt-2">Added to cost price on quotes</p>
+                    <FormLabel className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Materials Markup (%)</FormLabel>
+                    <FormControl><Input className="bg-background h-12 font-bold text-lg border-border/60 rounded-xl" type="number" {...field} /></FormControl>
+                    <p className="text-sm font-semibold text-muted-foreground mt-3">Automatically added to cost prices generated by AI on quotes.</p>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -199,9 +205,9 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          <div className="sticky bottom-6 mt-8 flex justify-end">
-            <Button type="submit" size="lg" className="w-full sm:w-auto font-semibold hover-elevate shadow-lg h-12 px-8" disabled={updateCompany.isPending}>
-              <Save className="w-4 h-4 mr-2" />
+          <div className="sticky bottom-8 mt-12 flex justify-end">
+            <Button type="submit" size="lg" className="w-full sm:w-auto font-bold hover-elevate shadow-xl h-14 px-10 text-lg rounded-2xl" disabled={updateCompany.isPending}>
+              <Save className="w-5 h-5 mr-3" />
               {updateCompany.isPending ? "Saving..." : "Save Settings"}
             </Button>
           </div>

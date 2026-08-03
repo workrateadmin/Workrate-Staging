@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { Inbox, TrendingUp, ChevronRight, MessageSquare } from "lucide-react";
+import { Inbox, TrendingUp, ChevronRight, MessageSquare, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
@@ -12,9 +12,8 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)}
         </div>
       </div>
     );
@@ -27,16 +26,16 @@ export default function Dashboard() {
   const inProgress = stats.reviewing + stats.surveyRequired;
 
   const statCards = [
-    { title: "New Enquiries", value: stats.newEnquiries, borderColor: "border-l-blue-500" },
-    { title: "In Progress", value: inProgress, borderColor: "border-l-amber-500" },
-    { title: "Quotes Sent", value: stats.quoteSent, borderColor: "border-l-violet-500" },
-    { title: "Jobs Won", value: stats.won, borderColor: "border-l-emerald-500" },
+    { title: "New Leads", value: stats.newEnquiries, color: "text-blue-600", bg: "bg-blue-600/10" },
+    { title: "In Progress", value: inProgress, color: "text-amber-600", bg: "bg-amber-600/10" },
+    { title: "Quoted", value: stats.quoteSent, color: "text-violet-600", bg: "bg-violet-600/10" },
+    { title: "Won Jobs", value: stats.won, color: "text-emerald-600", bg: "bg-emerald-600/10" },
   ];
 
   const totalPipelineEnquiries = stats.newEnquiries + inProgress + stats.quoteSent;
   const breakDown = [
     { label: "New", value: stats.newEnquiries, color: "bg-blue-500", percent: totalPipelineEnquiries ? (stats.newEnquiries / totalPipelineEnquiries) * 100 : 0 },
-    { label: "Review", value: inProgress, color: "bg-amber-500", percent: totalPipelineEnquiries ? (inProgress / totalPipelineEnquiries) * 100 : 0 },
+    { label: "Reviewing", value: inProgress, color: "bg-amber-500", percent: totalPipelineEnquiries ? (inProgress / totalPipelineEnquiries) * 100 : 0 },
     { label: "Quoted", value: stats.quoteSent, color: "bg-violet-500", percent: totalPipelineEnquiries ? (stats.quoteSent / totalPipelineEnquiries) * 100 : 0 },
   ];
 
@@ -44,12 +43,15 @@ export default function Dashboard() {
     <div className="space-y-8 animate-in fade-in-0 duration-500">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((stat, i) => (
-          <Card key={i} className={`shadow-sm border-y border-r border-border/50 border-l-[3px] ${stat.borderColor}`}>
+          <Card key={i} className="shadow-sm border-border/60 hover-elevate transition-all overflow-hidden rounded-2xl">
             <CardContent className="p-6">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{stat.title}</p>
-                <p className="text-4xl font-black tracking-tight">{stat.value}</p>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">{stat.title}</p>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${stat.bg} ${stat.color}`}>
+                  <Briefcase className="w-4 h-4" />
+                </div>
               </div>
+              <p className="text-4xl font-black tracking-tight text-foreground">{stat.value}</p>
             </CardContent>
           </Card>
         ))}
@@ -58,26 +60,26 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-border/40">
+          <div className="flex items-center justify-between pb-2 border-b border-border/60">
             <h2 className="text-xl font-bold tracking-tight">Recent Jobs</h2>
             <Link href="/enquiries" className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
-              View pipeline <ChevronRight className="w-4 h-4" />
+              View all <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
           
           {stats.recentEnquiries.length === 0 ? (
-            <Card className="border-dashed bg-secondary/20 border-border/60">
+            <Card className="border-dashed bg-secondary/50 border-border/60 rounded-2xl">
               <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-4">
+                <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4">
                   <Inbox className="w-8 h-8" />
                 </div>
-                <h3 className="text-xl font-bold mb-2">No jobs yet</h3>
-                <p className="text-muted-foreground mb-6 max-w-sm">
-                  Post your chat link to start getting enquiries.
+                <h3 className="text-xl font-bold mb-2">Your pipeline is empty</h3>
+                <p className="text-muted-foreground mb-6 max-w-sm font-medium">
+                  Share your WorkRate chat link to start capturing leads instantly.
                 </p>
                 <Link href="/chat">
-                  <Button className="font-semibold shadow-sm hover-elevate">
-                    <MessageSquare className="w-4 h-4 mr-2" /> Open Chat Widget
+                  <Button className="font-semibold shadow-sm hover-elevate rounded-full px-6">
+                    <MessageSquare className="w-4 h-4 mr-2" /> View Chat Widget
                   </Button>
                 </Link>
               </CardContent>
@@ -86,16 +88,16 @@ export default function Dashboard() {
             <div className="grid gap-3">
               {stats.recentEnquiries.map(enq => (
                 <Link key={enq.id} href={`/enquiries/${enq.id}`}>
-                  <Card className={`relative overflow-hidden group hover-elevate cursor-pointer transition-all border-border/50`}>
-                    <div className={`absolute left-0 top-0 bottom-0 w-[3px] transition-colors group-hover:bg-primary ${getStatusColorBarClass(enq.status)}`} />
+                  <Card className="relative overflow-hidden group hover-elevate cursor-pointer transition-all border-border/60 bg-card rounded-xl shadow-sm hover:shadow-md">
+                    <div className={`absolute left-0 top-0 bottom-0 w-[4px] transition-colors ${getStatusColorBarClass(enq.status)}`} />
                     <CardContent className="p-4 pl-6 flex items-center justify-between">
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-lg">{enq.customerName}</h3>
+                          <h3 className="font-bold text-lg leading-none">{enq.customerName}</h3>
                         </div>
-                        <p className="text-sm font-medium">
+                        <p className="text-sm font-medium text-foreground/80">
                           {enq.projectType || "General Enquiry"}
-                          <span className="text-muted-foreground font-normal ml-2">
+                          <span className="text-muted-foreground ml-2 inline-block">
                             {enq.location ? `• ${enq.location}` : ""} • {formatDate(enq.createdAt)}
                           </span>
                         </p>
@@ -113,47 +115,51 @@ export default function Dashboard() {
 
         {/* Right Column */}
         <div className="space-y-6">
-          <Card className="shadow-sm border-border/50">
-            <CardContent className="p-6 space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+          <Card className="shadow-sm border-border/60 rounded-2xl bg-primary text-primary-foreground overflow-hidden relative">
+            {/* Background decoration */}
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none transform translate-x-4 -translate-y-4">
+              <TrendingUp className="w-32 h-32" />
+            </div>
+            
+            <CardContent className="p-6 space-y-3 relative z-10">
+              <div className="flex items-center gap-2 text-sm font-bold text-primary-foreground/80 uppercase tracking-widest">
                 Pipeline Value
               </div>
               <div className="flex items-center gap-3">
-                <p className="text-3xl font-black tracking-tight">{formatCurrency(stats.totalQuoteValue)}</p>
-                {stats.totalQuoteValue > 0 && <TrendingUp className="w-6 h-6 text-emerald-500" />}
+                <p className="text-4xl font-black tracking-tight">{formatCurrency(stats.totalQuoteValue)}</p>
               </div>
-              <p className="text-sm text-muted-foreground pt-1">
+              <p className="text-sm text-primary-foreground/80 font-medium">
                 Total estimated across all open quotes.
               </p>
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm border-border/50">
+          <Card className="shadow-sm border-border/60 rounded-2xl">
             <CardContent className="p-6">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Pipeline Breakdown</h3>
+              <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-5">Pipeline Breakdown</h3>
               {totalPipelineEnquiries === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-4 bg-secondary/30 rounded-lg border border-dashed">
+                <div className="text-sm text-muted-foreground text-center py-6 bg-secondary/50 rounded-xl border border-dashed font-medium">
                   No active pipeline data
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {/* Stacked Bar */}
-                  <div className="h-3 w-full bg-secondary rounded-full overflow-hidden flex">
+                  <div className="h-4 w-full bg-secondary rounded-full overflow-hidden flex shadow-inner">
                     {breakDown.map((item, i) => (
                       item.value > 0 && (
-                        <div key={i} className={`h-full ${item.color}`} style={{ width: `${item.percent}%` }} />
+                        <div key={i} className={`h-full ${item.color} transition-all duration-1000 ease-out`} style={{ width: `${item.percent}%` }} />
                       )
                     ))}
                   </div>
                   {/* Legend */}
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {breakDown.map((item, i) => (
                       <div key={i} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-sm ${item.color}`} />
-                          <span className="font-medium">{item.label}</span>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-3.5 h-3.5 rounded-sm ${item.color} shadow-sm`} />
+                          <span className="font-semibold text-foreground">{item.label}</span>
                         </div>
-                        <span className="text-muted-foreground font-semibold">{item.value}</span>
+                        <span className="text-muted-foreground font-bold">{item.value}</span>
                       </div>
                     ))}
                   </div>
@@ -181,18 +187,18 @@ export function getStatusColorBarClass(status: string) {
 
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; color: string }> = {
-    new_enquiry: { label: "New", color: "bg-blue-100 text-blue-800 border-blue-200" },
-    reviewing: { label: "Reviewing", color: "bg-amber-100 text-amber-800 border-amber-200" },
-    survey_required: { label: "Survey Required", color: "bg-amber-100 text-amber-800 border-amber-200" },
-    quote_sent: { label: "Quote Sent", color: "bg-violet-100 text-violet-800 border-violet-200" },
-    won: { label: "Won", color: "bg-emerald-100 text-emerald-800 border-emerald-200" },
-    lost: { label: "Lost", color: "bg-red-100 text-red-800 border-red-200" },
+    new_enquiry: { label: "New", color: "bg-blue-50 text-blue-700 border-blue-200" },
+    reviewing: { label: "Reviewing", color: "bg-amber-50 text-amber-700 border-amber-200" },
+    survey_required: { label: "Survey Required", color: "bg-amber-50 text-amber-700 border-amber-200" },
+    quote_sent: { label: "Quote Sent", color: "bg-violet-50 text-violet-700 border-violet-200" },
+    won: { label: "Won", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    lost: { label: "Lost", color: "bg-red-50 text-red-700 border-red-200" },
   };
 
-  const s = map[status] || { label: status, color: "bg-gray-100 text-gray-800 border-gray-200" };
+  const s = map[status] || { label: status, color: "bg-gray-50 text-gray-700 border-gray-200" };
 
   return (
-    <span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider border ${s.color}`}>
+    <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border shadow-sm ${s.color}`}>
       {s.label}
     </span>
   );
