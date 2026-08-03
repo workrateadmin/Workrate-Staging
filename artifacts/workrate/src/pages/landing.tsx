@@ -3,11 +3,14 @@
  *
  * "Get Started"    → business owners → /sign-up → dashboard
  * "Try WorkRate AI" → customers → opens the AI chat widget (no login)
+ *
+ * All navigation uses useLocation() + navigate() — never <Link><button>
+ * (nesting <button> inside <a> is invalid HTML and swallows click events).
  */
 import { useRef } from "react";
-import { Link } from "wouter";
+import { useLocation } from "wouter";
 import {
-  ArrowRight, Clock, Camera, Star, CheckCircle2,
+  ArrowRight, Camera, Star, CheckCircle2,
   ShieldCheck, MessageCircle, LayoutDashboard,
   Zap, FileText, Users,
 } from "lucide-react";
@@ -15,6 +18,7 @@ import ChatWidget, { type ChatWidgetHandle } from "@/components/chat-widget";
 
 export default function LandingPage() {
   const widgetRef = useRef<ChatWidgetHandle>(null);
+  const [, navigate] = useLocation();
 
   return (
     <div className="flex flex-col min-h-[100dvh] bg-white">
@@ -31,16 +35,18 @@ export default function LandingPage() {
           <span className="font-black text-xl tracking-tight text-slate-900">WorkRate</span>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/sign-in">
-            <button className="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors px-4 py-2 rounded-lg hover:bg-slate-50 hidden sm:block">
-              Sign in
-            </button>
-          </Link>
-          <Link href="/sign-up">
-            <button className="text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors px-4 py-2 rounded-lg shadow-sm">
-              Get Started
-            </button>
-          </Link>
+          <button
+            onClick={() => navigate("/sign-in")}
+            className="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors px-4 py-2 rounded-lg hover:bg-slate-50 hidden sm:block"
+          >
+            Sign in
+          </button>
+          <button
+            onClick={() => navigate("/sign-up")}
+            className="text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors px-4 py-2 rounded-lg shadow-sm"
+          >
+            Get Started
+          </button>
         </div>
       </header>
 
@@ -76,13 +82,14 @@ export default function LandingPage() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
 
               {/* Primary — business owner */}
-              <Link href="/sign-up">
-                <button className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-[0_8px_40px_rgba(37,99,235,0.5)] hover:shadow-[0_12px_50px_rgba(37,99,235,0.6)] transition-all hover:-translate-y-0.5 active:translate-y-0">
-                  <LayoutDashboard className="w-5 h-5" />
-                  Get Started
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </button>
-              </Link>
+              <button
+                onClick={() => navigate("/sign-up")}
+                className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-[0_8px_40px_rgba(37,99,235,0.5)] hover:shadow-[0_12px_50px_rgba(37,99,235,0.6)] transition-all hover:-translate-y-0.5 active:translate-y-0"
+              >
+                <LayoutDashboard className="w-5 h-5" />
+                Get Started
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </button>
 
               {/* Secondary — customer demo */}
               <button
@@ -126,12 +133,13 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/sign-up">
-                  <button className="group w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 px-6 rounded-xl transition-all">
-                    Get Started Free
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </button>
-                </Link>
+                <button
+                  onClick={() => navigate("/sign-up")}
+                  className="group w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 px-6 rounded-xl transition-all"
+                >
+                  Get Started Free
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </button>
               </div>
             </div>
 
@@ -265,13 +273,14 @@ export default function LandingPage() {
               Trade businesses: set up your dashboard and start capturing leads today. Customers: try the AI and get a quote in minutes.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/sign-up">
-                <button className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-0.5">
-                  <LayoutDashboard className="w-5 h-5" />
-                  Get Started Free
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </button>
-              </Link>
+              <button
+                onClick={() => navigate("/sign-up")}
+                className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-0.5"
+              >
+                <LayoutDashboard className="w-5 h-5" />
+                Get Started Free
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </button>
               <button
                 onClick={() => widgetRef.current?.open()}
                 className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 border-2 border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 text-lg font-black px-10 py-5 rounded-2xl transition-all hover:-translate-y-0.5"
@@ -299,12 +308,12 @@ export default function LandingPage() {
             <span className="text-sm text-slate-400">&copy; {new Date().getFullYear()}</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-slate-400">
-            <Link href="/sign-in">
-              <span className="hover:text-slate-700 font-semibold transition-colors cursor-pointer">Business login</span>
-            </Link>
-            <Link href="/sign-up">
-              <span className="hover:text-slate-700 font-semibold transition-colors cursor-pointer">Get started</span>
-            </Link>
+            <button onClick={() => navigate("/sign-in")} className="hover:text-slate-700 font-semibold transition-colors">
+              Business login
+            </button>
+            <button onClick={() => navigate("/sign-up")} className="hover:text-slate-700 font-semibold transition-colors">
+              Get started
+            </button>
           </div>
         </div>
       </footer>
