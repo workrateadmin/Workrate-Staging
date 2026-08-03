@@ -28,7 +28,12 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    runtimeErrorOverlay(),
+    runtimeErrorOverlay({
+      // Suppress the overlay for unknown/cross-origin errors (e.g. Clerk SDK
+      // unhandled rejections that have no actionable stack trace).  Real errors
+      // from our own code will still have a stack and will still show.
+      filter: (err) => Boolean(err.stack) && err.message !== '(unknown runtime error)',
+    }),
     ...(process.env.NODE_ENV !== 'production' &&
     process.env.REPL_ID !== undefined
       ? [
