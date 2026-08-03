@@ -18,7 +18,7 @@ import {
   GenerateEnquirySummaryParams,
   GenerateEnquirySummaryResponse,
 } from "@workspace/api-zod";
-import OpenAI from "openai";
+import { generateAndSaveSummary } from "../utils/generate-summary.js";
 
 const router: IRouter = Router();
 
@@ -31,11 +31,6 @@ const requireAuth = (req: any, res: any, next: any) => {
   next();
 };
 
-function getOpenAI() {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY not set");
-  return new OpenAI({ apiKey });
-}
 
 // List enquiries
 router.get("/enquiries", requireAuth, async (req, res): Promise<void> => {
@@ -195,55 +190,22 @@ router.post(
       return;
     }
 
-    const [enquiry] = await db
-      .select()
+    const existing = await db
+      .select({ id: enquiriesTable.id })
       .from(enquiriesTable)
       .where(eq(enquiriesTable.id, params.data.id));
 
-    if (!enquiry) {
+    if (!existing.length) {
       res.status(404).json({ error: "Enquiry not found" });
       return;
     }
 
-    const messages = await db
-      .select()
-      .from(enquiryMessagesTable)
-      .where(eq(enquiryMessagesTable.enquiryId, enquiry.id))
-      .orderBy(enquiryMessagesTable.createdAt);
-
-    const chatHistory = messages
-      .map((m) => `${m.role === "customer" ? "Customer" : "Assistant"}: ${m.content}`)
-      .join("\n");
-
-    const prompt = `You are an experienced trade business office assistant. Based on the following customer enquiry details and chat transcript, write a concise professional job summary for the business owner.
-
-Customer: ${enquiry.customerName}
-Email: ${enquiry.customerEmail ?? "Not provided"}
-Phone: ${enquiry.customerPhone ?? "Not provided"}
-Project Type: ${enquiry.projectType ?? "Not specified"}
-Location: ${enquiry.location ?? "Not provided"}
-Description: ${enquiry.description ?? "Not provided"}
-Budget: ${enquiry.budget ?? "Not provided"}
-Timescale: ${enquiry.timescale ?? "Not provided"}
-
-${chatHistory ? `Chat Transcript:\n${chatHistory}` : ""}
-
-Write a professional job summary (3-5 sentences) covering: the customer, the project scope, key requirements, and recommended next action (site survey, phone call, etc.). Be direct and practical.`;
-
-    const openai = getOpenAI();
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 400,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const summary = completion.choices[0]?.message?.content ?? "";
+    await generateAndSaveSummary(params.data.id);
 
     const [updated] = await db
-      .update(enquiriesTable)
-      .set({ aiSummary: summary })
-      .where(eq(enquiriesTable.id, enquiry.id))
-      .returning();
+      .select()
+      .from(enquiriesTable)
+      .where(eq(enquiriesTable.id, params.data.id));
 
     res.json(GenerateEnquirySummaryResponse.parse(updated));
   },

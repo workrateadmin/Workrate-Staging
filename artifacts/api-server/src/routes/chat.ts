@@ -14,6 +14,7 @@ import {
   GetChatSessionResponse,
 } from "@workspace/api-zod";
 import OpenAI from "openai";
+import { generateAndSaveSummary } from "../utils/generate-summary.js";
 
 const router: IRouter = Router();
 
@@ -362,6 +363,11 @@ router.post("/chat/:token/message", async (req, res): Promise<void> => {
           timescale: extracted.timescale ?? enquiry.timescale,
         })
         .where(eq(enquiriesTable.id, enquiry.id));
+
+      // Auto-generate structured AI summary (fire-and-forget)
+      generateAndSaveSummary(enquiry.id).catch((err) =>
+        console.error("[summary] auto-generate failed:", err)
+      );
     } catch {
       // ignore parse errors
     }

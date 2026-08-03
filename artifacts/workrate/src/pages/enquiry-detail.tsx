@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "./dashboard";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, MapPin, Hammer, Calendar, Phone, Mail, FileText, Sparkles, Plus, Clock, PoundSterling, MessageSquare, ChevronDown, Save, ImageIcon, X } from "lucide-react";
+import { ArrowLeft, MapPin, Hammer, Calendar, Phone, Mail, Sparkles, Plus, Clock, PoundSterling, MessageSquare, ChevronDown, Save, ImageIcon, X, FileText } from "lucide-react";
+import { SummaryCard, SummaryCardSkeleton } from "@/components/summary-card";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { useState } from "react";
@@ -136,12 +137,10 @@ export default function EnquiryDetail() {
               )}
             </div>
             <CardContent className="p-8">
-              {enquiry.aiSummary ? (
-                <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 shadow-inner">
-                  <div className="prose prose-sm max-w-none text-foreground leading-relaxed whitespace-pre-wrap font-medium">
-                    {enquiry.aiSummary}
-                  </div>
-                </div>
+              {generateSummary.isPending ? (
+                <SummaryCardSkeleton />
+              ) : enquiry.aiSummary ? (
+                <SummaryCard aiSummary={enquiry.aiSummary} />
               ) : (
                 <div className="text-center py-10 bg-secondary/30 rounded-xl border border-dashed border-border/60">
                   <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-5">
@@ -156,7 +155,7 @@ export default function EnquiryDetail() {
                     disabled={generateSummary.isPending}
                     className="w-full max-w-xs hover-elevate font-bold rounded-full h-12 text-md"
                   >
-                    {generateSummary.isPending ? "Generating..." : "Generate AI Summary"}
+                    Generate AI Summary
                   </Button>
                 </div>
               )}

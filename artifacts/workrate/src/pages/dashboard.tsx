@@ -3,8 +3,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { Inbox, TrendingUp, ChevronRight, MessageSquare, Briefcase } from "lucide-react";
+import { Inbox, TrendingUp, ChevronRight, MessageSquare, Briefcase, Sparkles, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SummaryCard, parseSummary } from "@/components/summary-card";
 
 export default function Dashboard() {
   const { data: stats, isLoading, isError } = useGetDashboard();
@@ -168,6 +169,55 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* AI Job Summaries Section */}
+      <AiSummariesSection recentEnquiries={stats.recentEnquiries} />
+    </div>
+  );
+}
+
+// ── AI Summaries Section ──────────────────────────────────────────────────────
+function AiSummariesSection({ recentEnquiries }: { recentEnquiries: any[] }) {
+  const summarised = recentEnquiries.filter(
+    (e) => e.aiSummary && parseSummary(e.aiSummary)
+  );
+
+  if (summarised.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between pb-2 border-b border-border/60">
+        <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-primary" />
+          Latest AI Job Summaries
+        </h2>
+        <Link href="/enquiries" className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
+          All leads <ChevronRight className="w-4 h-4" />
+        </Link>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {summarised.map((enq) => (
+          <Link key={enq.id} href={`/enquiries/${enq.id}`}>
+            <Card className="border-border/60 shadow-sm hover:shadow-md transition-all cursor-pointer bg-card rounded-2xl overflow-hidden group hover:border-primary/30">
+              {/* Card header */}
+              <div className="px-5 py-4 border-b border-border/60 bg-secondary/30 flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-sm text-foreground leading-tight">{enq.customerName}</h3>
+                  <p className="text-xs text-muted-foreground font-semibold mt-0.5">{enq.projectType || "General Enquiry"}</p>
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-semibold shrink-0 pt-0.5">
+                  <Calendar className="w-3 h-3" />
+                  {formatDate(enq.createdAt)}
+                </div>
+              </div>
+              <CardContent className="p-5">
+                <SummaryCard aiSummary={enq.aiSummary!} />
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
       </div>
     </div>
   );
