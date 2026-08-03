@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk } from '@clerk/react';
+import { ClerkProvider, SignIn, SignUp, useAuth, useClerk } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
@@ -136,34 +136,46 @@ function SignUpPage() {
 
 /**
  * Home route:
- * - Signed-out visitors → customer landing page (Get a Quote)
+ * - Signed-out visitors → customer landing page
  * - Signed-in business owners → redirect to /dashboard
+ *
+ * Uses useAuth() so the LandingPage always mounts and its buttons always work.
+ * The redirect is handled via useEffect after Clerk resolves.
  */
 function HomeRedirect() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Redirect href="/dashboard" />
-      </Show>
-      <Show when="signed-out">
-        <LandingPage />
-      </Show>
-    </>
-  );
+  const { isSignedIn, isLoaded } = useAuth();
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      navigate("/dashboard");
+    }
+  }, [isLoaded, isSignedIn, navigate]);
+
+  // Show nothing while Clerk loads; once resolved show landing page (or let
+  // the effect above redirect signed-in users before we render anything).
+  if (!isLoaded || isSignedIn) return null;
+
+  return <LandingPage />;
 }
 
 function ProtectedRoute({ component: Component }: { component: any }) {
+  const { isSignedIn, isLoaded } = useAuth();
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      navigate("/sign-in");
+    }
+  }, [isLoaded, isSignedIn, navigate]);
+
+  if (!isLoaded) return null;
+  if (!isSignedIn) return null;
+
   return (
-    <>
-      <Show when="signed-in">
-        <AppLayout>
-          <Component />
-        </AppLayout>
-      </Show>
-      <Show when="signed-out">
-        <Redirect href="/sign-in" />
-      </Show>
-    </>
+    <AppLayout>
+      <Component />
+    </AppLayout>
   );
 }
 
