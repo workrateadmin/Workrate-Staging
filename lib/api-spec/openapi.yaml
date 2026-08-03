@@ -20,6 +20,8 @@ tags:
     description: Public customer AI chat operations
   - name: dashboard
     description: Dashboard summary operations
+  - name: integrations
+    description: Third-party integration management
 paths:
   /healthz:
     get:
@@ -390,6 +392,97 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  # Integrations
+  /integrations:
+    get:
+      operationId: listIntegrations
+      tags: [integrations]
+      summary: List all integration providers with connection status
+      responses:
+        "200":
+          description: List of integrations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntegrationStatus"
+
+  /integrations/{provider}:
+    get:
+      operationId: getIntegration
+      tags: [integrations]
+      summary: Get a specific integration provider
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Integration status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationStatus"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: disconnectIntegration
+      tags: [integrations]
+      summary: Disconnect an integration
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Disconnected
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /integrations/{provider}/connect:
+    post:
+      operationId: connectIntegration
+      tags: [integrations]
+      summary: Connect an integration (stub — returns 501 until built)
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationStatus"
+        "501":
+          description: Not yet implemented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   # Dashboard
   /dashboard:
     get:
@@ -495,6 +588,32 @@ components:
           type: string
       required:
         - error
+
+    IntegrationStatus:
+      type: object
+      properties:
+        provider:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+        metadata:
+          type: ["string", "null"]
+        connectedAt:
+          type: ["string", "null"]
+      required:
+        - provider
+        - name
+        - category
+        - description
+        - status
+        - metadata
+        - connectedAt
 
     Company:
       type: object

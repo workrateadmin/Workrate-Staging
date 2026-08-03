@@ -13,6 +13,18 @@ export interface ApiError {
   error: string;
 }
 
+export interface IntegrationStatus {
+  provider: string;
+  name: string;
+  category: string;
+  description: string;
+  status: string;
+  /** @nullable */
+  metadata: string | null;
+  /** @nullable */
+  connectedAt: string | null;
+}
+
 export interface Company {
   id: number;
   name: string;
@@ -207,4 +219,6 @@ status?: string;
 export type UploadEnquiryAttachmentBody = {
   file: Blob;
 };
+
+export type ConnectIntegrationBody = { [key: string]: unknown };
 

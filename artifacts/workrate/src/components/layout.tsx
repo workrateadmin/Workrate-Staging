@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, Settings, LogOut, Menu, Bell, Hammer } from "lucide-react";
+import { LayoutDashboard, Users, Settings, LogOut, Menu, Bell, Hammer, Plug } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +11,7 @@ const pipelineNav = [
 ];
 
 const businessNav = [
+  { name: "Integrations", href: "/integrations", icon: Plug },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -96,6 +97,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (location.startsWith("/dashboard")) return "Dashboard";
     if (location.startsWith("/enquiries") && location !== "/enquiries") return "Lead Details";
     if (location.startsWith("/enquiries")) return "Leads";
+    if (location.startsWith("/integrations")) return "Integrations";
     if (location.startsWith("/settings")) return "Settings";
     if (location.startsWith("/quotes")) return "Quote Editor";
     return "";

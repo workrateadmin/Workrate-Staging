@@ -15,6 +15,7 @@ import QuoteEditor from "./pages/quote-editor";
 import Settings from "./pages/settings";
 import ChatDemo from "./pages/chat";
 import WidgetPage from "./pages/widget";
+import IntegrationsPage from "./pages/integrations";
 import NotFound from "./pages/not-found";
 
 const clerkPubKey = publishableKeyFromHost(
@@ -187,6 +188,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/enquiries"><ProtectedRoute component={Enquiries} /></Route>
           <Route path="/enquiries/:id"><ProtectedRoute component={EnquiryDetail} /></Route>
           <Route path="/quotes/:id"><ProtectedRoute component={QuoteEditor} /></Route>
+          <Route path="/integrations"><ProtectedRoute component={IntegrationsPage} /></Route>
           <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
           
           <Route><NotFound /></Route>

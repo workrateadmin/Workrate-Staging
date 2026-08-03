@@ -6,6 +6,7 @@ import attachmentsRouter from "./attachments";
 import quotesRouter from "./quotes";
 import dashboardRouter from "./dashboard";
 import chatRouter from "./chat";
+import integrationsRouter from "./integrations";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(attachmentsRouter);
 router.use(quotesRouter);
 router.use(dashboardRouter);
 router.use(chatRouter);
+router.use(integrationsRouter);
 
 export default router;

@@ -13,6 +13,7 @@ export * from './chatSessionWithMessages';
 export * from './chatStartInput';
 export * from './company';
 export * from './companyInput';
+// export * from './connectIntegrationBody'; // re-export conflict with api.ts — keep commented
 export * from './dashboardStats';
 export * from './enquiry';
 export * from './enquiryAttachment';
@@ -20,8 +21,8 @@ export * from './enquiryInput';
 export * from './enquiryMessage';
 export * from './enquiryUpdate';
 export * from './healthStatus';
+export * from './integrationStatus';
 export * from './listEnquiriesParams';
 export * from './quote';
 export * from './quoteUpdate';
-// UploadEnquiryAttachmentBody is exported as a Zod schema from ../api.ts — omit the TS-type duplicate to avoid re-export conflict
-// export * from './uploadEnquiryAttachmentBody';
+// export * from './uploadEnquiryAttachmentBody'; // re-export conflict with api.ts — keep commented

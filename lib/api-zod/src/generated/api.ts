@@ -406,6 +406,69 @@ export const UpdateQuoteResponse = zod.object({
 
 
 /**
+ * @summary List all integration providers with connection status
+ */
+export const ListIntegrationsResponseItem = zod.object({
+  "provider": zod.string(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "description": zod.string(),
+  "status": zod.string(),
+  "metadata": zod.string().nullable(),
+  "connectedAt": zod.string().nullable()
+})
+export const ListIntegrationsResponse = zod.array(ListIntegrationsResponseItem)
+
+
+/**
+ * @summary Get a specific integration provider
+ */
+export const GetIntegrationParams = zod.object({
+  "provider": zod.coerce.string()
+})
+
+export const GetIntegrationResponse = zod.object({
+  "provider": zod.string(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "description": zod.string(),
+  "status": zod.string(),
+  "metadata": zod.string().nullable(),
+  "connectedAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary Disconnect an integration
+ */
+export const DisconnectIntegrationParams = zod.object({
+  "provider": zod.coerce.string()
+})
+
+export const DisconnectIntegrationResponse = zod.void()
+
+
+/**
+ * @summary Connect an integration (stub — returns 501 until built)
+ */
+export const ConnectIntegrationParams = zod.object({
+  "provider": zod.coerce.string()
+})
+
+export const ConnectIntegrationBody = zod.object({}).passthrough()
+
+export const ConnectIntegrationResponse = zod.object({
+  "provider": zod.string(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "description": zod.string(),
+  "status": zod.string(),
+  "metadata": zod.string().nullable(),
+  "connectedAt": zod.string().nullable()
+})
+
+
+/**
  * @summary Get dashboard statistics and recent activity
  */
 export const GetDashboardResponse = zod.object({
