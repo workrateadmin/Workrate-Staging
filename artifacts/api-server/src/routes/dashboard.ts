@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
-import { db, enquiriesTable, quotesTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { db, enquiriesTable, quotesTable, enquiryAttachmentsTable } from "@workspace/db";
+import { eq, sql, inArray } from "drizzle-orm";
 import { GetDashboardResponse } from "@workspace/api-zod";
 import { desc } from "drizzle-orm";
 
@@ -17,7 +17,7 @@ const requireAuth = (req: any, res: any, next: any) => {
 };
 
 router.get("/dashboard", requireAuth, async (_req, res): Promise<void> => {
-  const [allEnquiries, recentEnquiries, quotes] = await Promise.all([
+  const [allEnquiries, recentEnquiriesRaw, quotes] = await Promise.all([
     db.select({ status: enquiriesTable.status }).from(enquiriesTable),
     db
       .select()
@@ -26,6 +26,25 @@ router.get("/dashboard", requireAuth, async (_req, res): Promise<void> => {
       .limit(5),
     db.select({ estimatedTotal: quotesTable.estimatedTotal }).from(quotesTable),
   ]);
+
+  // Batch-fetch attachment counts for recent enquiries
+  const recentIds = recentEnquiriesRaw.map((e) => e.id);
+  const countMap = new Map<number, number>();
+  if (recentIds.length > 0) {
+    const counts = await db
+      .select({
+        enquiryId: enquiryAttachmentsTable.enquiryId,
+        cnt: sql<number>`cast(count(*) as integer)`,
+      })
+      .from(enquiryAttachmentsTable)
+      .where(inArray(enquiryAttachmentsTable.enquiryId, recentIds))
+      .groupBy(enquiryAttachmentsTable.enquiryId);
+    for (const row of counts) countMap.set(row.enquiryId, row.cnt);
+  }
+  const recentEnquiries = recentEnquiriesRaw.map((e) => ({
+    ...e,
+    attachmentCount: countMap.get(e.id) ?? 0,
+  }));
 
   const statusCounts = {
     new_enquiry: 0,

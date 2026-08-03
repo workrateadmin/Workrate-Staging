@@ -455,14 +455,15 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isStreaming || isUploadingPhoto}
-                      className="w-9 h-9 rounded-full border-2 border-dashed border-slate-200 hover:border-[#2563EB]/50 hover:bg-blue-50 flex items-center justify-center transition-all disabled:opacity-40 shrink-0"
+                      title="Attach a photo"
+                      className="w-9 h-9 rounded-full bg-blue-50 hover:bg-blue-100 border border-blue-200 hover:border-blue-300 flex items-center justify-center transition-all disabled:opacity-40 shrink-0 group"
                     >
-                      <Paperclip className="w-3.5 h-3.5 text-slate-400" />
+                      <Camera className="w-4 h-4 text-[#2563EB] group-hover:scale-110 transition-transform" />
                     </button>
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/*,application/pdf"
                       className="hidden"
                       onChange={handleFileChange}
                     />
