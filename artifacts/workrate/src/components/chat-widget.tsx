@@ -9,7 +9,7 @@
  */
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import {
-  Send, X, Loader2, Paperclip, MessageCircle,
+  Send, X, Loader2, Camera, MessageCircle,
   CheckCircle2, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";

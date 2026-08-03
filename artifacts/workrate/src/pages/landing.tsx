@@ -45,7 +45,7 @@ export default function LandingPage() {
             onClick={() => navigate("/sign-up")}
             className="text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors px-4 py-2 rounded-lg shadow-sm"
           >
-            Get Started
+            Trade Log In
           </button>
         </div>
       </header>
