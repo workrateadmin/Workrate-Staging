@@ -1,13 +1,13 @@
 import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Inbox, Settings, LogOut, Menu, Bell, Hammer, FileText } from "lucide-react";
+import { LayoutDashboard, Users, Settings, LogOut, Menu, Bell, Hammer } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 const pipelineNav = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Enquiries", href: "/enquiries", icon: Inbox },
+  { name: "Leads", href: "/enquiries", icon: Users },
 ];
 
 const businessNav = [
@@ -94,8 +94,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const getPageTitle = () => {
     if (location.startsWith("/dashboard")) return "Dashboard";
-    if (location.startsWith("/enquiries") && location !== "/enquiries") return "Job Details";
-    if (location.startsWith("/enquiries")) return "Pipeline";
+    if (location.startsWith("/enquiries") && location !== "/enquiries") return "Lead Details";
+    if (location.startsWith("/enquiries")) return "Leads";
     if (location.startsWith("/settings")) return "Settings";
     if (location.startsWith("/quotes")) return "Quote Editor";
     return "";

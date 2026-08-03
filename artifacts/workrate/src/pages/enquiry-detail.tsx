@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "./dashboard";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, User, MapPin, Hammer, Calendar, Phone, Mail, FileText, Sparkles, Plus, Clock, PoundSterling, MessageSquare, ChevronDown, Save } from "lucide-react";
+import { ArrowLeft, MapPin, Hammer, Calendar, Phone, Mail, FileText, Sparkles, Plus, Clock, PoundSterling, MessageSquare, ChevronDown, Save, ImageIcon, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { useState } from "react";
@@ -111,6 +111,9 @@ export default function EnquiryDetail() {
                   <p className="text-base leading-relaxed whitespace-pre-wrap font-medium">{enquiry.description}</p>
                 </div>
               )}
+
+              {/* Uploaded Photos */}
+              <PhotoGallery attachmentUrls={enquiry.attachmentUrls} />
             </CardContent>
           </Card>
 
@@ -288,6 +291,77 @@ export default function EnquiryDetail() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Photo Gallery ─────────────────────────────────────────────────────────────
+function PhotoGallery({ attachmentUrls }: { attachmentUrls?: string | null }) {
+  const [lightbox, setLightbox] = useState<string | null>(null);
+
+  if (!attachmentUrls) return null;
+
+  let urls: string[] = [];
+  try {
+    const parsed = JSON.parse(attachmentUrls);
+    urls = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return null;
+  }
+  if (urls.length === 0) return null;
+
+  return (
+    <>
+      <div className="pt-6 border-t border-border/60">
+        <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-4 flex items-center gap-2">
+          <ImageIcon className="w-4 h-4" />
+          Uploaded Photos
+          <span className="text-xs font-bold bg-secondary px-2 py-0.5 rounded-full text-muted-foreground">
+            {urls.length}
+          </span>
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {urls.map((url, i) => (
+            <button
+              key={i}
+              onClick={() => setLightbox(url)}
+              className="relative aspect-square rounded-xl overflow-hidden border border-border/60 bg-secondary/30 hover:opacity-90 transition-opacity group shadow-sm"
+            >
+              <img
+                src={url}
+                alt={`Photo ${i + 1}`}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-xl" />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={lightbox}
+              alt="Full size"
+              className="w-full h-full object-contain rounded-2xl shadow-2xl max-h-[85vh]"
+            />
+            <button
+              onClick={() => setLightbox(null)}
+              className="absolute top-3 right-3 w-10 h-10 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
