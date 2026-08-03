@@ -10,7 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useRef } from "react";
-import { Save, Building2, MapPin, PoundSterling, Brain, Users, Clock, Package, Wrench, TrendingUp, Sparkles } from "lucide-react";
+import { Save, Building2, MapPin, PoundSterling, Brain, Users, Clock, Package, Wrench, TrendingUp, Sparkles, Code2, Copy, ExternalLink, CheckCheck } from "lucide-react";
+import { useState as useLocalState } from "react";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
@@ -425,6 +426,119 @@ export default function Settings() {
           </div>
         </form>
       </Form>
+
+      {/* ── Chat Widget ─────────────────────────────────────────────────── */}
+      <EmbedCodeCard />
     </div>
+  );
+}
+
+// ── Embed Code Card ───────────────────────────────────────────────────────────
+function EmbedCodeCard() {
+  const [copied, setCopied] = useLocalState(false);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const basePath = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+  const widgetUrl = `${origin}${basePath}/widget`;
+
+  const iframeSnippet = `<!-- WorkRate Chat Widget -->
+<iframe
+  src="${widgetUrl}"
+  style="position:fixed;bottom:0;right:0;width:420px;height:640px;border:none;z-index:9999;background:transparent;pointer-events:none;"
+  allow="camera;microphone"
+  title="WorkRate Chat Widget"
+></iframe>`;
+
+  function copySnippet() {
+    navigator.clipboard.writeText(iframeSnippet).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <Card className="shadow-sm border-border/60 rounded-2xl overflow-hidden">
+      <div className="px-8 py-5 border-b border-border/60 bg-secondary/30 flex items-center gap-3">
+        <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+          <Code2 className="w-4 h-4 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-base font-bold">Chat Widget</h2>
+          <p className="text-xs text-muted-foreground font-medium">Embed the WorkRate Assistant on your website</p>
+        </div>
+      </div>
+      <CardContent className="p-8 space-y-6">
+        {/* Preview link */}
+        <div className="flex items-center justify-between bg-secondary/40 border border-border/50 rounded-xl px-5 py-4">
+          <div>
+            <p className="text-sm font-bold">Preview widget</p>
+            <p className="text-xs text-muted-foreground mt-0.5">See how the widget looks on your website</p>
+          </div>
+          <a
+            href={widgetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-sm font-bold text-primary hover:text-primary/80 transition-colors"
+          >
+            Open preview <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+
+        {/* How it works */}
+        <div className="space-y-3">
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">How to embed</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { step: "1", title: "Copy the snippet", desc: "Click the button below to copy your embed code" },
+              { step: "2", title: "Paste into your site", desc: "Add it before the closing </body> tag of every page" },
+              { step: "3", title: "That's it", desc: "The WorkRate Assistant appears on your site immediately" },
+            ].map(({ step, title, desc }) => (
+              <div key={step} className="bg-secondary/30 rounded-xl p-4 border border-border/40">
+                <div className="w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-black mb-3">{step}</div>
+                <p className="text-sm font-bold mb-1">{title}</p>
+                <p className="text-xs text-muted-foreground font-medium leading-relaxed">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Snippet */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Embed snippet</p>
+            <button
+              onClick={copySnippet}
+              className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80 transition-colors px-3 py-1.5 rounded-lg hover:bg-primary/5"
+            >
+              {copied ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? "Copied!" : "Copy snippet"}
+            </button>
+          </div>
+          <div className="relative bg-[#0F172A] rounded-xl overflow-hidden border border-border/40">
+            <pre className="text-[11px] leading-relaxed text-slate-300 p-5 overflow-x-auto font-mono whitespace-pre">
+              <span className="text-slate-500">{`<!-- WorkRate Chat Widget -->`}</span>{"\n"}
+              <span className="text-sky-400">{`<iframe`}</span>{"\n"}
+              {"  "}<span className="text-green-400">src</span><span className="text-slate-400">=</span><span className="text-amber-300">{`"${widgetUrl}"`}</span>{"\n"}
+              {"  "}<span className="text-green-400">style</span><span className="text-slate-400">=</span><span className="text-amber-300">{`"position:fixed;bottom:0;right:0;"`}</span>{"\n"}
+              {"  "}<span className="text-green-400">allow</span><span className="text-slate-400">=</span><span className="text-amber-300">{`"camera;microphone"`}</span>{"\n"}
+              <span className="text-sky-400">{`></iframe>`}</span>
+            </pre>
+          </div>
+          <p className="text-xs text-muted-foreground font-medium">
+            The widget works on any HTML website, WordPress, Squarespace, Wix, Webflow, and more.
+          </p>
+        </div>
+
+        {/* Customisation note */}
+        <div className="bg-primary/5 border border-primary/20 rounded-xl px-5 py-4 flex items-start gap-3">
+          <Sparkles className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-primary">Customise for your trade</p>
+            <p className="text-xs text-muted-foreground mt-1 font-medium">
+              The widget reads your WorkRate Brain settings — trade type, service area, and pricing context — so every conversation is tailored to your business.
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
