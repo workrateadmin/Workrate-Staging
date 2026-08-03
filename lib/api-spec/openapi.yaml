@@ -421,8 +421,14 @@ components:
           type: string
         labourRatePerHour:
           type: number
+        dayRate:
+          type: ["number", "null"]
         materialMarkupPercent:
           type: number
+        minimumProjectValue:
+          type: ["number", "null"]
+        typicalLeadTimes:
+          type: ["string", "null"]
         preferredSuppliers:
           type: ["string", "null"]
         logoUrl:
@@ -460,8 +466,14 @@ components:
           type: string
         labourRatePerHour:
           type: number
+        dayRate:
+          type: number
         materialMarkupPercent:
           type: number
+        minimumProjectValue:
+          type: number
+        typicalLeadTimes:
+          type: string
         preferredSuppliers:
           type: string
         logoUrl:

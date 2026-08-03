@@ -84,7 +84,24 @@ router.post("/enquiries/:id/quote", requireAuth, async (req, res): Promise<void>
   const labourRate = Number(company?.labourRatePerHour ?? 35);
   const markup = Number(company?.materialMarkupPercent ?? 20);
 
-  const prompt = `You are an experienced ${company?.tradeType ?? "trade"} estimator. Generate a realistic draft quote based on the following project details.
+  const dayRate = Number(company?.dayRate ?? 0);
+  const minValue = Number(company?.minimumProjectValue ?? 0);
+
+  // Build Brain context
+  const brainLines: string[] = [
+    `Trade: ${company?.tradeType ?? "General trade"}`,
+    `Labour rate: £${labourRate}/hr${dayRate > 0 ? `, £${dayRate}/day` : ""}`,
+    `Materials markup: ${markup}%`,
+  ];
+  if (minValue > 0) brainLines.push(`Minimum project value: £${minValue} — do not quote below this`);
+  if (company?.serviceArea) brainLines.push(`Service area: ${company.serviceArea}`);
+  if (company?.preferredSuppliers) brainLines.push(`Preferred suppliers (use for material sourcing): ${company.preferredSuppliers}`);
+  if (company?.typicalLeadTimes) brainLines.push(`Typical lead times: ${company.typicalLeadTimes}`);
+
+  const prompt = `You are an experienced ${company?.tradeType ?? "trade"} estimator based in the UK. Generate a realistic draft quote based on the following project details.
+
+Business settings (WorkRate Brain):
+${brainLines.join("\n")}
 
 Customer: ${enquiry.customerName}
 Email: ${enquiry.customerEmail ?? "Not provided"}
@@ -92,21 +109,20 @@ Phone: ${enquiry.customerPhone ?? "Not provided"}
 Project: ${enquiry.projectType ?? "General trade work"}
 Location: ${enquiry.location ?? "Not provided"}
 Description: ${enquiry.description ?? "Not provided"}
+AI Summary: ${enquiry.aiSummary ? (() => { try { const s = JSON.parse(enquiry.aiSummary!); return `${s.summary ?? ""} Measurements: ${s.measurements ?? ""}. Materials: ${s.materials ?? ""}.`; } catch { return enquiry.aiSummary!; } })() : "Not available"}
 Budget: ${enquiry.budget ?? "Not provided"}
 Timescale: ${enquiry.timescale ?? "Not provided"}
-Company Labour Rate: £${labourRate}/hour
-Material Markup: ${markup}%
 
 Return ONLY a valid JSON object with these exact fields (numbers as integers or decimals, no currency symbols):
 {
-  "projectDescription": "detailed project description",
+  "projectDescription": "detailed project description covering scope and key deliverables",
   "materialsAllowance": 0,
   "labourAllowance": 0,
-  "notes": "any important notes about the quote",
+  "notes": "important notes — include lead time if relevant",
   "assumptions": "key assumptions made in this estimate"
 }
 
-Be realistic and professional. Base estimates on typical UK trade rates and material costs.`;
+Use the business settings to set labour rates. Apply the materials markup to your cost-price estimates. Ensure the total does not fall below the minimum project value if set. Be realistic and professional.`;
 
   const openai = getOpenAI();
   const completion = await openai.chat.completions.create({

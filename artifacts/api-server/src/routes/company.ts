@@ -18,19 +18,23 @@ const requireAuth = (req: any, res: any, next: any) => {
   next();
 };
 
+function parseCompany(c: any) {
+  return {
+    ...c,
+    labourRatePerHour: Number(c.labourRatePerHour ?? 0),
+    dayRate: c.dayRate != null ? Number(c.dayRate) : null,
+    materialMarkupPercent: Number(c.materialMarkupPercent ?? 0),
+    minimumProjectValue: c.minimumProjectValue != null ? Number(c.minimumProjectValue) : null,
+  };
+}
+
 router.get("/company", requireAuth, async (_req, res): Promise<void> => {
   const [company] = await db.select().from(companiesTable).limit(1);
   if (!company) {
     res.status(404).json({ error: "Company not found" });
     return;
   }
-  res.json(
-    GetCompanyResponse.parse({
-      ...company,
-      labourRatePerHour: Number(company.labourRatePerHour),
-      materialMarkupPercent: Number(company.materialMarkupPercent),
-    }),
-  );
+  res.json(GetCompanyResponse.parse(parseCompany(company)));
 });
 
 router.put("/company", requireAuth, async (req, res): Promise<void> => {
@@ -40,50 +44,55 @@ router.put("/company", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const d = parsed.data;
   const [existing] = await db.select().from(companiesTable).limit(1);
 
   if (!existing) {
     const [created] = await db
       .insert(companiesTable)
       .values({
-        ...parsed.data,
-        labourRatePerHour: parsed.data.labourRatePerHour?.toString(),
-        materialMarkupPercent: parsed.data.materialMarkupPercent?.toString(),
+        ...(d.name !== undefined && { name: d.name }),
+        ...(d.tradeType !== undefined && { tradeType: d.tradeType }),
+        ...(d.serviceArea !== undefined && { serviceArea: d.serviceArea }),
+        ...(d.labourRatePerHour !== undefined && { labourRatePerHour: d.labourRatePerHour.toString() }),
+        ...(d.dayRate !== undefined && { dayRate: d.dayRate.toString() }),
+        ...(d.materialMarkupPercent !== undefined && { materialMarkupPercent: d.materialMarkupPercent.toString() }),
+        ...(d.minimumProjectValue !== undefined && { minimumProjectValue: d.minimumProjectValue.toString() }),
+        ...(d.typicalLeadTimes !== undefined && { typicalLeadTimes: d.typicalLeadTimes }),
+        ...(d.preferredSuppliers !== undefined && { preferredSuppliers: d.preferredSuppliers }),
+        ...(d.logoUrl !== undefined && { logoUrl: d.logoUrl }),
+        ...(d.email !== undefined && { email: d.email }),
+        ...(d.phone !== undefined && { phone: d.phone }),
+        ...(d.address !== undefined && { address: d.address }),
       })
       .returning();
-    res.json(
-      UpdateCompanyResponse.parse({
-        ...created,
-        labourRatePerHour: Number(created.labourRatePerHour),
-        materialMarkupPercent: Number(created.materialMarkupPercent),
-      }),
-    );
+    res.json(UpdateCompanyResponse.parse(parseCompany(created)));
     return;
   }
 
   const [updated] = await db
     .update(companiesTable)
     .set({
-      ...(parsed.data.name !== undefined && { name: parsed.data.name }),
-      ...(parsed.data.tradeType !== undefined && { tradeType: parsed.data.tradeType }),
-      ...(parsed.data.serviceArea !== undefined && { serviceArea: parsed.data.serviceArea }),
-      ...(parsed.data.labourRatePerHour !== undefined && { labourRatePerHour: parsed.data.labourRatePerHour.toString() }),
-      ...(parsed.data.materialMarkupPercent !== undefined && { materialMarkupPercent: parsed.data.materialMarkupPercent.toString() }),
-      ...(parsed.data.preferredSuppliers !== undefined && { preferredSuppliers: parsed.data.preferredSuppliers }),
-      ...(parsed.data.logoUrl !== undefined && { logoUrl: parsed.data.logoUrl }),
-      ...(parsed.data.email !== undefined && { email: parsed.data.email }),
-      ...(parsed.data.phone !== undefined && { phone: parsed.data.phone }),
-      ...(parsed.data.address !== undefined && { address: parsed.data.address }),
+      ...(d.name !== undefined && { name: d.name }),
+      ...(d.tradeType !== undefined && { tradeType: d.tradeType }),
+      ...(d.serviceArea !== undefined && { serviceArea: d.serviceArea }),
+      ...(d.labourRatePerHour !== undefined && { labourRatePerHour: d.labourRatePerHour.toString() }),
+      ...(d.dayRate !== undefined && { dayRate: d.dayRate.toString() }),
+      ...(d.materialMarkupPercent !== undefined && { materialMarkupPercent: d.materialMarkupPercent.toString() }),
+      ...(d.minimumProjectValue !== undefined && { minimumProjectValue: d.minimumProjectValue.toString() }),
+      ...(d.typicalLeadTimes !== undefined && { typicalLeadTimes: d.typicalLeadTimes }),
+      ...(d.preferredSuppliers !== undefined && { preferredSuppliers: d.preferredSuppliers }),
+      ...(d.logoUrl !== undefined && { logoUrl: d.logoUrl }),
+      ...(d.email !== undefined && { email: d.email }),
+      ...(d.phone !== undefined && { phone: d.phone }),
+      ...(d.address !== undefined && { address: d.address }),
     })
+    .where(eq(companiesTable.id, existing.id))
     .returning();
 
-  res.json(
-    UpdateCompanyResponse.parse({
-      ...updated,
-      labourRatePerHour: Number(updated.labourRatePerHour),
-      materialMarkupPercent: Number(updated.materialMarkupPercent),
-    }),
-  );
+  res.json(UpdateCompanyResponse.parse(parseCompany(updated)));
 });
+
+import { eq } from "drizzle-orm";
 
 export default router;

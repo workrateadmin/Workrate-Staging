@@ -12,7 +12,13 @@ export interface Company {
   tradeType: string;
   serviceArea: string;
   labourRatePerHour: number;
+  /** @nullable */
+  dayRate?: number | null;
   materialMarkupPercent: number;
+  /** @nullable */
+  minimumProjectValue?: number | null;
+  /** @nullable */
+  typicalLeadTimes?: string | null;
   /** @nullable */
   preferredSuppliers?: string | null;
   /** @nullable */

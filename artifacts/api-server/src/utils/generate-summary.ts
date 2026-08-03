@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { db, enquiriesTable, enquiryMessagesTable } from "@workspace/db";
+import { db, enquiriesTable, enquiryMessagesTable, companiesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 export interface StructuredSummary {
@@ -22,33 +22,41 @@ function getOpenAI() {
 }
 
 export async function generateAndSaveSummary(enquiryId: number): Promise<void> {
-  const [enquiry] = await db
-    .select()
-    .from(enquiriesTable)
-    .where(eq(enquiriesTable.id, enquiryId));
+  const [[enquiry], messages, [company]] = await Promise.all([
+    db.select().from(enquiriesTable).where(eq(enquiriesTable.id, enquiryId)),
+    db
+      .select()
+      .from(enquiryMessagesTable)
+      .where(eq(enquiryMessagesTable.enquiryId, enquiryId))
+      .orderBy(enquiryMessagesTable.createdAt),
+    db.select().from(companiesTable).limit(1),
+  ]);
 
   if (!enquiry) throw new Error("Enquiry not found");
-
-  const messages = await db
-    .select()
-    .from(enquiryMessagesTable)
-    .where(eq(enquiryMessagesTable.enquiryId, enquiry.id))
-    .orderBy(enquiryMessagesTable.createdAt);
 
   const chatHistory = messages
     .map((m) => `${m.role === "customer" ? "Customer" : "Assistant"}: ${m.content}`)
     .join("\n");
 
-  const customerLine = [
-    enquiry.customerName,
-    enquiry.customerPhone,
-    enquiry.customerEmail,
-  ]
+  const customerLine = [enquiry.customerName, enquiry.customerPhone, enquiry.customerEmail]
     .filter(Boolean)
     .join(" — ");
 
+  // Build Brain context block from company settings
+  const brainLines: string[] = [];
+  if (company) {
+    brainLines.push(`Business: ${company.name} (${company.tradeType})`);
+    brainLines.push(`Labour rate: £${company.labourRatePerHour}/hr${company.dayRate ? `, £${company.dayRate}/day` : ""}`);
+    brainLines.push(`Materials markup: ${company.materialMarkupPercent}%`);
+    if (company.minimumProjectValue) brainLines.push(`Minimum project value: £${company.minimumProjectValue}`);
+    if (company.serviceArea) brainLines.push(`Service area: ${company.serviceArea}`);
+    if (company.preferredSuppliers) brainLines.push(`Preferred suppliers: ${company.preferredSuppliers}`);
+    if (company.typicalLeadTimes) brainLines.push(`Typical lead times: ${company.typicalLeadTimes}`);
+  }
+
   const prompt = `You are an experienced trade business office manager in the UK. Analyse the following customer enquiry and produce a structured job summary for the tradesperson.
 
+${brainLines.length > 0 ? `Business context (WorkRate Brain):\n${brainLines.join("\n")}\n` : ""}
 Customer details:
 - Name: ${enquiry.customerName}
 - Email: ${enquiry.customerEmail ?? "Not provided"}
@@ -60,18 +68,18 @@ Customer details:
 - Timescale: ${enquiry.timescale ?? "Not provided"}
 ${chatHistory ? `\nChat transcript:\n${chatHistory}` : ""}
 
-Return ONLY a valid JSON object with these exact keys (no markdown, no code fences, raw JSON only):
+Use the Business context above to inform your assessment — e.g. flag if the budget is below the minimum project value, reference lead times, or note if preferred suppliers are relevant. Return ONLY a valid JSON object with these exact keys (no markdown, raw JSON only):
 {
   "customer": "${customerLine}",
   "project": "<project type and brief scope — 1 line>",
   "location": "<postcode or area>",
-  "budget": "<budget range, or 'Not specified'>",
-  "summary": "<2–3 sentences: professional overview of the scope, key requirements, and any standout details>",
+  "budget": "<budget range or 'Not specified'>",
+  "summary": "<2–3 sentences: professional overview of scope, key requirements, and any standout details. Note any concerns against business settings>",
   "measurements": "<all dimensions, areas, room sizes, quantities mentioned — or 'Not specified'>",
-  "materials": "<materials, finishes, brands, or product preferences specified — or 'Not specified'>",
-  "customerRequirements": "<specific requirements, preferences, constraints, or wishes expressed by the customer>",
-  "potentialChallenges": "<risks, complications, access issues, or things to verify on site — be specific>",
-  "recommendedNextAction": "<concrete next step: e.g. 'Arrange site survey to confirm measurements and access', 'Call customer to clarify material preferences before quoting'>"
+  "materials": "<materials, finishes, brands, or product preferences — or 'Not specified'>",
+  "customerRequirements": "<specific requirements, preferences, constraints, or wishes>",
+  "potentialChallenges": "<risks, complications, access issues, budget concerns, or things to verify on site>",
+  "recommendedNextAction": "<concrete next step e.g. 'Arrange site survey to confirm measurements and access'>"
 }`;
 
   const openai = getOpenAI();
@@ -105,5 +113,5 @@ Return ONLY a valid JSON object with these exact keys (no markdown, no code fenc
   await db
     .update(enquiriesTable)
     .set({ aiSummary: JSON.stringify(parsed) })
-    .where(eq(enquiriesTable.id, enquiry.id));
+    .where(eq(enquiriesTable.id, enquiryId));
 }

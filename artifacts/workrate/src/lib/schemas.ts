@@ -4,9 +4,12 @@ import type { Enquiry, EnquiryUpdate, Quote, QuoteUpdate, CompanyInput } from "@
 export const companySchema = z.object({
   name: z.string().min(1, "Required"),
   tradeType: z.string().min(1, "Required"),
-  serviceArea: z.string().min(1, "Required"),
+  serviceArea: z.string().optional().default(""),
   labourRatePerHour: z.coerce.number().min(0),
+  dayRate: z.coerce.number().min(0).optional(),
   materialMarkupPercent: z.coerce.number().min(0),
+  minimumProjectValue: z.coerce.number().min(0).optional(),
+  typicalLeadTimes: z.string().optional(),
   preferredSuppliers: z.string().optional(),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   phone: z.string().optional(),

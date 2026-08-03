@@ -11,7 +11,10 @@ export interface CompanyInput {
   tradeType?: string;
   serviceArea?: string;
   labourRatePerHour?: number;
+  dayRate?: number;
   materialMarkupPercent?: number;
+  minimumProjectValue?: number;
+  typicalLeadTimes?: string;
   preferredSuppliers?: string;
   logoUrl?: string;
   email?: string;
