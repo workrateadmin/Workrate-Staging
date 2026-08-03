@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import path from "path";
+import { mkdirSync } from "fs";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import {
@@ -10,6 +12,10 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import { logger } from "./lib/logger";
 import router from "./routes";
+
+// Ensure uploads dir exists
+const uploadsDir = path.join(process.cwd(), "uploads");
+mkdirSync(uploadsDir, { recursive: true });
 
 const app = express();
 
@@ -47,6 +53,9 @@ app.use(
     ),
   })),
 );
+
+// Serve uploaded photos
+app.use("/uploads", express.static(uploadsDir));
 
 app.use("/api", router);
 
