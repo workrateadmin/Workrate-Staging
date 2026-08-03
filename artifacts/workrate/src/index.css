@@ -196,6 +196,45 @@
   --chart-5: 210 40% 96%;
 }
 
+/* ── Print styles ──────────────────────────────────────────────────────────── */
+@media print {
+  /* Hide everything except the document */
+  body * {
+    visibility: hidden;
+  }
+
+  #quote-document,
+  #quote-document * {
+    visibility: visible;
+  }
+
+  #quote-document {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+
+  @page {
+    margin: 0.75cm;
+    size: A4;
+  }
+}
+
+/* ── Field utilities ───────────────────────────────────────────────────────── */
+.field-label {
+  @apply text-xs font-bold text-muted-foreground uppercase tracking-widest;
+}
+
+.field-input {
+  @apply bg-background h-11 border-border/60 rounded-xl font-medium focus-visible:ring-primary/30;
+}
+
 @layer base {
   * {
     @apply border-border;
