@@ -99,6 +99,7 @@ export const ListEnquiriesResponseItem = zod.object({
   "status": zod.string(),
   "aiSummary": zod.string().nullish(),
   "attachmentUrls": zod.string().nullish(),
+  "attachmentCount": zod.number(),
   "chatToken": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -134,6 +135,7 @@ export const CreateEnquiryResponse = zod.object({
   "status": zod.string(),
   "aiSummary": zod.string().nullish(),
   "attachmentUrls": zod.string().nullish(),
+  "attachmentCount": zod.number(),
   "chatToken": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -160,6 +162,7 @@ export const GetEnquiryResponse = zod.object({
   "status": zod.string(),
   "aiSummary": zod.string().nullish(),
   "attachmentUrls": zod.string().nullish(),
+  "attachmentCount": zod.number(),
   "chatToken": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -199,6 +202,7 @@ export const UpdateEnquiryResponse = zod.object({
   "status": zod.string(),
   "aiSummary": zod.string().nullish(),
   "attachmentUrls": zod.string().nullish(),
+  "attachmentCount": zod.number(),
   "chatToken": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -233,6 +237,60 @@ export const ListEnquiryMessagesResponse = zod.array(ListEnquiryMessagesResponse
 
 
 /**
+ * @summary List all attachments for an enquiry
+ */
+export const ListEnquiryAttachmentsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListEnquiryAttachmentsResponseItem = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "url": zod.string(),
+  "filename": zod.string(),
+  "mimetype": zod.string(),
+  "fileSize": zod.number().nullish(),
+  "aiAnalysis": zod.string().nullish(),
+  "uploadedAt": zod.coerce.date()
+})
+export const ListEnquiryAttachmentsResponse = zod.array(ListEnquiryAttachmentsResponseItem)
+
+
+/**
+ * @summary Upload a file attachment to an enquiry
+ */
+export const UploadEnquiryAttachmentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UploadEnquiryAttachmentBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+export const UploadEnquiryAttachmentResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "url": zod.string(),
+  "filename": zod.string(),
+  "mimetype": zod.string(),
+  "fileSize": zod.number().nullish(),
+  "aiAnalysis": zod.string().nullish(),
+  "uploadedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete an attachment
+ */
+export const DeleteEnquiryAttachmentParams = zod.object({
+  "id": zod.coerce.number(),
+  "attachmentId": zod.coerce.number()
+})
+
+export const DeleteEnquiryAttachmentResponse = zod.void()
+
+
+/**
  * @summary Generate AI job summary for an enquiry
  */
 export const GenerateEnquirySummaryParams = zod.object({
@@ -252,6 +310,7 @@ export const GenerateEnquirySummaryResponse = zod.object({
   "status": zod.string(),
   "aiSummary": zod.string().nullish(),
   "attachmentUrls": zod.string().nullish(),
+  "attachmentCount": zod.number(),
   "chatToken": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -371,6 +430,7 @@ export const GetDashboardResponse = zod.object({
   "status": zod.string(),
   "aiSummary": zod.string().nullish(),
   "attachmentUrls": zod.string().nullish(),
+  "attachmentCount": zod.number(),
   "chatToken": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()

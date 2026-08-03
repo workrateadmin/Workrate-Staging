@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import path from "path";
 import { mkdirSync } from "fs";
 import multer from "multer";
-import { db, enquiriesTable, enquiryMessagesTable } from "@workspace/db";
+import { db, enquiriesTable, enquiryMessagesTable, enquiryAttachmentsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import {
   StartChatBody,
@@ -31,12 +31,17 @@ const storage = multer.diskStorage({
   },
 });
 
+const ALLOWED_CHAT_MIMETYPES = new Set([
+  "image/jpeg", "image/jpg", "image/png", "image/webp",
+  "image/gif", "image/heic", "image/heif", "application/pdf",
+]);
+
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) cb(null, true);
-    else cb(new Error("Only image files are allowed"));
+    if (ALLOWED_CHAT_MIMETYPES.has(file.mimetype)) cb(null, true);
+    else cb(new Error("Only images and PDF files are allowed"));
   },
 });
 
@@ -541,16 +546,30 @@ router.post(
     }
 
     const publicUrl = fileUrl(req, file.filename);
+    const isPdf = file.mimetype === "application/pdf";
 
-    // Update attachmentUrls (append)
-    const existing = enquiry.attachmentUrls ? JSON.parse(enquiry.attachmentUrls) as string[] : [];
-    const updatedUrls = [...existing, publicUrl];
-    await db
-      .update(enquiriesTable)
-      .set({ attachmentUrls: JSON.stringify(updatedUrls) })
-      .where(eq(enquiriesTable.id, enquiry.id));
+    // Record in enquiry_attachments table
+    await db.insert(enquiryAttachmentsTable).values({
+      enquiryId: enquiry.id,
+      url: publicUrl,
+      filename: file.originalname,
+      mimetype: file.mimetype,
+      fileSize: file.size,
+    });
 
-    // Use GPT-4o vision to describe the photo
+    // PDFs: skip vision, acknowledge and return immediately
+    if (isPdf) {
+      const pdfMessage = `Thanks for sharing that document — I've saved "${file.originalname}" against your enquiry. The joiner will review it when preparing your quote. Is there anything else you'd like to add about the project?`;
+      await db.insert(enquiryMessagesTable).values({
+        enquiryId: enquiry.id,
+        role: "assistant",
+        content: pdfMessage,
+      });
+      res.json({ url: publicUrl, aiMessage: pdfMessage });
+      return;
+    }
+
+    // Images: run GPT-4o vision analysis
     const tradeTypeForVision = enquiry.projectType ?? "general";
     const isJoinery = tradeTypeForVision.toLowerCase() === "joinery";
     const visionPromptText = isJoinery

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
-import { db, enquiriesTable, enquiryMessagesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, enquiriesTable, enquiryMessagesTable, enquiryAttachmentsTable } from "@workspace/db";
+import { eq, count, sql } from "drizzle-orm";
 import {
   ListEnquiriesQueryParams,
   ListEnquiriesResponse,
@@ -49,12 +49,25 @@ router.get("/enquiries", requireAuth, async (req, res): Promise<void> => {
     rows = rows.filter((e) => e.status === params.data.status);
   }
 
-  // Sort by createdAt descending
   rows.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 
-  res.json(ListEnquiriesResponse.parse(rows));
+  // Fetch attachment counts in one query
+  const counts = await db
+    .select({
+      enquiryId: enquiryAttachmentsTable.enquiryId,
+      cnt: count(enquiryAttachmentsTable.id),
+    })
+    .from(enquiryAttachmentsTable)
+    .groupBy(enquiryAttachmentsTable.enquiryId);
+  const countMap = new Map(counts.map((r) => [r.enquiryId, Number(r.cnt)]));
+
+  res.json(
+    ListEnquiriesResponse.parse(
+      rows.map((e) => ({ ...e, attachmentCount: countMap.get(e.id) ?? 0 })),
+    ),
+  );
 });
 
 // Create enquiry
@@ -94,7 +107,17 @@ router.get("/enquiries/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(GetEnquiryResponse.parse(enquiry));
+  const [attachmentRow] = await db
+    .select({ cnt: count(enquiryAttachmentsTable.id) })
+    .from(enquiryAttachmentsTable)
+    .where(eq(enquiryAttachmentsTable.enquiryId, enquiry.id));
+
+  res.json(
+    GetEnquiryResponse.parse({
+      ...enquiry,
+      attachmentCount: Number(attachmentRow?.cnt ?? 0),
+    }),
+  );
 });
 
 // Update enquiry

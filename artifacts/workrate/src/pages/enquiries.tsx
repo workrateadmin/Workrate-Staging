@@ -254,14 +254,7 @@ function PipelineCard({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Parse attachment URLs
-  let photoCount = 0;
-  try {
-    if (enq.attachmentUrls) {
-      const urls = JSON.parse(enq.attachmentUrls);
-      photoCount = Array.isArray(urls) ? urls.length : 0;
-    }
-  } catch {}
+  const photoCount = enq.attachmentCount ?? 0;
 
   const col = columns.find((c) => c.status === enq.status);
   const nextColumns = columns.filter((c) => c.status !== enq.status);

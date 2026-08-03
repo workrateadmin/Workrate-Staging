@@ -28,6 +28,7 @@ export interface Enquiry {
   aiSummary?: string | null;
   /** @nullable */
   attachmentUrls?: string | null;
+  attachmentCount: number;
   /** @nullable */
   chatToken?: string | null;
   createdAt: Date;

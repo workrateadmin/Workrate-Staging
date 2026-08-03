@@ -29,13 +29,15 @@ import type {
   CompanyInput,
   DashboardStats,
   Enquiry,
+  EnquiryAttachment,
   EnquiryInput,
   EnquiryMessage,
   EnquiryUpdate,
   HealthStatus,
   ListEnquiriesParams,
   Quote,
-  QuoteUpdate
+  QuoteUpdate,
+  UploadEnquiryAttachmentBody
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -742,6 +744,230 @@ export function useListEnquiryMessages<TData = Awaited<ReturnType<typeof listEnq
 
 
 
+
+export const getListEnquiryAttachmentsUrl = (id: number,) => {
+
+
+
+
+  return `/api/enquiries/${id}/attachments`
+}
+
+/**
+ * @summary List all attachments for an enquiry
+ */
+export const listEnquiryAttachments = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<EnquiryAttachment[]> => {
+
+  return customFetch<EnquiryAttachment[]>(getListEnquiryAttachmentsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEnquiryAttachmentsQueryKey = (id: number,) => {
+    return [
+    `/api/enquiries/${id}/attachments`
+    ] as const;
+    }
+
+
+export const getListEnquiryAttachmentsQueryOptions = <TData = Awaited<ReturnType<typeof listEnquiryAttachments>>, TError = ErrorType<ApiError>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEnquiryAttachments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEnquiryAttachmentsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEnquiryAttachments>>> = ({ signal }) => listEnquiryAttachments(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEnquiryAttachments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEnquiryAttachmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listEnquiryAttachments>>>
+export type ListEnquiryAttachmentsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List all attachments for an enquiry
+ */
+
+export function useListEnquiryAttachments<TData = Awaited<ReturnType<typeof listEnquiryAttachments>>, TError = ErrorType<ApiError>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEnquiryAttachments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEnquiryAttachmentsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUploadEnquiryAttachmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/enquiries/${id}/attachments`
+}
+
+/**
+ * @summary Upload a file attachment to an enquiry
+ */
+export const uploadEnquiryAttachment = async (id: number,
+    uploadEnquiryAttachmentBody: UploadEnquiryAttachmentBody, options?: Parameters<typeof customFetch>[1]): Promise<EnquiryAttachment> => {
+    const formData = new FormData();
+formData.append(`file`, uploadEnquiryAttachmentBody.file);
+
+  return customFetch<EnquiryAttachment>(getUploadEnquiryAttachmentUrl(id),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getUploadEnquiryAttachmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadEnquiryAttachment>>, TError,{id: number;data: BodyType<UploadEnquiryAttachmentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadEnquiryAttachment>>, TError,{id: number;data: BodyType<UploadEnquiryAttachmentBody>}, TContext> => {
+
+const mutationKey = ['uploadEnquiryAttachment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadEnquiryAttachment>>, {id: number;data: BodyType<UploadEnquiryAttachmentBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  uploadEnquiryAttachment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadEnquiryAttachmentMutationResult = NonNullable<Awaited<ReturnType<typeof uploadEnquiryAttachment>>>
+    export type UploadEnquiryAttachmentMutationBody = BodyType<UploadEnquiryAttachmentBody>
+    export type UploadEnquiryAttachmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Upload a file attachment to an enquiry
+ */
+export const useUploadEnquiryAttachment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadEnquiryAttachment>>, TError,{id: number;data: BodyType<UploadEnquiryAttachmentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadEnquiryAttachment>>,
+        TError,
+        {id: number;data: BodyType<UploadEnquiryAttachmentBody>},
+        TContext
+      > => {
+      return useMutation(getUploadEnquiryAttachmentMutationOptions(options));
+    }
+
+export const getDeleteEnquiryAttachmentUrl = (id: number,
+    attachmentId: number,) => {
+
+
+
+
+  return `/api/enquiries/${id}/attachments/${attachmentId}`
+}
+
+/**
+ * @summary Delete an attachment
+ */
+export const deleteEnquiryAttachment = async (id: number,
+    attachmentId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteEnquiryAttachmentUrl(id,attachmentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteEnquiryAttachmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEnquiryAttachment>>, TError,{id: number;attachmentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteEnquiryAttachment>>, TError,{id: number;attachmentId: number}, TContext> => {
+
+const mutationKey = ['deleteEnquiryAttachment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteEnquiryAttachment>>, {id: number;attachmentId: number}> = (props) => {
+          const {id,attachmentId} = props ?? {};
+
+          return  deleteEnquiryAttachment(id,attachmentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteEnquiryAttachmentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteEnquiryAttachment>>>
+
+    export type DeleteEnquiryAttachmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Delete an attachment
+ */
+export const useDeleteEnquiryAttachment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEnquiryAttachment>>, TError,{id: number;attachmentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteEnquiryAttachment>>,
+        TError,
+        {id: number;attachmentId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteEnquiryAttachmentMutationOptions(options));
+    }
 
 export const getGenerateEnquirySummaryUrl = (id: number,) => {
 

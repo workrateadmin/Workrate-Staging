@@ -78,6 +78,7 @@ export interface Enquiry {
   aiSummary?: string | null;
   /** @nullable */
   attachmentUrls?: string | null;
+  attachmentCount: number;
   /** @nullable */
   chatToken?: string | null;
   createdAt: string;
@@ -186,7 +187,24 @@ export interface ChatMessageInput {
   content: string;
 }
 
+export interface EnquiryAttachment {
+  id: number;
+  enquiryId: number;
+  url: string;
+  filename: string;
+  mimetype: string;
+  /** @nullable */
+  fileSize?: number | null;
+  /** @nullable */
+  aiAnalysis?: string | null;
+  uploadedAt: string;
+}
+
 export type ListEnquiriesParams = {
 status?: string;
+};
+
+export type UploadEnquiryAttachmentBody = {
+  file: Blob;
 };
 

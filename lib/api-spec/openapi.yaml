@@ -199,6 +199,94 @@ paths:
                 items:
                   $ref: "#/components/schemas/EnquiryMessage"
 
+  /enquiries/{id}/attachments:
+    get:
+      operationId: listEnquiryAttachments
+      tags: [enquiries]
+      summary: List all attachments for an enquiry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: List of attachments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EnquiryAttachment"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: uploadEnquiryAttachment
+      tags: [enquiries]
+      summary: Upload a file attachment to an enquiry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
+      responses:
+        "201":
+          description: Uploaded attachment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnquiryAttachment"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /enquiries/{id}/attachments/{attachmentId}:
+    delete:
+      operationId: deleteEnquiryAttachment
+      tags: [enquiries]
+      summary: Delete an attachment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+        - name: attachmentId
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /enquiries/{id}/generate-summary:
     post:
       operationId: generateEnquirySummary
@@ -512,6 +600,8 @@ components:
           type: ["string", "null"]
         attachmentUrls:
           type: ["string", "null"]
+        attachmentCount:
+          type: number
         chatToken:
           type: ["string", "null"]
         createdAt:
@@ -524,6 +614,7 @@ components:
         - id
         - customerName
         - status
+        - attachmentCount
         - createdAt
         - updatedAt
 
@@ -755,3 +846,31 @@ components:
           type: string
       required:
         - content
+
+    EnquiryAttachment:
+      type: object
+      properties:
+        id:
+          type: number
+        enquiryId:
+          type: number
+        url:
+          type: string
+        filename:
+          type: string
+        mimetype:
+          type: string
+        fileSize:
+          type: ["number", "null"]
+        aiAnalysis:
+          type: ["string", "null"]
+        uploadedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - enquiryId
+        - url
+        - filename
+        - mimetype
+        - uploadedAt
