@@ -13,7 +13,6 @@ import Enquiries from "./pages/enquiries";
 import EnquiryDetail from "./pages/enquiry-detail";
 import QuoteEditor from "./pages/quote-editor";
 import Settings from "./pages/settings";
-import ChatDemo from "./pages/chat";
 import WidgetPage from "./pages/widget";
 import IntegrationsPage from "./pages/integrations";
 import NotFound from "./pages/not-found";
@@ -87,22 +86,59 @@ const clerkAppearance = {
   },
 };
 
+/**
+ * Business sign-in page.
+ * Shown when a business owner navigates to /sign-in.
+ */
 function SignInPage() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-gray-50 px-4">
-      <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+    <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 mb-4">
+            <div className="w-9 h-9 bg-[#2563EB] rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <span className="font-black text-2xl tracking-tight text-slate-900">WorkRate</span>
+          </div>
+          <p className="text-sm text-slate-500 font-medium">Business Dashboard · Sign In</p>
+        </div>
+        <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+      </div>
     </div>
   );
 }
 
 function SignUpPage() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-gray-50 px-4">
-      <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+    <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 mb-4">
+            <div className="w-9 h-9 bg-[#2563EB] rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <span className="font-black text-2xl tracking-tight text-slate-900">WorkRate</span>
+          </div>
+          <p className="text-sm text-slate-500 font-medium">Business Dashboard · Create Account</p>
+        </div>
+        <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+      </div>
     </div>
   );
 }
 
+/**
+ * Home route:
+ * - Signed-out visitors → customer landing page (Get a Quote)
+ * - Signed-in business owners → redirect to /dashboard
+ */
 function HomeRedirect() {
   return (
     <>
@@ -125,7 +161,7 @@ function ProtectedRoute({ component: Component }: { component: any }) {
         </AppLayout>
       </Show>
       <Show when="signed-out">
-        <Redirect href="/" />
+        <Redirect href="/sign-in" />
       </Show>
     </>
   );
@@ -166,7 +202,7 @@ function ClerkProviderWithRoutes() {
       localization={{
         signIn: {
           start: {
-            title: "Welcome to WorkRate",
+            title: "Business Dashboard",
             subtitle: "Sign in to manage your pipeline",
           },
         },
@@ -177,20 +213,22 @@ function ClerkProviderWithRoutes() {
       <QueryClientProvider client={queryClient}>
         <ClerkQueryClientCacheInvalidator />
         <Switch>
+          {/* ── Customer experience (public) ── */}
           <Route path="/" component={HomeRedirect} />
+          <Route path="/widget" component={WidgetPage} />
+
+          {/* ── Business authentication ── */}
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
-          <Route path="/chat" component={ChatDemo} />
-          <Route path="/widget" component={WidgetPage} />
-          
-          {/* Protected Routes */}
+
+          {/* ── Business dashboard (protected) ── */}
           <Route path="/dashboard"><ProtectedRoute component={Dashboard} /></Route>
           <Route path="/enquiries"><ProtectedRoute component={Enquiries} /></Route>
           <Route path="/enquiries/:id"><ProtectedRoute component={EnquiryDetail} /></Route>
           <Route path="/quotes/:id"><ProtectedRoute component={QuoteEditor} /></Route>
           <Route path="/integrations"><ProtectedRoute component={IntegrationsPage} /></Route>
           <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
-          
+
           <Route><NotFound /></Route>
         </Switch>
       </QueryClientProvider>
