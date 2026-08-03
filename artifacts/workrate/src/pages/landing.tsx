@@ -42,7 +42,7 @@ export default function LandingPage() {
             Sign in
           </button>
           <button
-            onClick={() => navigate("/sign-up")}
+            onClick={() => navigate("/sign-in")}
             className="text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors px-4 py-2 rounded-lg shadow-sm"
           >
             Trade Log In
