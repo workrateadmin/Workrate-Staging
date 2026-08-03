@@ -136,11 +136,11 @@ function SignUpPage() {
 
 /**
  * Home route:
- * - Signed-out visitors → customer landing page
- * - Signed-in business owners → redirect to /dashboard
+ * - Always renders the public landing page immediately (no blank-page flash).
+ * - Once Clerk resolves, signed-in business owners are redirected to /dashboard.
  *
- * Uses useAuth() so the LandingPage always mounts and its buttons always work.
- * The redirect is handled via useEffect after Clerk resolves.
+ * Rendering unconditionally means buttons are interactive from the first paint,
+ * even while Clerk is still initialising in the background.
  */
 function HomeRedirect() {
   const { isSignedIn, isLoaded } = useAuth();
@@ -152,10 +152,7 @@ function HomeRedirect() {
     }
   }, [isLoaded, isSignedIn, navigate]);
 
-  // Show nothing while Clerk loads; once resolved show landing page (or let
-  // the effect above redirect signed-in users before we render anything).
-  if (!isLoaded || isSignedIn) return null;
-
+  // Always show the landing page. Signed-in users are redirected by the effect above.
   return <LandingPage />;
 }
 
