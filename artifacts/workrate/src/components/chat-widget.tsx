@@ -256,7 +256,9 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
     const isOpen = stage !== "closed";
 
     return (
-      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col items-end gap-3">
+      // pointer-events-none on the wrapper stops the invisible closed panel from
+      // intercepting touch events on mobile; each interactive child opts back in.
+      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col items-end gap-3 pointer-events-none">
 
         {/* ── Chat panel ───────────────────────────────────────────────── */}
         <div
@@ -501,7 +503,7 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
           onClick={isOpen ? close : open}
           className={cn(
             "relative w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300",
-            "hover:scale-110 active:scale-95",
+            "hover:scale-110 active:scale-95 pointer-events-auto",
             isOpen
               ? "bg-[#1E293B] hover:bg-[#0F172A]"
               : "bg-[#2563EB] hover:bg-[#1D4ED8]"
