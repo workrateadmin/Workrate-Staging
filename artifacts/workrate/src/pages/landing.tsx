@@ -1,20 +1,35 @@
 /**
  * Public landing page — two audiences, two clear journeys.
  *
- * "Get Started"    → business owners → /sign-up → dashboard
- * "Try WorkRate AI" → customers → opens the AI chat widget (no login)
+ * "Start Free Trial"  → business owners → /sign-up
+ * "Trade Log In"      → existing businesses → /sign-in
+ * "Try WorkRate AI"   → customers → opens the AI chat widget (no login)
  *
  * All navigation uses useLocation() + navigate() — never <Link><button>
- * (nesting <button> inside <a> is invalid HTML and swallows click events).
  */
 import { useRef } from "react";
 import { useLocation } from "wouter";
 import {
-  ArrowRight, Camera, Star, CheckCircle2,
-  ShieldCheck, MessageCircle, LayoutDashboard,
-  Zap, FileText, Users,
+  ArrowRight, Star, CheckCircle2, MessageCircle, LayoutDashboard,
+  FileText, Phone, Bot, ClipboardList, Receipt, Calendar,
+  Ruler, Wrench, Truck, ChevronRight,
 } from "lucide-react";
 import ChatWidget, { type ChatWidgetHandle } from "@/components/chat-widget";
+
+// ── Static mockup data (never connected to real DB) ──────────────────────────
+const MOCK_ENQUIRIES = [
+  { name: "Emma T.",  job: "Fitted wardrobes · SW12", time: "2h ago",  dot: "bg-blue-400"   },
+  { name: "James R.", job: "Kitchen refit · N1",       time: "4h ago",  dot: "bg-violet-400" },
+  { name: "Sarah M.", job: "Media wall · E3",          time: "6h ago",  dot: "bg-emerald-400"},
+];
+
+const WORKFLOW_STEPS = [
+  { Icon: Phone,        color: "bg-blue-500",    label: "Customer gets in touch",       desc: "Via your link, website, or QR code on the van. Anytime, day or night." },
+  { Icon: Bot,          color: "bg-violet-500",  label: "AI asks the right questions",  desc: "Dimensions, photos, budget, timescale — collected automatically." },
+  { Icon: ClipboardList,color: "bg-amber-500",   label: "Brief lands in your dashboard",desc: "A full job card with everything you need to decide whether to quote." },
+  { Icon: FileText,     color: "bg-blue-600",    label: "Quote sent in minutes",        desc: "Use the collected data to send a professional quote — not an afternoon's work." },
+  { Icon: Receipt,      color: "bg-emerald-500", label: "Job won, invoice raised",      desc: "Track every job from deposit to final payment in one place." },
+];
 
 export default function LandingPage() {
   const widgetRef = useRef<ChatWidgetHandle>(null);
@@ -62,215 +77,355 @@ export default function LandingPage() {
               backgroundSize: "50px 50px",
             }}
           />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-blue-500/20 rounded-full blur-[120px]" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-blue-500/15 rounded-full blur-[120px]" />
 
-          <div className="relative z-10 max-w-5xl mx-auto px-6 py-24 md:py-36 text-center">
-            <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white/80 text-xs font-bold tracking-widest uppercase px-4 py-2 rounded-full mb-10">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              AI-Powered · Fast Quotes · No Waiting
-            </div>
+          <div className="relative z-10 max-w-6xl mx-auto px-6 py-20 md:py-28">
+            <div className="grid lg:grid-cols-[1fr_400px] gap-12 lg:gap-16 items-center">
 
-            <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-white mb-6 leading-[1.05]">
-              The smarter way to<br />
-              <span className="text-[#60A5FA]">win trade business.</span>
-            </h1>
-            <p className="text-lg md:text-xl text-slate-300 mb-12 max-w-2xl mx-auto leading-relaxed font-medium">
-              WorkRate's AI assistant captures customer enquiries, collects every detail you need to quote, and feeds it straight into your business dashboard.
-            </p>
+              {/* ── Left: headline + CTAs ───────────────────────────────────── */}
+              <div className="text-center lg:text-left">
 
-            {/* ── Two CTAs ────────────────────────────────────────────────── */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                {/* Trade badge */}
+                <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white/80 text-xs font-bold tracking-widest uppercase px-4 py-2 rounded-full mb-8">
+                  <Ruler className="w-3.5 h-3.5 text-amber-400" />
+                  For joinery · Building · Electrical · Plumbing
+                </div>
 
-              {/* Primary — business owner */}
-              <button
-                onClick={() => navigate("/sign-up")}
-                className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-[0_8px_40px_rgba(37,99,235,0.5)] hover:shadow-[0_12px_50px_rgba(37,99,235,0.6)] transition-all hover:-translate-y-0.5 active:translate-y-0"
-              >
-                <LayoutDashboard className="w-5 h-5" />
-                Start Free Trial
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </button>
+                <h1 className="text-5xl md:text-6xl font-black tracking-tighter text-white mb-6 leading-[1.05]">
+                  Never miss an enquiry.<br />
+                  <span className="text-[#60A5FA]">Never chase a quote.</span>
+                </h1>
 
-              {/* Secondary — customer demo */}
-              <button
-                onClick={() => widgetRef.current?.open()}
-                className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-white/10 hover:bg-white/15 border border-white/25 hover:border-white/40 text-white text-lg font-black px-10 py-5 rounded-2xl backdrop-blur-sm transition-all hover:-translate-y-0.5 active:translate-y-0"
-              >
-                <MessageCircle className="w-5 h-5 text-blue-300" />
-                Try WorkRate AI
-              </button>
-            </div>
+                <p className="text-lg md:text-xl text-slate-300 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium">
+                  WorkRate captures customer enquiries 24/7, qualifies every job with the right questions, and puts a complete brief in your dashboard — ready to quote.
+                </p>
 
-            <div className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm font-semibold text-slate-400">
-              <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Free 14-day trial</span>
-              <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> No credit card required</span>
-              <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Set up in minutes</span>
+                {/* CTAs */}
+                <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+                  <button
+                    onClick={() => navigate("/sign-up")}
+                    className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-[0_8px_40px_rgba(37,99,235,0.5)] hover:shadow-[0_12px_50px_rgba(37,99,235,0.6)] transition-all hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                    <LayoutDashboard className="w-5 h-5" />
+                    Start Free Trial
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                  <button
+                    onClick={() => widgetRef.current?.open()}
+                    className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-white/10 hover:bg-white/15 border border-white/25 hover:border-white/40 text-white text-lg font-black px-10 py-5 rounded-2xl backdrop-blur-sm transition-all hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                    <MessageCircle className="w-5 h-5 text-blue-300" />
+                    Try WorkRate AI
+                  </button>
+                </div>
+
+                {/* Trust badges */}
+                <div className="mt-7 flex flex-wrap justify-center lg:justify-start gap-x-7 gap-y-2 text-sm font-semibold text-slate-400">
+                  <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Free 14-day trial</span>
+                  <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> No credit card required</span>
+                  <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Live in under 10 minutes</span>
+                </div>
+              </div>
+
+              {/* ── Right: Today's Office mockup ────────────────────────────── */}
+              <div className="w-full max-w-sm mx-auto lg:mx-0">
+                <div className="bg-white rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.35)] overflow-hidden ring-1 ring-white/10">
+
+                  {/* Window bar */}
+                  <div className="bg-slate-900 px-4 py-3 flex items-center gap-2 border-b border-white/5">
+                    <div className="flex gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-rose-500/70" />
+                      <div className="w-3 h-3 rounded-full bg-amber-400/70" />
+                      <div className="w-3 h-3 rounded-full bg-emerald-500/70" />
+                    </div>
+                    <span className="text-xs text-slate-400 font-medium ml-2 tracking-tight">WorkRate · Dashboard</span>
+                    <div className="ml-auto w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  </div>
+
+                  <div className="p-5">
+                    {/* Morning greeting */}
+                    <div className="flex items-center gap-3 mb-4 pb-4 border-b border-slate-100">
+                      <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-xl shrink-0">☀️</div>
+                      <div>
+                        <p className="text-sm font-black text-slate-900">Good morning</p>
+                        <p className="text-xs text-slate-400 font-medium">Here's what landed overnight · Mon 4 Aug</p>
+                      </div>
+                    </div>
+
+                    {/* Stats row */}
+                    <div className="grid grid-cols-3 gap-2 mb-4">
+                      <div className="bg-blue-50 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-blue-600 leading-none mb-1">3</p>
+                        <p className="text-[10px] text-blue-500 font-bold uppercase tracking-wide leading-tight">New<br/>enquiries</p>
+                      </div>
+                      <div className="bg-amber-50 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-amber-600 leading-none mb-1">2</p>
+                        <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wide leading-tight">Quotes<br/>ready</p>
+                      </div>
+                      <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-emerald-600 leading-none mb-1">1</p>
+                        <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-wide leading-tight">Job this<br/>week</p>
+                      </div>
+                    </div>
+
+                    {/* Enquiry rows */}
+                    <div className="mb-4 rounded-xl border border-slate-100 overflow-hidden">
+                      {MOCK_ENQUIRIES.map((e, i) => (
+                        <div
+                          key={e.name}
+                          className={`flex items-center justify-between px-3 py-2.5 ${i < MOCK_ENQUIRIES.length - 1 ? "border-b border-slate-50" : ""}`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-2 h-2 rounded-full shrink-0 ${e.dot}`} />
+                            <div>
+                              <p className="text-xs font-bold text-slate-800 leading-tight">{e.name}</p>
+                              <p className="text-[10px] text-slate-400 font-medium">{e.job}</p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">{e.time}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Card CTA */}
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-[#2563EB] rounded-xl">
+                      <span className="text-xs font-bold text-white">Open Dashboard</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-blue-200" />
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-center text-xs text-slate-500/70 mt-3 font-medium">
+                  What you see every morning ↑
+                </p>
+              </div>
+
             </div>
           </div>
         </section>
 
-        {/* ── Two journeys explained ─────────────────────────────────────────── */}
-        <section className="py-20 max-w-5xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-6">
-
-            {/* Business owner card */}
-            <div className="relative bg-slate-900 rounded-3xl p-8 overflow-hidden">
-              <div className="absolute top-0 right-0 w-40 h-40 bg-blue-600/20 rounded-full blur-3xl" />
-              <div className="relative z-10">
-                <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center mb-6">
-                  <LayoutDashboard className="w-6 h-6 text-white" />
-                </div>
-                <p className="text-xs font-black text-blue-400 tracking-widest uppercase mb-3">For Trade Businesses</p>
-                <h3 className="text-2xl font-black text-white mb-3 tracking-tight">Run your pipeline from one place</h3>
-                <p className="text-slate-400 font-medium leading-relaxed mb-6">
-                  Log in to your dashboard to manage enquiries, generate quotes, track leads, and configure your AI assistant.
-                </p>
-                <ul className="space-y-2 mb-8">
-                  {["View all customer enquiries", "Generate professional quotes", "Manage your WorkRate Brain", "See uploaded photos & details"].map((item) => (
-                    <li key={item} className="flex items-center gap-2 text-sm text-slate-300 font-medium">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  onClick={() => navigate("/sign-up")}
-                  className="group w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 px-6 rounded-xl transition-all"
-                >
-                  Get Started Free
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </button>
-              </div>
-            </div>
-
-            {/* Customer card */}
-            <div className="relative bg-slate-50 rounded-3xl p-8 overflow-hidden border border-slate-100">
-              <div className="absolute top-0 right-0 w-40 h-40 bg-blue-100 rounded-full blur-3xl" />
-              <div className="relative z-10">
-                <div className="w-12 h-12 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-center mb-6">
-                  <MessageCircle className="w-6 h-6 text-blue-600" />
-                </div>
-                <p className="text-xs font-black text-blue-600 tracking-widest uppercase mb-3">For Customers</p>
-                <h3 className="text-2xl font-black text-slate-900 mb-3 tracking-tight">Get a quote without the hassle</h3>
-                <p className="text-slate-500 font-medium leading-relaxed mb-6">
-                  Chat with our AI assistant, describe your project, upload photos — no account needed. Your enquiry goes straight to the business.
-                </p>
-                <ul className="space-y-2 mb-8">
-                  {["No account or login required", "Chat naturally about your project", "Upload photos of the job", "Receive a professional quote"].map((item) => (
-                    <li key={item} className="flex items-center gap-2 text-sm text-slate-600 font-medium">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  onClick={() => widgetRef.current?.open()}
-                  className="group w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-black py-3.5 px-6 rounded-xl transition-all"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Try WorkRate AI
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── How it works ──────────────────────────────────────────────────── */}
-        <section className="bg-slate-50 py-24 md:py-32">
+        {/* ── Workflow strip ─────────────────────────────────────────────────── */}
+        <section className="bg-slate-950 border-t border-white/5 py-20">
           <div className="max-w-5xl mx-auto px-6">
-            <div className="text-center mb-16">
-              <h2 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-4">
-                How it works
+            <div className="text-center mb-14">
+              <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight mb-3">
+                From first message to paid job — automatically
               </h2>
-              <p className="text-lg text-slate-500 font-medium max-w-xl mx-auto">
-                From customer chat to qualified lead — automatically.
+              <p className="text-slate-400 font-medium text-lg">
+                WorkRate runs the whole pipeline. You focus on the work.
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-8 relative">
-              <div className="hidden md:block absolute top-10 left-[calc(16.67%+1rem)] right-[calc(16.67%+1rem)] h-px bg-slate-200" />
-              {[
-                { step: "1", Icon: MessageCircle, color: "bg-blue-100 text-blue-600", ring: "ring-blue-50", title: "Customer chats", desc: "They describe the job to your AI assistant — no forms, no phone tag. The AI asks all the right questions." },
-                { step: "2", Icon: Camera, color: "bg-violet-100 text-violet-600", ring: "ring-violet-50", title: "Photos & details collected", desc: "The AI prompts for photos, measurements, budget, and timescale — everything you need to price the job." },
-                { step: "3", Icon: LayoutDashboard, color: "bg-emerald-100 text-emerald-600", ring: "ring-emerald-50", title: "Lead appears in dashboard", desc: "The moment they submit, a structured lead appears in your WorkRate dashboard, ready to quote." },
-              ].map(({ step, Icon, color, ring, title, desc }) => (
-                <div key={step} className="flex flex-col items-center text-center relative z-10">
-                  <div className={`w-20 h-20 rounded-2xl ${color} ring-8 ${ring} flex items-center justify-center mb-6 shadow-sm relative`}>
-                    <Icon className="w-9 h-9" />
-                    <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-black flex items-center justify-center">
-                      {step}
-                    </span>
+            <div className="relative">
+              {/* Connecting line — desktop only */}
+              <div className="hidden md:block absolute top-9 left-[10%] right-[10%] h-px bg-gradient-to-r from-transparent via-slate-700 to-transparent" />
+
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-8 sm:gap-4">
+                {WORKFLOW_STEPS.map(({ Icon, color, label, desc }, i) => (
+                  <div key={i} className="flex sm:flex-col items-start sm:items-center sm:text-center gap-4 sm:gap-0 relative z-10">
+                    {/* Step number + icon */}
+                    <div className="shrink-0">
+                      <div className={`w-[72px] h-[72px] ${color} rounded-2xl flex items-center justify-center shadow-lg shadow-black/30 relative sm:mx-auto sm:mb-4`}>
+                        <Icon className="w-8 h-8 text-white" />
+                        <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-slate-950 border border-slate-700 text-white text-[10px] font-black flex items-center justify-center">
+                          {i + 1}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Label + desc */}
+                    <div>
+                      <h3 className="text-white font-black text-sm mb-1.5 leading-snug">{label}</h3>
+                      <p className="text-slate-400 text-xs leading-relaxed font-medium">{desc}</p>
+                    </div>
                   </div>
-                  <h3 className="text-xl font-black text-slate-900 mb-2">{title}</h3>
-                  <p className="text-slate-500 font-medium leading-relaxed">{desc}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Problems solved ────────────────────────────────────────────────── */}
+        <section className="py-24 md:py-32 max-w-5xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-4">
+              The admin you hate,{" "}
+              <span className="text-[#2563EB]">handled.</span>
+            </h2>
+            <p className="text-lg text-slate-500 font-medium max-w-xl mx-auto">
+              Three problems every trade business runs into. WorkRate fixes all of them.
+            </p>
+          </div>
+
+          <div className="space-y-6">
+
+            {/* Problem 1: Late night enquiries */}
+            <div className="grid md:grid-cols-2 gap-6 items-center bg-slate-50 rounded-3xl p-8 md:p-10">
+              <div>
+                <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center mb-5">
+                  <Phone className="w-6 h-6 text-blue-600" />
+                </div>
+                <p className="text-xs font-black text-slate-400 tracking-widest uppercase mb-2">AI Enquiry Capture</p>
+                <h3 className="text-2xl font-black text-slate-900 mb-3 leading-tight">
+                  "It's 9pm. There's a new kitchen enquiry and you're on the sofa."
+                </h3>
+                <p className="text-slate-500 font-medium leading-relaxed">
+                  WorkRate's AI answers it instantly — asks about dimensions, budget, timescale, and photos. Sends a confirmation. You wake up to a complete brief, not a missed opportunity.
+                </p>
+              </div>
+              <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+                <div className="flex items-center gap-3 mb-4 pb-4 border-b border-slate-50">
+                  <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                    <Bot className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-slate-900">WorkRate AI replied</p>
+                    <p className="text-[11px] text-slate-400 font-medium">9:14 pm · Kitchen enquiry</p>
+                  </div>
+                  <span className="ml-auto text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full shrink-0">Live</span>
+                </div>
+                <p className="text-sm text-slate-600 bg-slate-50 rounded-xl p-3.5 font-medium leading-relaxed text-left">
+                  "Hi Emma — thanks for getting in touch! To put together an accurate quote, could you tell me the rough dimensions of your kitchen and what style of units you're thinking?"
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  <span className="text-[11px] font-bold text-emerald-600">Replied in 12 seconds · No missed calls</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Problem 2: Slow quoting */}
+            <div className="grid md:grid-cols-2 gap-6 items-center bg-slate-50 rounded-3xl p-8 md:p-10">
+              <div className="md:order-2">
+                <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mb-5">
+                  <Wrench className="w-6 h-6 text-amber-600" />
+                </div>
+                <p className="text-xs font-black text-slate-400 tracking-widest uppercase mb-2">Smart Quoting</p>
+                <h3 className="text-2xl font-black text-slate-900 mb-3 leading-tight">
+                  "Two hours on a quote. They went with someone else."
+                </h3>
+                <p className="text-slate-500 font-medium leading-relaxed">
+                  Because WorkRate already collected the dimensions, photos, materials preference, and budget during the chat — quoting takes minutes, not your whole evening.
+                </p>
+              </div>
+              <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm md:order-1">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Enquiry Brief · Collected by AI</p>
+                <div className="space-y-0">
+                  {[
+                    { label: "Job",       value: "Fitted wardrobes × 2 bays" },
+                    { label: "Location",  value: "SW12 · 3-bed house" },
+                    { label: "Width",     value: "3.6 m across full alcove wall" },
+                    { label: "Height",    value: "2.4 m, level ceiling" },
+                    { label: "Style",     value: "Shaker, hinged, painted MDF" },
+                    { label: "Budget",    value: "£4,000 – 6,000" },
+                    { label: "Timescale", value: "Within 3 months" },
+                  ].map(({ label, value }, i, arr) => (
+                    <div key={label} className={`flex justify-between py-2 ${i < arr.length - 1 ? "border-b border-slate-50" : ""}`}>
+                      <span className="text-xs text-slate-400 font-medium">{label}</span>
+                      <span className="text-xs text-slate-800 font-bold text-right ml-4">{value}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="text-[11px] font-bold text-blue-600">Collected by AI · 0 phone calls</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Problem 3: Lost pipeline */}
+            <div className="grid md:grid-cols-2 gap-6 items-center bg-slate-50 rounded-3xl p-8 md:p-10">
+              <div>
+                <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center mb-5">
+                  <Calendar className="w-6 h-6 text-emerald-600" />
+                </div>
+                <p className="text-xs font-black text-slate-400 tracking-widest uppercase mb-2">Pipeline & Follow-ups</p>
+                <h3 className="text-2xl font-black text-slate-900 mb-3 leading-tight">
+                  "Whatever happened to that extension job from three weeks ago?"
+                </h3>
+                <p className="text-slate-500 font-medium leading-relaxed">
+                  Every enquiry, quote, and job tracked in one place. See what's new, what needs a follow-up, and what's won — at a glance. Nothing falls through the cracks.
+                </p>
+              </div>
+              <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Your Pipeline</p>
+                <div className="space-y-0">
+                  {[
+                    { name: "Emma T. · Wardrobes",    status: "Quote ready",     tag: "bg-amber-100 text-amber-700"   },
+                    { name: "James R. · Kitchen",     status: "Photos needed",   tag: "bg-blue-100 text-blue-700"     },
+                    { name: "Mark H. · Extension",    status: "Deposit paid ✓",  tag: "bg-emerald-100 text-emerald-700"},
+                    { name: "Sarah M. · Media wall",  status: "New enquiry",     tag: "bg-violet-100 text-violet-700" },
+                  ].map(({ name, status, tag }, i, arr) => (
+                    <div key={name} className={`flex items-center justify-between py-2.5 ${i < arr.length - 1 ? "border-b border-slate-50" : ""}`}>
+                      <span className="text-xs font-bold text-slate-800">{name}</span>
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ml-3 ${tag}`}>{status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        {/* ── Social proof strip ─────────────────────────────────────────────── */}
+        <section className="border-y border-slate-100 bg-slate-50 py-10">
+          <div className="max-w-5xl mx-auto px-6">
+            <p className="text-center text-xs font-black text-slate-400 uppercase tracking-widest mb-6">
+              Trusted by trade businesses across the UK
+            </p>
+            <div className="flex flex-wrap justify-center md:justify-between items-center gap-6">
+              {[
+                { name: "Hartley Joinery",    label: "Bespoke joinery & fitted furniture" },
+                { name: "TrueFlow Plumbing",  label: "Bathrooms, boilers & heating" },
+                { name: "Apex Electrical",    label: "Rewires, EV chargers & more" },
+                { name: "City Builders",      label: "Extensions & conversions" },
+              ].map((co, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <Star key={j} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-700">{co.name}</p>
+                    <p className="text-xs text-slate-400">{co.label}</p>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── Feature highlights ────────────────────────────────────────────── */}
-        <section className="py-24 md:py-32 max-w-5xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-4">
-              Everything you need
-            </h2>
-            <p className="text-lg text-slate-500 font-medium max-w-xl mx-auto">
-              WorkRate handles the admin so you can focus on the work.
-            </p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6">
+        {/* ── Trade icons strip ──────────────────────────────────────────────── */}
+        <section className="py-16 max-w-4xl mx-auto px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {[
-              { Icon: Zap, color: "bg-amber-50 text-amber-600", title: "AI Enquiry Capture", desc: "Embed on your site or share the link. The AI captures name, contact, project type, location, measurements, budget, timescale, and photos." },
-              { Icon: FileText, color: "bg-blue-50 text-blue-600", title: "Smart Quote Generation", desc: "Turn a conversational job description into a line-item estimate with materials and labour — in seconds." },
-              { Icon: LayoutDashboard, color: "bg-violet-50 text-violet-600", title: "Lead Pipeline", desc: "Track every enquiry from new lead to won job. Never lose track of a quote or miss a follow-up again." },
-              { Icon: Camera, color: "bg-emerald-50 text-emerald-600", title: "Photo Collection", desc: "Customers upload photos during the chat. The AI analyses dimensions and features to give you richer context." },
-              { Icon: Users, color: "bg-rose-50 text-rose-600", title: "Customer Records", desc: "Every enquiry builds a contact record with full chat history, attachments, and AI-generated summaries." },
-              { Icon: ShieldCheck, color: "bg-slate-100 text-slate-600", title: "WorkRate Brain", desc: "Train the AI on your business — pricing rates, materials, trade preferences — so every quote reflects your style." },
-            ].map(({ Icon, color, title, desc }) => (
-              <div key={title} className="bg-white rounded-2xl p-7 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                <div className={`w-11 h-11 rounded-xl ${color} flex items-center justify-center mb-4`}>
-                  <Icon className="w-5 h-5" />
+              { Icon: Ruler,    label: "Joinery",    desc: "Wardrobes, media walls, kitchens" },
+              { Icon: Wrench,   label: "Building",   desc: "Extensions, loft conversions" },
+              { Icon: Truck,    label: "Plumbing",   desc: "Boilers, bathrooms, heating" },
+              { Icon: Calendar, label: "Electrical", desc: "Rewires, EV chargers, solar" },
+            ].map(({ Icon, label, desc }) => (
+              <div key={label} className="flex flex-col items-center text-center p-6 rounded-2xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all">
+                <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-3">
+                  <Icon className="w-6 h-6 text-slate-600" />
                 </div>
-                <h3 className="text-lg font-black text-slate-900 mb-2">{title}</h3>
-                <p className="text-slate-500 text-sm leading-relaxed font-medium">{desc}</p>
+                <p className="text-sm font-black text-slate-900 mb-1">{label}</p>
+                <p className="text-xs text-slate-400 font-medium leading-snug">{desc}</p>
               </div>
             ))}
           </div>
         </section>
 
-        {/* ── Social proof ──────────────────────────────────────────────────── */}
-        <section className="border-y border-slate-100 bg-slate-50 py-10">
-          <div className="max-w-5xl mx-auto px-6 flex flex-wrap justify-center md:justify-between items-center gap-6">
-            {[
-              { name: "Hartley Joinery", label: "Bespoke joinery & fitted furniture" },
-              { name: "TrueFlow Plumbing", label: "Bathrooms, boilers & heating" },
-              { name: "Apex Electrical", label: "Rewires, EV chargers & more" },
-              { name: "City Builders", label: "Extensions & conversions" },
-            ].map((co, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="flex gap-0.5">
-                  {Array.from({ length: 5 }).map((_, j) => (
-                    <Star key={j} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                  ))}
-                </div>
-                <div>
-                  <p className="text-sm font-black text-slate-700">{co.name}</p>
-                  <p className="text-xs text-slate-400">{co.label}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ── Final dual CTA ────────────────────────────────────────────────── */}
-        <section className="py-24 md:py-32">
+        {/* ── Final CTA ──────────────────────────────────────────────────────── */}
+        <section className="py-24 md:py-32 bg-slate-950">
           <div className="max-w-3xl mx-auto px-6 text-center">
-            <h2 className="text-4xl md:text-6xl font-black tracking-tighter text-slate-900 mb-6">
-              Ready to get started?
+            <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Get started today</p>
+            <h2 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-6">
+              Set up in under<br />10 minutes.
             </h2>
-            <p className="text-lg text-slate-500 font-medium mb-10 max-w-lg mx-auto">
-              Trade businesses: set up your dashboard and start capturing leads today. Customers: try the AI and get a quote in minutes.
+            <p className="text-lg text-slate-400 font-medium mb-10 max-w-lg mx-auto leading-relaxed">
+              Connect WorkRate to your business today. Your first enquiry could come in tonight — while you're still on the tools.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <button
@@ -278,23 +433,27 @@ export default function LandingPage() {
                 className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-0.5"
               >
                 <LayoutDashboard className="w-5 h-5" />
-                Get Started Free
+                Start Free Trial
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
               <button
                 onClick={() => widgetRef.current?.open()}
-                className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 border-2 border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 text-lg font-black px-10 py-5 rounded-2xl transition-all hover:-translate-y-0.5"
+                className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 border-2 border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white text-lg font-black px-10 py-5 rounded-2xl transition-all hover:-translate-y-0.5"
               >
-                <MessageCircle className="w-5 h-5 text-blue-500" />
+                <MessageCircle className="w-5 h-5 text-blue-400" />
                 Try WorkRate AI
               </button>
             </div>
+            <p className="mt-6 text-sm text-slate-600 font-semibold">
+              Free 14-day trial · No credit card required
+            </p>
           </div>
         </section>
+
       </main>
 
       {/* ── Footer ────────────────────────────────────────────────────────────── */}
-      <footer className="border-t border-slate-100 py-8">
+      <footer className="border-t border-slate-100 py-8 bg-white">
         <div className="max-w-5xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-[#2563EB] rounded-md flex items-center justify-center">
