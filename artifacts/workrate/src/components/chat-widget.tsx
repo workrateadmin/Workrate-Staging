@@ -30,14 +30,11 @@ export type ChatWidgetHandle = {
 
 // ── Trade options ─────────────────────────────────────────────────────────────
 export const TRADES = [
-  { id: "Fitted Wardrobes", label: "Fitted Wardrobes", icon: "🪵", desc: "Built-in wardrobes & bedroom storage" },
-  { id: "Media Wall",       label: "Media Wall",        icon: "📺", desc: "TV walls, entertainment units & alcoves" },
-  { id: "Kitchen",          label: "Kitchen",           icon: "🍳", desc: "Design, supply & fit kitchens" },
-  { id: "Bespoke Joinery",  label: "Bespoke Joinery",   icon: "🪚", desc: "Home offices, alcoves & custom cabinets" },
-  { id: "Building",         label: "Building",          icon: "🧱", desc: "Extensions, conversions, structural" },
-  { id: "Electrical",       label: "Electrical",        icon: "⚡", desc: "Rewires, consumer units, EV chargers" },
-  { id: "Plumbing",         label: "Plumbing",          icon: "🔧", desc: "Boilers, bathrooms, heating" },
-  { id: "General",          label: "Other project",     icon: "🔨", desc: "Something else entirely" },
+  { id: "Joinery",  label: "Joinery",       icon: "🪵", desc: "Wardrobes, media walls, kitchens & bespoke" },
+  { id: "Building", label: "Building",      icon: "🧱", desc: "Extensions, conversions, structural" },
+  { id: "Electrical", label: "Electrical",  icon: "⚡", desc: "Rewires, consumer units, EV chargers" },
+  { id: "Plumbing", label: "Plumbing",      icon: "🔧", desc: "Boilers, bathrooms, heating" },
+  { id: "General",  label: "Other project", icon: "🔨", desc: "Something else entirely" },
 ];
 
 // ── SSE parser ────────────────────────────────────────────────────────────────
