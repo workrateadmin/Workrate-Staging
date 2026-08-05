@@ -158,7 +158,7 @@ export default function QuoteEditor() {
   const vatAmount = Math.round(subtotal * (vatRate / 100) * 100) / 100;
   const total = subtotal + vatAmount;
 
-  function onSave(status?: "draft" | "sent") {
+  function onSave(status?: "draft" | "sent" | "accepted") {
     const values = form.getValues();
     updateQuote.mutate({
       id,
@@ -201,7 +201,7 @@ export default function QuoteEditor() {
     );
   }
 
-  const isSent = form.watch("status") === "sent";
+  const isSent = form.watch("status") === "sent" || form.watch("status") === "accepted";
 
   return (
     <div className="max-w-7xl mx-auto pb-24 space-y-6 animate-in fade-in-0 duration-300 no-print-page">
@@ -266,10 +266,37 @@ export default function QuoteEditor() {
             <Save className="w-4 h-4 mr-2" />
             Save Draft
           </Button>
+          {!isSent && (
+            <Button
+              size="sm"
+              onClick={() => onSave("sent")}
+              disabled={updateQuote.isPending}
+              variant="outline"
+              className="font-bold rounded-xl h-10 border-border/60"
+            >
+              <Send className="w-4 h-4 mr-2" /> Mark as Sent
+            </Button>
+          )}
+          {form.watch("status") === "sent" && (
+            <Button
+              size="sm"
+              onClick={() => onSave("accepted")}
+              disabled={updateQuote.isPending || form.watch("status") === "accepted"}
+              className="font-bold rounded-xl h-10 bg-green-600 hover:bg-green-700 text-white shadow-md"
+            >
+              <CheckCircle2 className="w-4 h-4 mr-2" /> Mark as Accepted
+            </Button>
+          )}
+          {form.watch("status") === "accepted" && (
+            <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-green-50 border border-green-200">
+              <CheckCircle2 className="w-4 h-4 text-green-600" />
+              <span className="text-sm font-bold text-green-700">Accepted</span>
+            </div>
+          )}
           <Button
             size="sm"
             onClick={() => setSendDialogOpen(true)}
-            className="font-bold shadow-md hover-elevate rounded-xl h-10 bg-green-600 hover:bg-green-700 text-white"
+            className="font-bold shadow-md hover-elevate rounded-xl h-10 bg-blue-600 hover:bg-blue-700 text-white"
           >
             <Mail className="w-4 h-4 mr-2" /> Send to Customer
           </Button>

@@ -199,6 +199,76 @@ export interface ChatMessageInput {
   content: string;
 }
 
+export interface Job {
+  id: number;
+  enquiryId: number;
+  /** @nullable */
+  quoteId?: number | null;
+  customerName: string;
+  /** @nullable */
+  customerEmail?: string | null;
+  /** @nullable */
+  customerPhone?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  projectType?: string | null;
+  /** @nullable */
+  projectDescription?: string | null;
+  materialsAllowance: number;
+  labourAllowance: number;
+  totalWithVat: number;
+  status: string;
+  /** @nullable */
+  installDate?: string | null;
+  /** @nullable */
+  assignedTeam?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  aiSummary?: string | null;
+  /** @nullable */
+  attachmentUrls?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface JobCreate {
+  enquiryId: number;
+  quoteId?: number;
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  location?: string;
+  projectType?: string;
+  projectDescription?: string;
+  materialsAllowance?: number;
+  labourAllowance?: number;
+  totalWithVat?: number;
+  status?: string;
+  installDate?: string;
+  assignedTeam?: string;
+  notes?: string;
+  aiSummary?: string;
+  attachmentUrls?: string;
+}
+
+export interface JobUpdate {
+  status?: string;
+  installDate?: string;
+  assignedTeam?: string;
+  notes?: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  location?: string;
+  projectType?: string;
+  projectDescription?: string;
+  materialsAllowance?: number;
+  labourAllowance?: number;
+  totalWithVat?: number;
+}
+
 export interface EnquiryAttachment {
   id: number;
   enquiryId: number;

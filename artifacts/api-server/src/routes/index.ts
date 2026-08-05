@@ -7,6 +7,7 @@ import quotesRouter from "./quotes";
 import dashboardRouter from "./dashboard";
 import chatRouter from "./chat";
 import integrationsRouter from "./integrations";
+import jobsRouter from "./jobs";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(quotesRouter);
 router.use(dashboardRouter);
 router.use(chatRouter);
 router.use(integrationsRouter);
+router.use(jobsRouter);
 
 export default router;

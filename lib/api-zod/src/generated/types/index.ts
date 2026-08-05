@@ -13,7 +13,7 @@ export * from './chatSessionWithMessages';
 export * from './chatStartInput';
 export * from './company';
 export * from './companyInput';
-// export * from './connectIntegrationBody'; // re-export conflict with api.ts — keep commented
+export * from './connectIntegrationBody';
 export * from './dashboardStats';
 export * from './enquiry';
 export * from './enquiryAttachment';
@@ -22,7 +22,10 @@ export * from './enquiryMessage';
 export * from './enquiryUpdate';
 export * from './healthStatus';
 export * from './integrationStatus';
+export * from './job';
+export * from './jobCreate';
+export * from './jobUpdate';
 export * from './listEnquiriesParams';
 export * from './quote';
 export * from './quoteUpdate';
-// export * from './uploadEnquiryAttachmentBody'; // re-export conflict with api.ts — keep commented
+export * from './uploadEnquiryAttachmentBody';

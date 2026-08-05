@@ -406,6 +406,190 @@ export const UpdateQuoteResponse = zod.object({
 
 
 /**
+ * @summary List all jobs
+ */
+export const ListJobsResponseItem = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "quoteId": zod.number().nullish(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "projectType": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "totalWithVat": zod.number(),
+  "status": zod.string(),
+  "installDate": zod.string().nullish(),
+  "assignedTeam": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "attachmentUrls": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListJobsResponse = zod.array(ListJobsResponseItem)
+
+
+/**
+ * @summary Create a new job
+ */
+export const CreateJobBody = zod.object({
+  "enquiryId": zod.number(),
+  "quoteId": zod.number().optional(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string().optional(),
+  "customerPhone": zod.string().optional(),
+  "location": zod.string().optional(),
+  "projectType": zod.string().optional(),
+  "projectDescription": zod.string().optional(),
+  "materialsAllowance": zod.number().optional(),
+  "labourAllowance": zod.number().optional(),
+  "totalWithVat": zod.number().optional(),
+  "status": zod.string().optional(),
+  "installDate": zod.string().optional(),
+  "assignedTeam": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "aiSummary": zod.string().optional(),
+  "attachmentUrls": zod.string().optional()
+})
+
+export const CreateJobResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "quoteId": zod.number().nullish(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "projectType": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "totalWithVat": zod.number(),
+  "status": zod.string(),
+  "installDate": zod.string().nullish(),
+  "assignedTeam": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "attachmentUrls": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a job by ID
+ */
+export const GetJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetJobResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "quoteId": zod.number().nullish(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "projectType": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "totalWithVat": zod.number(),
+  "status": zod.string(),
+  "installDate": zod.string().nullish(),
+  "assignedTeam": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "attachmentUrls": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a job
+ */
+export const UpdateJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateJobBody = zod.object({
+  "status": zod.string().optional(),
+  "installDate": zod.string().optional(),
+  "assignedTeam": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "customerName": zod.string().optional(),
+  "customerEmail": zod.string().optional(),
+  "customerPhone": zod.string().optional(),
+  "location": zod.string().optional(),
+  "projectType": zod.string().optional(),
+  "projectDescription": zod.string().optional(),
+  "materialsAllowance": zod.number().optional(),
+  "labourAllowance": zod.number().optional(),
+  "totalWithVat": zod.number().optional()
+})
+
+export const UpdateJobResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "quoteId": zod.number().nullish(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "projectType": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "totalWithVat": zod.number(),
+  "status": zod.string(),
+  "installDate": zod.string().nullish(),
+  "assignedTeam": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "attachmentUrls": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Convert an accepted enquiry/quote to a job
+ */
+export const ConvertEnquiryToJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ConvertEnquiryToJobResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "quoteId": zod.number().nullish(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "projectType": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "totalWithVat": zod.number(),
+  "status": zod.string(),
+  "installDate": zod.string().nullish(),
+  "assignedTeam": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "attachmentUrls": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary List all integration providers with connection status
  */
 export const ListIntegrationsResponseItem = zod.object({
@@ -455,7 +639,9 @@ export const ConnectIntegrationParams = zod.object({
   "provider": zod.coerce.string()
 })
 
-export const ConnectIntegrationBody = zod.object({}).passthrough()
+export const ConnectIntegrationBody = zod.object({
+
+})
 
 export const ConnectIntegrationResponse = zod.object({
   "provider": zod.string(),

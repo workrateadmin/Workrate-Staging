@@ -2,6 +2,7 @@ import {
   useGetEnquiry, useUpdateEnquiry, useGenerateEnquirySummary,
   useListEnquiryMessages, useGenerateQuote, useGetQuote,
   useListEnquiryAttachments, useUploadEnquiryAttachment, useDeleteEnquiryAttachment,
+  useConvertEnquiryToJob,
   getGetQuoteQueryKey, getListEnquiryAttachmentsQueryKey,
 } from "@workspace/api-client-react";
 import { useParams, Link, useLocation } from "wouter";
@@ -14,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, MapPin, Hammer, Calendar, Phone, Mail, Sparkles, Plus, Clock,
   PoundSterling, MessageSquare, ChevronDown, Save, ImageIcon, X, FileText,
-  Upload, Trash2, ExternalLink, Paperclip,
+  Upload, Trash2, ExternalLink, Paperclip, Briefcase, CheckCircle2,
 } from "lucide-react";
 import { SummaryCard, SummaryCardSkeleton } from "@/components/summary-card";
 import { useQueryClient } from "@tanstack/react-query";
@@ -65,6 +66,24 @@ export default function EnquiryDetail() {
       },
       onError: () => {
         toast({ title: "Failed to generate quote", variant: "destructive" });
+      }
+    }
+  });
+
+  const convertToJob = useConvertEnquiryToJob({
+    mutation: {
+      onSuccess: (job) => {
+        toast({ title: "Job created successfully!" });
+        queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+        setLocation(`/jobs/${job.id}`);
+      },
+      onError: (err: any) => {
+        const msg = err?.response?.data?.error ?? "Failed to create job";
+        if (err?.response?.status === 409) {
+          toast({ title: "Job already exists for this enquiry", variant: "destructive" });
+        } else {
+          toast({ title: msg, variant: "destructive" });
+        }
       }
     }
   });
@@ -266,7 +285,7 @@ export default function EnquiryDetail() {
               {isLoadingQuote ? (
                 <Skeleton className="h-32 w-full rounded-xl" />
               ) : quote ? (
-                <div className="space-y-6">
+                <div className="space-y-4">
                   <div className="text-center p-6 bg-secondary/50 rounded-xl border border-border/50 shadow-inner">
                     <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Estimated Total</p>
                     <p className="text-4xl font-black text-foreground tracking-tight">{formatCurrency(quote.totalWithVat || 0)}</p>
@@ -275,9 +294,42 @@ export default function EnquiryDetail() {
                       <span className="w-1.5 h-1.5 rounded-full bg-border" />
                       <span>Lab: {formatCurrency(quote.labourAllowance || 0)}</span>
                     </div>
+                    {quote.status && (
+                      <div className="mt-3 flex justify-center">
+                        <span className={cn(
+                          "px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-widest border shadow-sm",
+                          quote.status === "accepted"
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : quote.status === "sent"
+                            ? "bg-violet-50 text-violet-700 border-violet-200"
+                            : "bg-gray-50 text-gray-600 border-gray-200"
+                        )}>
+                          {quote.status === "accepted" && <CheckCircle2 className="w-3 h-3 inline mr-1" />}
+                          {quote.status}
+                        </span>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Convert to Job — shown when quote is accepted */}
+                  {quote.status === "accepted" && (
+                    <Button
+                      onClick={() => convertToJob.mutate({ id })}
+                      disabled={convertToJob.isPending}
+                      className="w-full font-bold hover-elevate h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white shadow-md"
+                    >
+                      <Briefcase className="w-5 h-5 mr-2" />
+                      {convertToJob.isPending ? "Creating Job…" : "Convert to Job"}
+                    </Button>
+                  )}
+
                   <Link href={`/quotes/${id}`}>
-                    <Button className="w-full font-bold hover-elevate h-12 rounded-xl text-md">Open Quote Editor</Button>
+                    <Button
+                      variant={quote.status === "accepted" ? "outline" : "default"}
+                      className="w-full font-bold hover-elevate h-12 rounded-xl text-md"
+                    >
+                      Open Quote Editor
+                    </Button>
                   </Link>
                 </div>
               ) : (

@@ -35,5 +35,5 @@ export const quoteSchema = z.object({
   vatAmount: z.coerce.number().min(0),
   notes: z.string().optional(),
   assumptions: z.string().optional(),
-  status: z.enum(["draft", "sent"]).optional(),
+  status: z.enum(["draft", "sent", "accepted"]).optional(),
 });
