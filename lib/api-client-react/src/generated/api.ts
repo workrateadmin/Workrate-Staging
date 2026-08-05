@@ -20,6 +20,11 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AiCall,
+  AiCallCreate,
+  AiCallUpdate,
+  AiReceptionistSettings,
+  AiReceptionistSettingsUpdate,
   ApiError,
   ChatMessageInput,
   ChatSession,
@@ -40,6 +45,7 @@ import type {
   JobCreate,
   JobScheduleUpdate,
   JobUpdate,
+  ListAiCallsParams,
   ListEnquiriesParams,
   Quote,
   QuoteUpdate,
@@ -2299,4 +2305,527 @@ export function useGetChatSession<TData = Awaited<ReturnType<typeof getChatSessi
 
 
 
+
+export const getGetAiReceptionistSettingsUrl = () => {
+
+
+
+
+  return `/api/ai-receptionist/settings`
+}
+
+/**
+ * @summary Get AI receptionist settings
+ */
+export const getAiReceptionistSettings = async ( options?: Parameters<typeof customFetch>[1]): Promise<AiReceptionistSettings> => {
+
+  return customFetch<AiReceptionistSettings>(getGetAiReceptionistSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAiReceptionistSettingsQueryKey = () => {
+    return [
+    `/api/ai-receptionist/settings`
+    ] as const;
+    }
+
+
+export const getGetAiReceptionistSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getAiReceptionistSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAiReceptionistSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAiReceptionistSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAiReceptionistSettings>>> = ({ signal }) => getAiReceptionistSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAiReceptionistSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAiReceptionistSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getAiReceptionistSettings>>>
+export type GetAiReceptionistSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get AI receptionist settings
+ */
+
+export function useGetAiReceptionistSettings<TData = Awaited<ReturnType<typeof getAiReceptionistSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAiReceptionistSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAiReceptionistSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAiReceptionistSettingsUrl = () => {
+
+
+
+
+  return `/api/ai-receptionist/settings`
+}
+
+/**
+ * @summary Update AI receptionist settings
+ */
+export const updateAiReceptionistSettings = async (aiReceptionistSettingsUpdate: AiReceptionistSettingsUpdate, options?: Parameters<typeof customFetch>[1]): Promise<AiReceptionistSettings> => {
+
+  return customFetch<AiReceptionistSettings>(getUpdateAiReceptionistSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(aiReceptionistSettingsUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateAiReceptionistSettingsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAiReceptionistSettings>>, TError,{data: BodyType<AiReceptionistSettingsUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAiReceptionistSettings>>, TError,{data: BodyType<AiReceptionistSettingsUpdate>}, TContext> => {
+
+const mutationKey = ['updateAiReceptionistSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAiReceptionistSettings>>, {data: BodyType<AiReceptionistSettingsUpdate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateAiReceptionistSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAiReceptionistSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateAiReceptionistSettings>>>
+    export type UpdateAiReceptionistSettingsMutationBody = BodyType<AiReceptionistSettingsUpdate>
+    export type UpdateAiReceptionistSettingsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update AI receptionist settings
+ */
+export const useUpdateAiReceptionistSettings = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAiReceptionistSettings>>, TError,{data: BodyType<AiReceptionistSettingsUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAiReceptionistSettings>>,
+        TError,
+        {data: BodyType<AiReceptionistSettingsUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateAiReceptionistSettingsMutationOptions(options));
+    }
+
+export const getListAiCallsUrl = (params?: ListAiCallsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/ai-calls?${stringifiedParams}` : `/api/ai-calls`
+}
+
+/**
+ * @summary List all AI call records
+ */
+export const listAiCalls = async (params?: ListAiCallsParams, options?: Parameters<typeof customFetch>[1]): Promise<AiCall[]> => {
+
+  return customFetch<AiCall[]>(getListAiCallsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAiCallsQueryKey = (params?: ListAiCallsParams,) => {
+    return [
+    `/api/ai-calls`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAiCallsQueryOptions = <TData = Awaited<ReturnType<typeof listAiCalls>>, TError = ErrorType<unknown>>(params?: ListAiCallsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAiCalls>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAiCallsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAiCalls>>> = ({ signal }) => listAiCalls(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAiCalls>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAiCallsQueryResult = NonNullable<Awaited<ReturnType<typeof listAiCalls>>>
+export type ListAiCallsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all AI call records
+ */
+
+export function useListAiCalls<TData = Awaited<ReturnType<typeof listAiCalls>>, TError = ErrorType<unknown>>(
+ params?: ListAiCallsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAiCalls>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAiCallsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAiCallUrl = () => {
+
+
+
+
+  return `/api/ai-calls`
+}
+
+/**
+ * @summary Create a new AI call record (used by telephony providers)
+ */
+export const createAiCall = async (aiCallCreate: AiCallCreate, options?: Parameters<typeof customFetch>[1]): Promise<AiCall> => {
+
+  return customFetch<AiCall>(getCreateAiCallUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(aiCallCreate)
+  }
+);}
+
+
+
+
+
+export const getCreateAiCallMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAiCall>>, TError,{data: BodyType<AiCallCreate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAiCall>>, TError,{data: BodyType<AiCallCreate>}, TContext> => {
+
+const mutationKey = ['createAiCall'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAiCall>>, {data: BodyType<AiCallCreate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAiCall(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAiCallMutationResult = NonNullable<Awaited<ReturnType<typeof createAiCall>>>
+    export type CreateAiCallMutationBody = BodyType<AiCallCreate>
+    export type CreateAiCallMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a new AI call record (used by telephony providers)
+ */
+export const useCreateAiCall = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAiCall>>, TError,{data: BodyType<AiCallCreate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAiCall>>,
+        TError,
+        {data: BodyType<AiCallCreate>},
+        TContext
+      > => {
+      return useMutation(getCreateAiCallMutationOptions(options));
+    }
+
+export const getGetAiCallUrl = (id: number,) => {
+
+
+
+
+  return `/api/ai-calls/${id}`
+}
+
+/**
+ * @summary Get a single AI call record
+ */
+export const getAiCall = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<AiCall> => {
+
+  return customFetch<AiCall>(getGetAiCallUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAiCallQueryKey = (id: number,) => {
+    return [
+    `/api/ai-calls/${id}`
+    ] as const;
+    }
+
+
+export const getGetAiCallQueryOptions = <TData = Awaited<ReturnType<typeof getAiCall>>, TError = ErrorType<ApiError>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAiCall>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAiCallQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAiCall>>> = ({ signal }) => getAiCall(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAiCall>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAiCallQueryResult = NonNullable<Awaited<ReturnType<typeof getAiCall>>>
+export type GetAiCallQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a single AI call record
+ */
+
+export function useGetAiCall<TData = Awaited<ReturnType<typeof getAiCall>>, TError = ErrorType<ApiError>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAiCall>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAiCallQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAiCallUrl = (id: number,) => {
+
+
+
+
+  return `/api/ai-calls/${id}`
+}
+
+/**
+ * @summary Update an AI call record
+ */
+export const updateAiCall = async (id: number,
+    aiCallUpdate: AiCallUpdate, options?: Parameters<typeof customFetch>[1]): Promise<AiCall> => {
+
+  return customFetch<AiCall>(getUpdateAiCallUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(aiCallUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateAiCallMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAiCall>>, TError,{id: number;data: BodyType<AiCallUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAiCall>>, TError,{id: number;data: BodyType<AiCallUpdate>}, TContext> => {
+
+const mutationKey = ['updateAiCall'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAiCall>>, {id: number;data: BodyType<AiCallUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAiCall(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAiCallMutationResult = NonNullable<Awaited<ReturnType<typeof updateAiCall>>>
+    export type UpdateAiCallMutationBody = BodyType<AiCallUpdate>
+    export type UpdateAiCallMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update an AI call record
+ */
+export const useUpdateAiCall = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAiCall>>, TError,{id: number;data: BodyType<AiCallUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAiCall>>,
+        TError,
+        {id: number;data: BodyType<AiCallUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateAiCallMutationOptions(options));
+    }
+
+export const getProcessAiCallUrl = (id: number,) => {
+
+
+
+
+  return `/api/ai-calls/${id}/process`
+}
+
+/**
+ * @summary Process a completed call — create enquiry, generate AI summary
+ */
+export const processAiCall = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<AiCall> => {
+
+  return customFetch<AiCall>(getProcessAiCallUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getProcessAiCallMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof processAiCall>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof processAiCall>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['processAiCall'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof processAiCall>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  processAiCall(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProcessAiCallMutationResult = NonNullable<Awaited<ReturnType<typeof processAiCall>>>
+
+    export type ProcessAiCallMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Process a completed call — create enquiry, generate AI summary
+ */
+export const useProcessAiCall = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof processAiCall>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof processAiCall>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getProcessAiCallMutationOptions(options));
+    }
 

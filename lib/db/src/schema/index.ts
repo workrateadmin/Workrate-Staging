@@ -5,3 +5,5 @@ export * from "./enquiry_attachments";
 export * from "./integrations";
 export * from "./quotes";
 export * from "./jobs";
+export * from "./ai_calls";
+export * from "./ai_receptionist_settings";

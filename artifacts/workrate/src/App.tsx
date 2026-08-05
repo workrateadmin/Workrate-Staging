@@ -15,6 +15,7 @@ import QuoteEditor from "./pages/quote-editor";
 import Jobs from "./pages/jobs";
 import JobDetail from "./pages/job-detail";
 import Schedule from "./pages/schedule";
+import AiReceptionist from "./pages/ai-receptionist";
 import Settings from "./pages/settings";
 import WidgetPage from "./pages/widget";
 import IntegrationsPage from "./pages/integrations";
@@ -241,6 +242,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/jobs"><ProtectedRoute component={Jobs} /></Route>
           <Route path="/jobs/:id"><ProtectedRoute component={JobDetail} /></Route>
           <Route path="/schedule"><ProtectedRoute component={Schedule} /></Route>
+          <Route path="/ai-receptionist"><ProtectedRoute component={AiReceptionist} /></Route>
           <Route path="/integrations"><ProtectedRoute component={IntegrationsPage} /></Route>
           <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
 

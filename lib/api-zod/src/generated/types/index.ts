@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './aiCall';
+export * from './aiCallCreate';
+export * from './aiCallUpdate';
+export * from './aiReceptionistSettings';
+export * from './aiReceptionistSettingsUpdate';
 export * from './apiError';
 export * from './chatMessageInput';
 export * from './chatSession';
@@ -26,6 +31,7 @@ export * from './job';
 export * from './jobCreate';
 export * from './jobScheduleUpdate';
 export * from './jobUpdate';
+export * from './listAiCallsParams';
 export * from './listEnquiriesParams';
 export * from './quote';
 export * from './quoteUpdate';

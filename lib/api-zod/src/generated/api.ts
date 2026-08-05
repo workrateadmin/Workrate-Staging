@@ -798,3 +798,230 @@ export const GetChatSessionResponse = zod.object({
 })
 
 
+/**
+ * @summary Get AI receptionist settings
+ */
+export const GetAiReceptionistSettingsResponse = zod.object({
+  "id": zod.number(),
+  "enabled": zod.boolean(),
+  "welcomeMessageType": zod.string(),
+  "welcomeMessageText": zod.string().nullish(),
+  "welcomeMessageUrl": zod.string().nullish(),
+  "businessHours": zod.string().nullish(),
+  "outOfHoursBehaviour": zod.string(),
+  "outOfHoursMessage": zod.string().nullish(),
+  "transferUrgentCalls": zod.boolean(),
+  "transferPhone": zod.string().nullish(),
+  "enabledQuestions": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "webhookUrl": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update AI receptionist settings
+ */
+export const UpdateAiReceptionistSettingsBody = zod.object({
+  "enabled": zod.boolean().optional(),
+  "welcomeMessageType": zod.string().optional(),
+  "welcomeMessageText": zod.string().optional(),
+  "welcomeMessageUrl": zod.string().optional(),
+  "businessHours": zod.string().optional(),
+  "outOfHoursBehaviour": zod.string().optional(),
+  "outOfHoursMessage": zod.string().optional(),
+  "transferUrgentCalls": zod.boolean().optional(),
+  "transferPhone": zod.string().optional(),
+  "enabledQuestions": zod.string().optional(),
+  "phoneNumber": zod.string().optional(),
+  "webhookUrl": zod.string().optional()
+})
+
+export const UpdateAiReceptionistSettingsResponse = zod.object({
+  "id": zod.number(),
+  "enabled": zod.boolean(),
+  "welcomeMessageType": zod.string(),
+  "welcomeMessageText": zod.string().nullish(),
+  "welcomeMessageUrl": zod.string().nullish(),
+  "businessHours": zod.string().nullish(),
+  "outOfHoursBehaviour": zod.string(),
+  "outOfHoursMessage": zod.string().nullish(),
+  "transferUrgentCalls": zod.boolean(),
+  "transferPhone": zod.string().nullish(),
+  "enabledQuestions": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "webhookUrl": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List all AI call records
+ */
+export const ListAiCallsQueryParams = zod.object({
+  "date": zod.coerce.string().optional().describe('Filter by date (YYYY-MM-DD)'),
+  "followUpRequired": zod.coerce.string().optional().describe('Filter by follow-up required (true\/false)')
+})
+
+export const ListAiCallsResponseItem = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number().nullish(),
+  "callStatus": zod.string(),
+  "callerPhone": zod.string().nullish(),
+  "callerName": zod.string().nullish(),
+  "durationSeconds": zod.number().nullish(),
+  "callStartedAt": zod.coerce.date().nullish(),
+  "collectedData": zod.string().nullish(),
+  "transcript": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "confidenceScore": zod.number().nullish(),
+  "surveySuggested": zod.boolean().nullish(),
+  "followUpRequired": zod.boolean(),
+  "followUpNotes": zod.string().nullish(),
+  "providerId": zod.string().nullish(),
+  "providerData": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListAiCallsResponse = zod.array(ListAiCallsResponseItem)
+
+
+/**
+ * @summary Create a new AI call record (used by telephony providers)
+ */
+export const CreateAiCallBody = zod.object({
+  "callStatus": zod.string().optional(),
+  "callerPhone": zod.string().optional(),
+  "callerName": zod.string().optional(),
+  "durationSeconds": zod.number().optional(),
+  "callStartedAt": zod.coerce.date().optional(),
+  "collectedData": zod.string().optional(),
+  "transcript": zod.string().optional(),
+  "aiSummary": zod.string().optional(),
+  "confidenceScore": zod.number().optional(),
+  "surveySuggested": zod.boolean().optional(),
+  "followUpRequired": zod.boolean().optional(),
+  "followUpNotes": zod.string().optional(),
+  "providerId": zod.string().optional(),
+  "providerData": zod.string().optional()
+})
+
+export const CreateAiCallResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number().nullish(),
+  "callStatus": zod.string(),
+  "callerPhone": zod.string().nullish(),
+  "callerName": zod.string().nullish(),
+  "durationSeconds": zod.number().nullish(),
+  "callStartedAt": zod.coerce.date().nullish(),
+  "collectedData": zod.string().nullish(),
+  "transcript": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "confidenceScore": zod.number().nullish(),
+  "surveySuggested": zod.boolean().nullish(),
+  "followUpRequired": zod.boolean(),
+  "followUpNotes": zod.string().nullish(),
+  "providerId": zod.string().nullish(),
+  "providerData": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a single AI call record
+ */
+export const GetAiCallParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetAiCallResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number().nullish(),
+  "callStatus": zod.string(),
+  "callerPhone": zod.string().nullish(),
+  "callerName": zod.string().nullish(),
+  "durationSeconds": zod.number().nullish(),
+  "callStartedAt": zod.coerce.date().nullish(),
+  "collectedData": zod.string().nullish(),
+  "transcript": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "confidenceScore": zod.number().nullish(),
+  "surveySuggested": zod.boolean().nullish(),
+  "followUpRequired": zod.boolean(),
+  "followUpNotes": zod.string().nullish(),
+  "providerId": zod.string().nullish(),
+  "providerData": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update an AI call record
+ */
+export const UpdateAiCallParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateAiCallBody = zod.object({
+  "callStatus": zod.string().optional(),
+  "callerName": zod.string().optional(),
+  "followUpRequired": zod.boolean().optional(),
+  "followUpNotes": zod.string().optional(),
+  "enquiryId": zod.number().optional()
+})
+
+export const UpdateAiCallResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number().nullish(),
+  "callStatus": zod.string(),
+  "callerPhone": zod.string().nullish(),
+  "callerName": zod.string().nullish(),
+  "durationSeconds": zod.number().nullish(),
+  "callStartedAt": zod.coerce.date().nullish(),
+  "collectedData": zod.string().nullish(),
+  "transcript": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "confidenceScore": zod.number().nullish(),
+  "surveySuggested": zod.boolean().nullish(),
+  "followUpRequired": zod.boolean(),
+  "followUpNotes": zod.string().nullish(),
+  "providerId": zod.string().nullish(),
+  "providerData": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Process a completed call — create enquiry, generate AI summary
+ */
+export const ProcessAiCallParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ProcessAiCallResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number().nullish(),
+  "callStatus": zod.string(),
+  "callerPhone": zod.string().nullish(),
+  "callerName": zod.string().nullish(),
+  "durationSeconds": zod.number().nullish(),
+  "callStartedAt": zod.coerce.date().nullish(),
+  "collectedData": zod.string().nullish(),
+  "transcript": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "confidenceScore": zod.number().nullish(),
+  "surveySuggested": zod.boolean().nullish(),
+  "followUpRequired": zod.boolean(),
+  "followUpNotes": zod.string().nullish(),
+  "providerId": zod.string().nullish(),
+  "providerData": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

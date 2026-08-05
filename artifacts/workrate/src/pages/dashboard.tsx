@@ -1,13 +1,13 @@
-import { useGetDashboard, useListJobs } from "@workspace/api-client-react";
+import { useGetDashboard, useListJobs, useListAiCalls } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { Inbox, TrendingUp, ChevronRight, MessageSquare, Briefcase, Sparkles, Calendar, CalendarDays, Clock, MapPin } from "lucide-react";
+import { Inbox, TrendingUp, ChevronRight, MessageSquare, Briefcase, Sparkles, Calendar, CalendarDays, Clock, MapPin, Phone, PhoneOff, PhoneForwarded, CheckCircle2, AlertCircle, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SummaryCard, parseSummary } from "@/components/summary-card";
 import { eventsFromJobs, EVENT_CONFIG } from "./schedule";
-import { format, isToday, parseISO, addDays, isBefore, isAfter, startOfDay } from "date-fns";
+import { format, isToday, parseISO, addDays, isBefore, isAfter, startOfDay, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
@@ -63,6 +63,9 @@ export default function Dashboard() {
 
       {/* Scheduling widgets */}
       <SchedulingWidgets />
+
+      {/* Today's Calls widget */}
+      <TodaysCallsWidget />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column */}
@@ -328,6 +331,95 @@ function AiSummariesSection({ recentEnquiries }: { recentEnquiries: any[] }) {
                 <SummaryCard aiSummary={enq.aiSummary!} />
               </CardContent>
             </Card>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Today's Calls widget ──────────────────────────────────────────────────────
+
+function TodaysCallsWidget() {
+  const { data: calls } = useListAiCalls();
+
+  const todayCalls = (calls ?? []).filter((c) => {
+    const ts = c.callStartedAt ?? c.createdAt;
+    return ts ? isToday(parseISO(ts)) : false;
+  });
+
+  if (todayCalls.length === 0) return null;
+
+  const statusIcons: Record<string, React.ReactNode> = {
+    completed:   <CheckCircle2 className="w-4 h-4 text-green-600" />,
+    missed:      <PhoneOff className="w-4 h-4 text-red-500" />,
+    transferred: <PhoneForwarded className="w-4 h-4 text-blue-600" />,
+    dropped:     <AlertCircle className="w-4 h-4 text-amber-600" />,
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between pb-2 border-b border-border/60">
+        <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
+          <Phone className="w-5 h-5 text-primary" />
+          Today's Calls
+        </h2>
+        <Link href="/ai-receptionist" className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
+          View all <ChevronRight className="w-4 h-4" />
+        </Link>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        {todayCalls.slice(0, 6).map((call) => (
+          <Link key={call.id} href="/ai-receptionist">
+            <div className="bg-card border border-border/60 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-primary/20 transition-all cursor-pointer group">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Phone className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-black text-sm tracking-tight truncate">
+                      {call.callerName || call.callerPhone || "Unknown caller"}
+                    </div>
+                    {call.callerPhone && call.callerName && (
+                      <div className="text-xs text-muted-foreground truncate">{call.callerPhone}</div>
+                    )}
+                  </div>
+                </div>
+                {statusIcons[call.callStatus] ?? <Phone className="w-4 h-4 text-muted-foreground" />}
+              </div>
+
+              {/* AI Summary excerpt */}
+              {call.aiSummary && (() => {
+                try {
+                  const s = JSON.parse(call.aiSummary);
+                  return s.summary ? (
+                    <p className="text-xs text-muted-foreground font-medium line-clamp-2 mb-2 leading-relaxed">{s.summary}</p>
+                  ) : null;
+                } catch { return null; }
+              })()}
+
+              <div className="flex items-center gap-3 flex-wrap">
+                {call.durationSeconds != null && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
+                    <Timer className="w-3 h-3" />
+                    {Math.floor(call.durationSeconds / 60) > 0
+                      ? `${Math.floor(call.durationSeconds / 60)}m ${call.durationSeconds % 60}s`
+                      : `${call.durationSeconds}s`}
+                  </span>
+                )}
+                {call.followUpRequired && (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                    Follow-up
+                  </span>
+                )}
+                {call.surveySuggested && (
+                  <span className="text-[10px] font-bold text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-md">
+                    Survey
+                  </span>
+                )}
+              </div>
+            </div>
           </Link>
         ))}
       </div>

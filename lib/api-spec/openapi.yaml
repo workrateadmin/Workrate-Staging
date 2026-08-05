@@ -721,6 +721,162 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  # AI Receptionist Settings
+  /ai-receptionist/settings:
+    get:
+      operationId: getAiReceptionistSettings
+      tags: [ai-receptionist]
+      summary: Get AI receptionist settings
+      security:
+        - ClerkAuth: []
+      responses:
+        "200":
+          description: AI receptionist settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiReceptionistSettings"
+    put:
+      operationId: updateAiReceptionistSettings
+      tags: [ai-receptionist]
+      summary: Update AI receptionist settings
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiReceptionistSettingsUpdate"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiReceptionistSettings"
+
+  # AI Calls
+  /ai-calls:
+    get:
+      operationId: listAiCalls
+      tags: [ai-receptionist]
+      summary: List all AI call records
+      security:
+        - ClerkAuth: []
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by date (YYYY-MM-DD)
+        - name: followUpRequired
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by follow-up required (true/false)
+      responses:
+        "200":
+          description: List of AI calls
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AiCall"
+    post:
+      operationId: createAiCall
+      tags: [ai-receptionist]
+      summary: Create a new AI call record (used by telephony providers)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiCallCreate"
+      responses:
+        "201":
+          description: Created AI call
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiCall"
+
+  /ai-calls/{id}:
+    get:
+      operationId: getAiCall
+      tags: [ai-receptionist]
+      summary: Get a single AI call record
+      security:
+        - ClerkAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: AI call record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiCall"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateAiCall
+      tags: [ai-receptionist]
+      summary: Update an AI call record
+      security:
+        - ClerkAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiCallUpdate"
+      responses:
+        "200":
+          description: Updated AI call
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiCall"
+
+  /ai-calls/{id}/process:
+    post:
+      operationId: processAiCall
+      tags: [ai-receptionist]
+      summary: Process a completed call — create enquiry, generate AI summary
+      security:
+        - ClerkAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Processed call with enquiry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiCall"
+
 components:
   schemas:
     HealthStatus:
@@ -1267,6 +1423,174 @@ components:
         status:
           type: string
         notes:
+          type: string
+
+    AiCall:
+      type: object
+      properties:
+        id:
+          type: number
+        enquiryId:
+          type: ["number", "null"]
+        callStatus:
+          type: string
+        callerPhone:
+          type: ["string", "null"]
+        callerName:
+          type: ["string", "null"]
+        durationSeconds:
+          type: ["number", "null"]
+        callStartedAt:
+          type: ["string", "null"]
+          format: date-time
+        collectedData:
+          type: ["string", "null"]
+        transcript:
+          type: ["string", "null"]
+        aiSummary:
+          type: ["string", "null"]
+        confidenceScore:
+          type: ["number", "null"]
+        surveySuggested:
+          type: ["boolean", "null"]
+        followUpRequired:
+          type: boolean
+        followUpNotes:
+          type: ["string", "null"]
+        providerId:
+          type: ["string", "null"]
+        providerData:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - callStatus
+        - followUpRequired
+        - createdAt
+        - updatedAt
+
+    AiCallCreate:
+      type: object
+      properties:
+        callStatus:
+          type: string
+        callerPhone:
+          type: string
+        callerName:
+          type: string
+        durationSeconds:
+          type: number
+        callStartedAt:
+          type: string
+          format: date-time
+        collectedData:
+          type: string
+        transcript:
+          type: string
+        aiSummary:
+          type: string
+        confidenceScore:
+          type: number
+        surveySuggested:
+          type: boolean
+        followUpRequired:
+          type: boolean
+        followUpNotes:
+          type: string
+        providerId:
+          type: string
+        providerData:
+          type: string
+
+    AiCallUpdate:
+      type: object
+      properties:
+        callStatus:
+          type: string
+        callerName:
+          type: string
+        followUpRequired:
+          type: boolean
+        followUpNotes:
+          type: string
+        enquiryId:
+          type: number
+
+    AiReceptionistSettings:
+      type: object
+      properties:
+        id:
+          type: number
+        enabled:
+          type: boolean
+        welcomeMessageType:
+          type: string
+        welcomeMessageText:
+          type: ["string", "null"]
+        welcomeMessageUrl:
+          type: ["string", "null"]
+        businessHours:
+          type: ["string", "null"]
+        outOfHoursBehaviour:
+          type: string
+        outOfHoursMessage:
+          type: ["string", "null"]
+        transferUrgentCalls:
+          type: boolean
+        transferPhone:
+          type: ["string", "null"]
+        enabledQuestions:
+          type: ["string", "null"]
+        phoneNumber:
+          type: ["string", "null"]
+        webhookUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - enabled
+        - welcomeMessageType
+        - outOfHoursBehaviour
+        - transferUrgentCalls
+        - createdAt
+        - updatedAt
+
+    AiReceptionistSettingsUpdate:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        welcomeMessageType:
+          type: string
+        welcomeMessageText:
+          type: string
+        welcomeMessageUrl:
+          type: string
+        businessHours:
+          type: string
+        outOfHoursBehaviour:
+          type: string
+        outOfHoursMessage:
+          type: string
+        transferUrgentCalls:
+          type: boolean
+        transferPhone:
+          type: string
+        enabledQuestions:
+          type: string
+        phoneNumber:
+          type: string
+        webhookUrl:
           type: string
 
     EnquiryAttachment:

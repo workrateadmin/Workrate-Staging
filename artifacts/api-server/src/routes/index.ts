@@ -8,6 +8,7 @@ import dashboardRouter from "./dashboard";
 import chatRouter from "./chat";
 import integrationsRouter from "./integrations";
 import jobsRouter from "./jobs";
+import aiReceptionistRouter from "./ai-receptionist";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(dashboardRouter);
 router.use(chatRouter);
 router.use(integrationsRouter);
 router.use(jobsRouter);
+router.use(aiReceptionistRouter);
 
 export default router;

@@ -286,6 +286,106 @@ export interface JobScheduleUpdate {
   notes?: string;
 }
 
+export interface AiCall {
+  id: number;
+  /** @nullable */
+  enquiryId?: number | null;
+  callStatus: string;
+  /** @nullable */
+  callerPhone?: string | null;
+  /** @nullable */
+  callerName?: string | null;
+  /** @nullable */
+  durationSeconds?: number | null;
+  /** @nullable */
+  callStartedAt?: string | null;
+  /** @nullable */
+  collectedData?: string | null;
+  /** @nullable */
+  transcript?: string | null;
+  /** @nullable */
+  aiSummary?: string | null;
+  /** @nullable */
+  confidenceScore?: number | null;
+  /** @nullable */
+  surveySuggested?: boolean | null;
+  followUpRequired: boolean;
+  /** @nullable */
+  followUpNotes?: string | null;
+  /** @nullable */
+  providerId?: string | null;
+  /** @nullable */
+  providerData?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiCallCreate {
+  callStatus?: string;
+  callerPhone?: string;
+  callerName?: string;
+  durationSeconds?: number;
+  callStartedAt?: string;
+  collectedData?: string;
+  transcript?: string;
+  aiSummary?: string;
+  confidenceScore?: number;
+  surveySuggested?: boolean;
+  followUpRequired?: boolean;
+  followUpNotes?: string;
+  providerId?: string;
+  providerData?: string;
+}
+
+export interface AiCallUpdate {
+  callStatus?: string;
+  callerName?: string;
+  followUpRequired?: boolean;
+  followUpNotes?: string;
+  enquiryId?: number;
+}
+
+export interface AiReceptionistSettings {
+  id: number;
+  enabled: boolean;
+  welcomeMessageType: string;
+  /** @nullable */
+  welcomeMessageText?: string | null;
+  /** @nullable */
+  welcomeMessageUrl?: string | null;
+  /** @nullable */
+  businessHours?: string | null;
+  outOfHoursBehaviour: string;
+  /** @nullable */
+  outOfHoursMessage?: string | null;
+  transferUrgentCalls: boolean;
+  /** @nullable */
+  transferPhone?: string | null;
+  /** @nullable */
+  enabledQuestions?: string | null;
+  /** @nullable */
+  phoneNumber?: string | null;
+  /** @nullable */
+  webhookUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiReceptionistSettingsUpdate {
+  enabled?: boolean;
+  welcomeMessageType?: string;
+  welcomeMessageText?: string;
+  welcomeMessageUrl?: string;
+  businessHours?: string;
+  outOfHoursBehaviour?: string;
+  outOfHoursMessage?: string;
+  transferUrgentCalls?: boolean;
+  transferPhone?: string;
+  enabledQuestions?: string;
+  phoneNumber?: string;
+  webhookUrl?: string;
+}
+
 export interface EnquiryAttachment {
   id: number;
   enquiryId: number;
@@ -308,4 +408,15 @@ export type UploadEnquiryAttachmentBody = {
 };
 
 export type ConnectIntegrationBody = { [key: string]: unknown };
+
+export type ListAiCallsParams = {
+/**
+ * Filter by date (YYYY-MM-DD)
+ */
+date?: string;
+/**
+ * Filter by follow-up required (true/false)
+ */
+followUpRequired?: string;
+};
 
