@@ -5,13 +5,9 @@ import { z } from "zod/v4";
 export const JOB_STATUSES = [
   "Survey Required",
   "Survey Booked",
-  "Quote Accepted",
-  "Materials Ordered",
   "Installation Scheduled",
   "In Progress",
   "Completed",
-  "Invoiced",
-  "Closed",
 ] as const;
 
 export type JobStatus = (typeof JOB_STATUSES)[number];
@@ -33,7 +29,11 @@ export const jobsTable = pgTable("jobs", {
   labourAllowance: numeric("labour_allowance", { precision: 10, scale: 2 }).notNull().default("0"),
   totalWithVat: numeric("total_with_vat", { precision: 10, scale: 2 }).notNull().default("0"),
   // Job-specific fields
-  status: text("status").notNull().default("Quote Accepted"),
+  status: text("status").notNull().default("Survey Required"),
+  // Scheduling dates (ISO date strings YYYY-MM-DD)
+  siteSurveyDate: text("site_survey_date"),
+  installationStartDate: text("installation_start_date"),
+  installationEndDate: text("installation_end_date"),
   installDate: text("install_date"),
   assignedTeam: text("assigned_team"),
   notes: text("notes"),

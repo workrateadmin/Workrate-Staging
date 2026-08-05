@@ -220,6 +220,12 @@ export interface Job {
   totalWithVat: number;
   status: string;
   /** @nullable */
+  siteSurveyDate?: string | null;
+  /** @nullable */
+  installationStartDate?: string | null;
+  /** @nullable */
+  installationEndDate?: string | null;
+  /** @nullable */
   installDate?: string | null;
   /** @nullable */
   assignedTeam?: string | null;
@@ -255,6 +261,9 @@ export interface JobCreate {
 
 export interface JobUpdate {
   status?: string;
+  siteSurveyDate?: string;
+  installationStartDate?: string;
+  installationEndDate?: string;
   installDate?: string;
   assignedTeam?: string;
   notes?: string;
@@ -267,6 +276,14 @@ export interface JobUpdate {
   materialsAllowance?: number;
   labourAllowance?: number;
   totalWithVat?: number;
+}
+
+export interface JobScheduleUpdate {
+  siteSurveyDate?: string;
+  installationStartDate?: string;
+  installationEndDate?: string;
+  status?: string;
+  notes?: string;
 }
 
 export interface EnquiryAttachment {

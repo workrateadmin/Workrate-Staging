@@ -38,6 +38,7 @@ import type {
   IntegrationStatus,
   Job,
   JobCreate,
+  JobScheduleUpdate,
   JobUpdate,
   ListEnquiriesParams,
   Quote,
@@ -1560,6 +1561,78 @@ export const useUpdateJob = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateJobMutationOptions(options));
+    }
+
+export const getScheduleJobUrl = (id: number,) => {
+
+
+
+
+  return `/api/jobs/${id}/schedule`
+}
+
+/**
+ * @summary Update scheduling dates for a job
+ */
+export const scheduleJob = async (id: number,
+    jobScheduleUpdate: JobScheduleUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Job> => {
+
+  return customFetch<Job>(getScheduleJobUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(jobScheduleUpdate)
+  }
+);}
+
+
+
+
+
+export const getScheduleJobMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scheduleJob>>, TError,{id: number;data: BodyType<JobScheduleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof scheduleJob>>, TError,{id: number;data: BodyType<JobScheduleUpdate>}, TContext> => {
+
+const mutationKey = ['scheduleJob'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof scheduleJob>>, {id: number;data: BodyType<JobScheduleUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  scheduleJob(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ScheduleJobMutationResult = NonNullable<Awaited<ReturnType<typeof scheduleJob>>>
+    export type ScheduleJobMutationBody = BodyType<JobScheduleUpdate>
+    export type ScheduleJobMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update scheduling dates for a job
+ */
+export const useScheduleJob = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scheduleJob>>, TError,{id: number;data: BodyType<JobScheduleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof scheduleJob>>,
+        TError,
+        {id: number;data: BodyType<JobScheduleUpdate>},
+        TContext
+      > => {
+      return useMutation(getScheduleJobMutationOptions(options));
     }
 
 export const getConvertEnquiryToJobUrl = (id: number,) => {

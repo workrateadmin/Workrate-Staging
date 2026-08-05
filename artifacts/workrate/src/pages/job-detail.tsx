@@ -1,6 +1,7 @@
 import {
   useGetJob,
   useUpdateJob,
+  useScheduleJob,
   useGetEnquiry,
   useListEnquiryAttachments,
   getGetEnquiryQueryKey,
@@ -67,10 +68,15 @@ export default function JobDetail() {
   const [notesVal, setNotesVal] = useState("");
   const [editingInstall, setEditingInstall] = useState(false);
   const [installVal, setInstallVal] = useState("");
+  // Scheduling state
+  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [surveyDate, setSurveyDate] = useState("");
+  const [installStartDate, setInstallStartDate] = useState("");
+  const [installEndDate, setInstallEndDate] = useState("");
 
   const updateJob = useUpdateJob({
     mutation: {
-      onSuccess: (data) => {
+      onSuccess: () => {
         toast({ title: "Job updated" });
         queryClient.invalidateQueries({ queryKey: [`/api/jobs/${id}`] });
         queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
@@ -79,6 +85,18 @@ export default function JobDetail() {
         setEditingInstall(false);
       },
       onError: () => toast({ title: "Failed to update job", variant: "destructive" }),
+    },
+  });
+
+  const scheduleJobMutation = useScheduleJob({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Schedule saved" });
+        queryClient.invalidateQueries({ queryKey: [`/api/jobs/${id}`] });
+        queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+        setEditingSchedule(false);
+      },
+      onError: () => toast({ title: "Failed to save schedule", variant: "destructive" }),
     },
   });
 
@@ -108,6 +126,24 @@ export default function JobDetail() {
 
   const handleSaveInstall = () => {
     updateJob.mutate({ id, data: { installDate: installVal } });
+  };
+
+  const handleOpenSchedule = () => {
+    setSurveyDate(job.siteSurveyDate ?? "");
+    setInstallStartDate(job.installationStartDate ?? "");
+    setInstallEndDate(job.installationEndDate ?? "");
+    setEditingSchedule(true);
+  };
+
+  const handleSaveSchedule = () => {
+    scheduleJobMutation.mutate({
+      id,
+      data: {
+        siteSurveyDate: surveyDate,
+        installationStartDate: installStartDate,
+        installationEndDate: installEndDate,
+      },
+    });
   };
 
   // Parse AI summary
@@ -346,40 +382,60 @@ export default function JobDetail() {
             </CardContent>
           </Card>
 
-          {/* Install date */}
+          {/* Scheduling */}
           <Card className="shadow-sm border-border/60 rounded-2xl">
             <div className="px-6 py-5 border-b border-border/60 flex items-center justify-between">
               <h2 className="text-lg font-bold flex items-center gap-2">
-                <CalendarDays className="w-5 h-5 text-muted-foreground" /> Install Date
+                <CalendarDays className="w-5 h-5 text-muted-foreground" /> Scheduling
               </h2>
-              {!editingInstall && (
-                <Button variant="ghost" size="sm" onClick={() => { setInstallVal(job.installDate ?? ""); setEditingInstall(true); }} className="rounded-lg">
+              {!editingSchedule && (
+                <Button variant="ghost" size="sm" onClick={handleOpenSchedule} className="rounded-lg">
                   <Pencil className="w-4 h-4" />
                 </Button>
               )}
             </div>
             <CardContent className="p-6">
-              {editingInstall ? (
-                <div className="space-y-3">
-                  <Input
-                    type="date"
-                    value={installVal}
-                    onChange={(e) => setInstallVal(e.target.value)}
-                    className="field-input font-medium h-11"
-                  />
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleSaveInstall} disabled={updateJob.isPending} className="flex-1 rounded-xl font-bold">
+              {editingSchedule ? (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Site Survey</Label>
+                    </div>
+                    <Input type="date" value={surveyDate} onChange={(e) => setSurveyDate(e.target.value)} className="field-input font-medium h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Install Start</Label>
+                    </div>
+                    <Input type="date" value={installStartDate} onChange={(e) => setInstallStartDate(e.target.value)} className="field-input font-medium h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-amber-500" />
+                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Install End</Label>
+                    </div>
+                    <Input type="date" value={installEndDate} onChange={(e) => setInstallEndDate(e.target.value)} className="field-input font-medium h-10" />
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button size="sm" onClick={handleSaveSchedule} disabled={scheduleJobMutation.isPending} className="flex-1 rounded-xl font-bold">
                       <Check className="w-4 h-4 mr-1" /> Save
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setEditingInstall(false)} className="rounded-xl font-bold">
+                    <Button size="sm" variant="outline" onClick={() => setEditingSchedule(false)} className="rounded-xl font-bold">
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
-              ) : job.installDate ? (
-                <p className="text-sm font-bold text-foreground">{job.installDate}</p>
               ) : (
-                <p className="text-sm text-muted-foreground font-medium italic">Not scheduled yet.</p>
+                <div className="space-y-3">
+                  <ScheduleRow dot="bg-blue-500" label="Survey" value={job.siteSurveyDate} />
+                  <ScheduleRow dot="bg-green-500" label="Install Start" value={job.installationStartDate} />
+                  <ScheduleRow dot="bg-amber-500" label="Install End" value={job.installationEndDate} />
+                  {!job.siteSurveyDate && !job.installationStartDate && !job.installationEndDate && (
+                    <p className="text-sm text-muted-foreground font-medium italic">Not scheduled yet.</p>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -428,6 +484,19 @@ export default function JobDetail() {
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Schedule row ──────────────────────────────────────────────────────────────
+function ScheduleRow({ dot, label, value }: { dot: string; label: string; value?: string | null }) {
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", dot)} />
+      <span className="text-muted-foreground font-semibold w-24 shrink-0">{label}</span>
+      <span className={cn("font-bold", value ? "text-foreground" : "text-muted-foreground/50 italic font-normal")}>
+        {value ?? "Not set"}
+      </span>
     </div>
   );
 }

@@ -1,11 +1,14 @@
-import { useGetDashboard } from "@workspace/api-client-react";
+import { useGetDashboard, useListJobs } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { Inbox, TrendingUp, ChevronRight, MessageSquare, Briefcase, Sparkles, Calendar } from "lucide-react";
+import { Inbox, TrendingUp, ChevronRight, MessageSquare, Briefcase, Sparkles, Calendar, CalendarDays, Clock, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SummaryCard, parseSummary } from "@/components/summary-card";
+import { eventsFromJobs, EVENT_CONFIG } from "./schedule";
+import { format, isToday, parseISO, addDays, isBefore, isAfter, startOfDay } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
   const { data: stats, isLoading, isError } = useGetDashboard();
@@ -58,11 +61,14 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* Scheduling widgets */}
+      <SchedulingWidgets />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-border/60">
-            <h2 className="text-xl font-bold tracking-tight">Recent Jobs</h2>
+            <h2 className="text-xl font-bold tracking-tight">Recent Leads</h2>
             <Link href="/enquiries" className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
               View all <ChevronRight className="w-4 h-4" />
             </Link>
@@ -173,6 +179,112 @@ export default function Dashboard() {
 
       {/* AI Job Summaries Section */}
       <AiSummariesSection recentEnquiries={stats.recentEnquiries} />
+    </div>
+  );
+}
+
+// ── Scheduling Widgets ────────────────────────────────────────────────────────
+function SchedulingWidgets() {
+  const { data: jobs = [] } = useListJobs();
+  const events = eventsFromJobs(jobs);
+  const today = startOfDay(new Date());
+  const in7Days = addDays(today, 7);
+
+  const todayEvents = events.filter((e) => {
+    try { return isToday(parseISO(e.date)); } catch { return false; }
+  });
+
+  const upcomingEvents = events.filter((e) => {
+    try {
+      const d = parseISO(e.date);
+      return isAfter(d, today) && isBefore(d, in7Days);
+    } catch { return false; }
+  }).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
+
+  if (todayEvents.length === 0 && upcomingEvents.length === 0) return null;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Today's Schedule */}
+      <Card className="shadow-sm border-border/60 rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-border/60 bg-primary/5 flex items-center justify-between">
+          <h2 className="text-base font-bold flex items-center gap-2">
+            <Clock className="w-4 h-4 text-primary" />
+            Today's Schedule
+          </h2>
+          <Link href="/schedule" className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1">
+            Calendar <ChevronRight className="w-3 h-3" />
+          </Link>
+        </div>
+        <CardContent className="p-4">
+          {todayEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground font-medium text-center py-4 italic">Nothing scheduled for today</p>
+          ) : (
+            <div className="space-y-2">
+              {todayEvents.map((event) => {
+                const cfg = EVENT_CONFIG[event.type];
+                return (
+                  <Link key={event.id} href={`/jobs/${event.jobId}`}>
+                    <div className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer hover:shadow-sm transition-all",
+                      cfg.bg, cfg.border
+                    )}>
+                      <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", cfg.dot)} />
+                      <div className="flex-1 min-w-0">
+                        <div className={cn("text-[10px] font-bold uppercase tracking-wider", cfg.text)}>{cfg.label}</div>
+                        <div className="text-sm font-bold text-foreground truncate">{event.jobName}</div>
+                      </div>
+                      {event.location && (
+                        <span className="text-xs text-muted-foreground font-medium flex items-center gap-1 shrink-0">
+                          <MapPin className="w-3 h-3" />{event.location}
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Upcoming Jobs */}
+      <Card className="shadow-sm border-border/60 rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-border/60 flex items-center justify-between">
+          <h2 className="text-base font-bold flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 text-muted-foreground" />
+            Upcoming (7 days)
+          </h2>
+          <Link href="/schedule" className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1">
+            Calendar <ChevronRight className="w-3 h-3" />
+          </Link>
+        </div>
+        <CardContent className="p-4">
+          {upcomingEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground font-medium text-center py-4 italic">Nothing in the next 7 days</p>
+          ) : (
+            <div className="space-y-2">
+              {upcomingEvents.map((event) => {
+                const cfg = EVENT_CONFIG[event.type];
+                return (
+                  <Link key={event.id} href={`/jobs/${event.jobId}`}>
+                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border/40 cursor-pointer hover:bg-secondary/50 hover:shadow-sm transition-all">
+                      <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", cfg.dot)} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{cfg.label}</div>
+                        <div className="text-sm font-bold text-foreground truncate">{event.jobName}</div>
+                      </div>
+                      <span className="text-xs font-bold text-muted-foreground shrink-0">
+                        {format(parseISO(event.date), "EEE d MMM")}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

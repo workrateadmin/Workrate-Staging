@@ -422,6 +422,9 @@ export const ListJobsResponseItem = zod.object({
   "labourAllowance": zod.number(),
   "totalWithVat": zod.number(),
   "status": zod.string(),
+  "siteSurveyDate": zod.string().nullish(),
+  "installationStartDate": zod.string().nullish(),
+  "installationEndDate": zod.string().nullish(),
   "installDate": zod.string().nullish(),
   "assignedTeam": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -470,6 +473,9 @@ export const CreateJobResponse = zod.object({
   "labourAllowance": zod.number(),
   "totalWithVat": zod.number(),
   "status": zod.string(),
+  "siteSurveyDate": zod.string().nullish(),
+  "installationStartDate": zod.string().nullish(),
+  "installationEndDate": zod.string().nullish(),
   "installDate": zod.string().nullish(),
   "assignedTeam": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -501,6 +507,9 @@ export const GetJobResponse = zod.object({
   "labourAllowance": zod.number(),
   "totalWithVat": zod.number(),
   "status": zod.string(),
+  "siteSurveyDate": zod.string().nullish(),
+  "installationStartDate": zod.string().nullish(),
+  "installationEndDate": zod.string().nullish(),
   "installDate": zod.string().nullish(),
   "assignedTeam": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -520,6 +529,9 @@ export const UpdateJobParams = zod.object({
 
 export const UpdateJobBody = zod.object({
   "status": zod.string().optional(),
+  "siteSurveyDate": zod.string().optional(),
+  "installationStartDate": zod.string().optional(),
+  "installationEndDate": zod.string().optional(),
   "installDate": zod.string().optional(),
   "assignedTeam": zod.string().optional(),
   "notes": zod.string().optional(),
@@ -548,6 +560,51 @@ export const UpdateJobResponse = zod.object({
   "labourAllowance": zod.number(),
   "totalWithVat": zod.number(),
   "status": zod.string(),
+  "siteSurveyDate": zod.string().nullish(),
+  "installationStartDate": zod.string().nullish(),
+  "installationEndDate": zod.string().nullish(),
+  "installDate": zod.string().nullish(),
+  "assignedTeam": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "attachmentUrls": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update scheduling dates for a job
+ */
+export const ScheduleJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ScheduleJobBody = zod.object({
+  "siteSurveyDate": zod.string().optional(),
+  "installationStartDate": zod.string().optional(),
+  "installationEndDate": zod.string().optional(),
+  "status": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const ScheduleJobResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "quoteId": zod.number().nullish(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "projectType": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "totalWithVat": zod.number(),
+  "status": zod.string(),
+  "siteSurveyDate": zod.string().nullish(),
+  "installationStartDate": zod.string().nullish(),
+  "installationEndDate": zod.string().nullish(),
   "installDate": zod.string().nullish(),
   "assignedTeam": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -579,6 +636,9 @@ export const ConvertEnquiryToJobResponse = zod.object({
   "labourAllowance": zod.number(),
   "totalWithVat": zod.number(),
   "status": zod.string(),
+  "siteSurveyDate": zod.string().nullish(),
+  "installationStartDate": zod.string().nullish(),
+  "installationEndDate": zod.string().nullish(),
   "installDate": zod.string().nullish(),
   "assignedTeam": zod.string().nullish(),
   "notes": zod.string().nullish(),

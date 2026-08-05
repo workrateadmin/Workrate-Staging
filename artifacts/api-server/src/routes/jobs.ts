@@ -2,7 +2,6 @@ import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, enquiriesTable, quotesTable, jobsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 
 const router: IRouter = Router();
 
@@ -63,7 +62,7 @@ router.post("/jobs", requireAuth, async (req, res): Promise<void> => {
       materialsAllowance: String(body.materialsAllowance ?? 0),
       labourAllowance: String(body.labourAllowance ?? 0),
       totalWithVat: String(body.totalWithVat ?? 0),
-      status: body.status ?? "Quote Accepted",
+      status: body.status ?? "Survey Required",
       installDate: body.installDate ?? null,
       assignedTeam: body.assignedTeam ?? null,
       notes: body.notes ?? null,
@@ -87,6 +86,9 @@ router.patch("/jobs/:id", requireAuth, async (req, res): Promise<void> => {
   const updates: Record<string, any> = {};
 
   if (body.status !== undefined) updates.status = body.status;
+  if (body.siteSurveyDate !== undefined) updates.siteSurveyDate = body.siteSurveyDate;
+  if (body.installationStartDate !== undefined) updates.installationStartDate = body.installationStartDate;
+  if (body.installationEndDate !== undefined) updates.installationEndDate = body.installationEndDate;
   if (body.installDate !== undefined) updates.installDate = body.installDate;
   if (body.assignedTeam !== undefined) updates.assignedTeam = body.assignedTeam;
   if (body.notes !== undefined) updates.notes = body.notes;
@@ -99,6 +101,32 @@ router.patch("/jobs/:id", requireAuth, async (req, res): Promise<void> => {
   if (body.materialsAllowance !== undefined) updates.materialsAllowance = String(body.materialsAllowance);
   if (body.labourAllowance !== undefined) updates.labourAllowance = String(body.labourAllowance);
   if (body.totalWithVat !== undefined) updates.totalWithVat = String(body.totalWithVat);
+
+  const [updated] = await db
+    .update(jobsTable)
+    .set(updates)
+    .where(eq(jobsTable.id, id))
+    .returning();
+
+  res.json(parseJob(updated));
+});
+
+// Schedule a job (survey / install dates)
+router.patch("/jobs/:id/schedule", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [existing] = await db.select().from(jobsTable).where(eq(jobsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Job not found" }); return; }
+
+  const body = req.body ?? {};
+  const updates: Record<string, any> = {};
+
+  if (body.siteSurveyDate !== undefined) updates.siteSurveyDate = body.siteSurveyDate || null;
+  if (body.installationStartDate !== undefined) updates.installationStartDate = body.installationStartDate || null;
+  if (body.installationEndDate !== undefined) updates.installationEndDate = body.installationEndDate || null;
+  if (body.status !== undefined) updates.status = body.status;
+  if (body.notes !== undefined) updates.notes = body.notes;
 
   const [updated] = await db
     .update(jobsTable)
@@ -151,7 +179,7 @@ router.post("/enquiries/:id/convert-to-job", requireAuth, async (req, res): Prom
       materialsAllowance: quote?.materialsAllowance ?? "0",
       labourAllowance: quote?.labourAllowance ?? "0",
       totalWithVat: quote?.totalWithVat ?? "0",
-      status: "Quote Accepted",
+      status: "Survey Required",
       notes: quote?.notes ?? null,
       aiSummary: enquiry.aiSummary ?? null,
       attachmentUrls: enquiry.attachmentUrls ?? null,

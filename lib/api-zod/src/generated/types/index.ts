@@ -24,6 +24,7 @@ export * from './healthStatus';
 export * from './integrationStatus';
 export * from './job';
 export * from './jobCreate';
+export * from './jobScheduleUpdate';
 export * from './jobUpdate';
 export * from './listEnquiriesParams';
 export * from './quote';

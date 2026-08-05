@@ -27,6 +27,12 @@ export interface Job {
   totalWithVat: number;
   status: string;
   /** @nullable */
+  siteSurveyDate?: string | null;
+  /** @nullable */
+  installationStartDate?: string | null;
+  /** @nullable */
+  installationEndDate?: string | null;
+  /** @nullable */
   installDate?: string | null;
   /** @nullable */
   assignedTeam?: string | null;

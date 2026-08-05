@@ -18,13 +18,9 @@ import { cn } from "@/lib/utils";
 export const JOB_STATUSES = [
   "Survey Required",
   "Survey Booked",
-  "Quote Accepted",
-  "Materials Ordered",
   "Installation Scheduled",
   "In Progress",
   "Completed",
-  "Invoiced",
-  "Closed",
 ] as const;
 
 export type JobStatus = (typeof JOB_STATUSES)[number];
@@ -32,13 +28,9 @@ export type JobStatus = (typeof JOB_STATUSES)[number];
 const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   "Survey Required":        { bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200" },
   "Survey Booked":          { bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-200" },
-  "Quote Accepted":         { bg: "bg-violet-50",  text: "text-violet-700",  border: "border-violet-200" },
-  "Materials Ordered":      { bg: "bg-orange-50",  text: "text-orange-700",  border: "border-orange-200" },
   "Installation Scheduled": { bg: "bg-cyan-50",    text: "text-cyan-700",    border: "border-cyan-200" },
   "In Progress":            { bg: "bg-indigo-50",  text: "text-indigo-700",  border: "border-indigo-200" },
   "Completed":              { bg: "bg-green-50",   text: "text-green-700",   border: "border-green-200" },
-  "Invoiced":               { bg: "bg-teal-50",    text: "text-teal-700",    border: "border-teal-200" },
-  "Closed":                 { bg: "bg-gray-50",    text: "text-gray-600",    border: "border-gray-200" },
 };
 
 export function JobStatusBadge({ status }: { status: string }) {
@@ -64,8 +56,8 @@ export default function Jobs() {
     );
   }
 
-  const activeJobs = jobs?.filter((j) => j.status !== "Closed") ?? [];
-  const closedJobs = jobs?.filter((j) => j.status === "Closed") ?? [];
+  const activeJobs = jobs?.filter((j) => j.status !== "Completed") ?? [];
+  const completedJobs = jobs?.filter((j) => j.status === "Completed") ?? [];
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in-0 duration-300">
@@ -73,7 +65,7 @@ export default function Jobs() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-muted-foreground font-semibold">
-            {jobs?.length ?? 0} total · {activeJobs.length} active
+            {jobs?.length ?? 0} total · {activeJobs.length} in progress
           </p>
         </div>
       </div>
@@ -98,6 +90,7 @@ export default function Jobs() {
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">
             Active Jobs ({activeJobs.length})
           </h2>
+
           <div className="space-y-3">
             {activeJobs.map((job) => (
               <JobCard key={job.id} job={job} />
@@ -106,13 +99,13 @@ export default function Jobs() {
         </section>
       )}
 
-      {closedJobs.length > 0 && (
+      {completedJobs.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">
-            Closed Jobs ({closedJobs.length})
+            Completed Jobs ({completedJobs.length})
           </h2>
           <div className="space-y-3 opacity-70">
-            {closedJobs.map((job) => (
+            {completedJobs.map((job) => (
               <JobCard key={job.id} job={job} />
             ))}
           </div>

@@ -8,6 +8,9 @@
 
 export interface JobUpdate {
   status?: string;
+  siteSurveyDate?: string;
+  installationStartDate?: string;
+  installationEndDate?: string;
   installDate?: string;
   assignedTeam?: string;
   notes?: string;

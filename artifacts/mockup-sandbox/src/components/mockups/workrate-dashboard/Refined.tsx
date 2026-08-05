@@ -64,10 +64,10 @@ export function Refined() {
             <div key={section.label}>
               <div style={{ padding: "0 12px 8px", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "rgba(210,220,240,0.35)", textTransform: "uppercase" }}>{section.label}</div>
               {section.items.map((item) => (
-                <div key={item.name} style={{ position: "relative", display: "flex", alignItems: "center", height: 44, padding: "0 12px", borderRadius: "0 6px 6px 0", gap: 10, cursor: "pointer", background: item.active ? "rgba(255,110,30,0.12)" : "transparent", marginBottom: 2 }}>
-                  {item.active && <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: "hsl(24 95% 53%)", borderRadius: "0 3px 3px 0" }} />}
-                  <item.icon size={18} color={item.active ? "hsl(24 95% 53%)" : "rgba(210,220,240,0.55)"} />
-                  <span style={{ fontSize: 13.5, fontWeight: item.active ? 700 : 500, color: item.active ? "white" : "rgba(210,220,240,0.7)", flex: 1 }}>{item.name}</span>
+                <div key={item.name} style={{ position: "relative", display: "flex", alignItems: "center", height: 44, padding: "0 12px", borderRadius: "0 6px 6px 0", gap: 10, cursor: "pointer", background: ("active" in item && item.active) ? "rgba(255,110,30,0.12)" : "transparent", marginBottom: 2 }}>
+                  {("active" in item && item.active) && <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: "hsl(24 95% 53%)", borderRadius: "0 3px 3px 0" }} />}
+                  <item.icon size={18} color={("active" in item && item.active) ? "hsl(24 95% 53%)" : "rgba(210,220,240,0.55)"} />
+                  <span style={{ fontSize: 13.5, fontWeight: ("active" in item && item.active) ? 700 : 500, color: ("active" in item && item.active) ? "white" : "rgba(210,220,240,0.7)", flex: 1 }}>{item.name}</span>
                   {"badge" in item && item.badge ? (
                     <div style={{ background: "hsl(24 95% 53%)", color: "white", borderRadius: 10, fontSize: 10, fontWeight: 800, padding: "1px 6px", minWidth: 18, textAlign: "center" }}>{item.badge}</div>
                   ) : null}
