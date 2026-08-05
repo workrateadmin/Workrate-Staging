@@ -33,7 +33,18 @@ import {
   Eye,
   Pencil,
   RefreshCw,
+  Mail,
+  CheckCircle2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
@@ -56,6 +67,7 @@ export default function QuoteEditor() {
   const queryClient = useQueryClient();
   const [vatRate, setVatRate] = useState(20);
   const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const initialized = useRef(false);
 
   const { data: quote, isLoading: isLoadingQuote } = useGetQuote(id, {
@@ -256,11 +268,10 @@ export default function QuoteEditor() {
           </Button>
           <Button
             size="sm"
-            onClick={() => onSave("sent")}
-            disabled={updateQuote.isPending || isSent}
-            className="font-bold shadow-md hover-elevate rounded-xl h-10"
+            onClick={() => setSendDialogOpen(true)}
+            className="font-bold shadow-md hover-elevate rounded-xl h-10 bg-green-600 hover:bg-green-700 text-white"
           >
-            <Send className="w-4 h-4 mr-2" /> Mark as Sent
+            <Mail className="w-4 h-4 mr-2" /> Send to Customer
           </Button>
         </div>
       </div>
@@ -524,7 +535,225 @@ export default function QuoteEditor() {
           />
         </div>
       </div>
+      {/* Send to Customer dialog */}
+      <SendQuoteDialog
+        open={sendDialogOpen}
+        onOpenChange={setSendDialogOpen}
+        enquiry={enquiry}
+        company={company}
+        quoteRef={`ENQ-${id}`}
+        customerDetails={form.watch("customerDetails") ?? ""}
+        projectDescription={form.watch("projectDescription") ?? ""}
+        materials={materials}
+        labour={labour}
+        subtotal={subtotal}
+        vatRate={vatRate}
+        vatAmount={vatAmount}
+        total={total}
+        notes={form.watch("notes") ?? ""}
+        assumptions={form.watch("assumptions") ?? ""}
+        isSent={isSent}
+        onMarkSent={() => onSave("sent")}
+      />
     </div>
+  );
+}
+
+// ── Send to Customer dialog ────────────────────────────────────────────────────
+interface SendDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  enquiry: any;
+  company: any;
+  quoteRef: string;
+  customerDetails: string;
+  projectDescription: string;
+  materials: number;
+  labour: number;
+  subtotal: number;
+  vatRate: number;
+  vatAmount: number;
+  total: number;
+  notes: string;
+  assumptions: string;
+  isSent: boolean;
+  onMarkSent: () => void;
+}
+
+function SendQuoteDialog({
+  open,
+  onOpenChange,
+  enquiry,
+  company,
+  quoteRef,
+  customerDetails,
+  projectDescription,
+  materials,
+  labour,
+  subtotal,
+  vatRate,
+  vatAmount,
+  total,
+  notes,
+  assumptions,
+  isSent,
+  onMarkSent,
+}: SendDialogProps) {
+  const { toast } = useToast();
+  const [emailOverride, setEmailOverride] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const customerEmail = emailOverride || enquiry?.customerEmail || "";
+  const companyName = company?.name ?? "Your Trade Business";
+
+  function buildMailtoLink() {
+    const subject = encodeURIComponent(
+      `Quotation #${quoteRef} from ${companyName}`
+    );
+
+    const lines: string[] = [];
+    lines.push(`Dear ${enquiry?.customerName ?? "Customer"},`);
+    lines.push("");
+    lines.push(
+      `Please find below your quotation from ${companyName}.`
+    );
+    lines.push("");
+    lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    lines.push(`QUOTATION #${quoteRef}`);
+    lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    if (projectDescription) {
+      lines.push("");
+      lines.push("DESCRIPTION OF WORKS");
+      lines.push(projectDescription);
+    }
+    lines.push("");
+    lines.push("COST BREAKDOWN");
+    lines.push(`Materials: ${formatCurrency(materials)}`);
+    lines.push(`Labour:    ${formatCurrency(labour)}`);
+    lines.push(`Subtotal:  ${formatCurrency(subtotal)}`);
+    lines.push(`VAT (${vatRate}%): ${formatCurrency(vatAmount)}`);
+    lines.push(`─────────────────────────`);
+    lines.push(`TOTAL (inc. VAT): ${formatCurrency(total)}`);
+    if (notes) {
+      lines.push("");
+      lines.push("NOTES");
+      lines.push(notes);
+    }
+    if (assumptions) {
+      lines.push("");
+      lines.push("ASSUMPTIONS & EXCLUSIONS");
+      lines.push(assumptions);
+    }
+    lines.push("");
+    lines.push("This quotation is valid for 30 days from the date of issue.");
+    lines.push("All prices are in GBP.");
+    lines.push("");
+    lines.push(`Kind regards,`);
+    lines.push(companyName);
+    if (company?.phone) lines.push(company.phone);
+    if (company?.email) lines.push(company.email);
+
+    const body = encodeURIComponent(lines.join("\n"));
+    return `mailto:${encodeURIComponent(customerEmail)}?subject=${subject}&body=${body}`;
+  }
+
+  function handleSend() {
+    if (!customerEmail) {
+      toast({ title: "No customer email address found", variant: "destructive" });
+      return;
+    }
+    window.location.href = buildMailtoLink();
+    setSent(true);
+    if (!isSent) {
+      onMarkSent();
+    }
+  }
+
+  // Reset when dialog closes
+  function handleOpenChange(val: boolean) {
+    if (!val) {
+      setSent(false);
+      setEmailOverride("");
+    }
+    onOpenChange(val);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-black">Send Quote to Customer</DialogTitle>
+          <DialogDescription>
+            Your email app will open with the quote pre-filled. Review and send from there.
+          </DialogDescription>
+        </DialogHeader>
+
+        {sent ? (
+          <div className="py-6 flex flex-col items-center gap-3 text-center">
+            <CheckCircle2 className="w-12 h-12 text-green-500" />
+            <p className="font-bold text-lg">Email app opened!</p>
+            <p className="text-sm text-muted-foreground">
+              The quote has been marked as <span className="font-bold text-violet-600">Sent</span>. Review and send from your email app.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4 py-2">
+            {/* Quote summary */}
+            <div className="bg-secondary/50 rounded-xl border border-border/40 p-4 space-y-1.5 text-sm">
+              <div className="flex justify-between font-semibold text-muted-foreground">
+                <span>Reference</span>
+                <span className="text-foreground font-bold">#{quoteRef}</span>
+              </div>
+              <div className="flex justify-between font-semibold text-muted-foreground">
+                <span>Total (inc. VAT)</span>
+                <span className="text-primary font-black">{formatCurrency(total)}</span>
+              </div>
+              {enquiry?.customerName && (
+                <div className="flex justify-between font-semibold text-muted-foreground">
+                  <span>Customer</span>
+                  <span className="text-foreground font-bold">{enquiry.customerName}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Email field */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Send To
+              </Label>
+              <Input
+                type="email"
+                placeholder="customer@example.com"
+                value={emailOverride || enquiry?.customerEmail || ""}
+                onChange={(e) => setEmailOverride(e.target.value)}
+                className="field-input font-medium"
+              />
+              {!enquiry?.customerEmail && !emailOverride && (
+                <p className="text-xs text-amber-600 font-semibold">
+                  No email on file — please enter one above.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => handleOpenChange(false)} className="rounded-xl font-bold">
+            {sent ? "Close" : "Cancel"}
+          </Button>
+          {!sent && (
+            <Button
+              onClick={handleSend}
+              disabled={!customerEmail}
+              className="rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white"
+            >
+              <Mail className="w-4 h-4 mr-2" />
+              Open Email App
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
