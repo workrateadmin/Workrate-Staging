@@ -34,6 +34,8 @@ import type {
   CompanyInput,
   ConnectIntegrationBody,
   DashboardStats,
+  DemoCompleteRequest,
+  DemoMessageRequest,
   Enquiry,
   EnquiryAttachment,
   EnquiryInput,
@@ -2827,5 +2829,147 @@ export const useProcessAiCall = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getProcessAiCallMutationOptions(options));
+    }
+
+export const getSendDemoMessageUrl = () => {
+
+
+
+
+  return `/api/ai-receptionist/demo/message`
+}
+
+/**
+ * @summary Send a message in a demo AI receptionist conversation (returns SSE stream)
+ */
+export const sendDemoMessage = async (demoMessageRequest: DemoMessageRequest, options?: Parameters<typeof customFetch>[1]): Promise<string> => {
+
+  return customFetch<string>(getSendDemoMessageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(demoMessageRequest)
+  }
+);}
+
+
+
+
+
+export const getSendDemoMessageMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendDemoMessage>>, TError,{data: BodyType<DemoMessageRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendDemoMessage>>, TError,{data: BodyType<DemoMessageRequest>}, TContext> => {
+
+const mutationKey = ['sendDemoMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendDemoMessage>>, {data: BodyType<DemoMessageRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendDemoMessage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendDemoMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendDemoMessage>>>
+    export type SendDemoMessageMutationBody = BodyType<DemoMessageRequest>
+    export type SendDemoMessageMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Send a message in a demo AI receptionist conversation (returns SSE stream)
+ */
+export const useSendDemoMessage = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendDemoMessage>>, TError,{data: BodyType<DemoMessageRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendDemoMessage>>,
+        TError,
+        {data: BodyType<DemoMessageRequest>},
+        TContext
+      > => {
+      return useMutation(getSendDemoMessageMutationOptions(options));
+    }
+
+export const getCompleteDemoCallUrl = () => {
+
+
+
+
+  return `/api/ai-receptionist/demo/complete`
+}
+
+/**
+ * @summary Complete a demo call — create a fake AI call record from the conversation
+ */
+export const completeDemoCall = async (demoCompleteRequest: DemoCompleteRequest, options?: Parameters<typeof customFetch>[1]): Promise<AiCall> => {
+
+  return customFetch<AiCall>(getCompleteDemoCallUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(demoCompleteRequest)
+  }
+);}
+
+
+
+
+
+export const getCompleteDemoCallMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeDemoCall>>, TError,{data: BodyType<DemoCompleteRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeDemoCall>>, TError,{data: BodyType<DemoCompleteRequest>}, TContext> => {
+
+const mutationKey = ['completeDemoCall'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeDemoCall>>, {data: BodyType<DemoCompleteRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  completeDemoCall(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteDemoCallMutationResult = NonNullable<Awaited<ReturnType<typeof completeDemoCall>>>
+    export type CompleteDemoCallMutationBody = BodyType<DemoCompleteRequest>
+    export type CompleteDemoCallMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Complete a demo call — create a fake AI call record from the conversation
+ */
+export const useCompleteDemoCall = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeDemoCall>>, TError,{data: BodyType<DemoCompleteRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeDemoCall>>,
+        TError,
+        {data: BodyType<DemoCompleteRequest>},
+        TContext
+      > => {
+      return useMutation(getCompleteDemoCallMutationOptions(options));
     }
 

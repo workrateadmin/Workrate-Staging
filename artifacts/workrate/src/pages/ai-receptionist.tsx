@@ -1,10 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   useGetAiReceptionistSettings,
   useUpdateAiReceptionistSettings,
   useListAiCalls,
   useUpdateAiCall,
   useProcessAiCall,
+  useCompleteDemoCall,
+  useGetCompany,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +18,7 @@ import {
   CheckCircle2, Circle, ChevronDown, ChevronRight, AlertCircle,
   User, Timer, Sparkles, PhoneCall, PhoneForwarded, VolumeX,
   ToggleLeft, ToggleRight, Radio, FileText, TrendingUp, ChevronUp,
-  CalendarDays, Zap, Shield, Info,
+  CalendarDays, Zap, Shield, Info, Send, X, PhoneIncoming,
 } from "lucide-react";
 import { format, parseISO, isToday } from "date-fns";
 import { Link } from "wouter";
@@ -407,15 +409,374 @@ function BusinessHoursGrid({
   );
 }
 
+// ── Demo call modal ───────────────────────────────────────────────────────────
+
+type DemoMessage = { role: "caller" | "ai"; content: string };
+
+function DemoCallModal({
+  open,
+  onClose,
+  onComplete,
+  enabledQuestions,
+  businessName,
+  tradeType,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onComplete: () => void;
+  enabledQuestions: string[];
+  businessName: string;
+  tradeType: string;
+}) {
+  const [messages, setMessages] = useState<DemoMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [streamingContent, setStreamingContent] = useState("");
+  const [isEnding, setIsEnding] = useState(false);
+  const [callStartTime] = useState(() => Date.now());
+  const [callEnded, setCallEnded] = useState(false);
+  const [resultCallId, setResultCallId] = useState<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+  const completeMutation = useCompleteDemoCall();
+
+  // Start the demo with an AI greeting when modal opens
+  useEffect(() => {
+    if (!open) return;
+    setMessages([]);
+    setInput("");
+    setStreamingContent("");
+    setCallEnded(false);
+    setResultCallId(null);
+    setIsStarting(true);
+
+    // Send an empty "caller opened" trigger so AI sends the greeting
+    streamAiResponse([], enabledQuestions, businessName, tradeType).finally(() => {
+      setIsStarting(false);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Scroll to bottom when new content arrives
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, streamingContent]);
+
+  async function streamAiResponse(
+    history: DemoMessage[],
+    eqs: string[],
+    bName: string,
+    tType: string,
+  ) {
+    setIsStreaming(true);
+    setStreamingContent("");
+
+    try {
+      const res = await fetch("/api/ai-receptionist/demo/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: history,
+          enabledQuestions: eqs,
+          businessName: bName,
+          tradeType: tType,
+        }),
+      });
+
+      if (!res.ok || !res.body) throw new Error("Stream failed");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const parsed = JSON.parse(line.slice(6));
+            if (parsed.content) {
+              fullContent += parsed.content;
+              // Strip the CALL_COMPLETE marker from display
+              const display = fullContent.replace(/\nCALL_COMPLETE:.*$/s, "");
+              setStreamingContent(display);
+            }
+            if (parsed.done) break;
+          } catch {}
+        }
+      }
+
+      // Strip CALL_COMPLETE marker for display
+      const displayContent = fullContent.replace(/\nCALL_COMPLETE:.*$/s, "").trim();
+
+      setMessages((prev) => [...prev, { role: "ai", content: fullContent }]);
+      setStreamingContent("");
+
+      // Check if the AI signaled completion
+      if (fullContent.includes("CALL_COMPLETE:")) {
+        setCallEnded(true);
+      }
+
+      // Re-focus input
+      setTimeout(() => inputRef.current?.focus(), 100);
+    } catch (err) {
+      toast({ title: "Connection error", description: "Could not reach AI. Try again.", variant: "destructive" });
+    } finally {
+      setIsStreaming(false);
+    }
+  }
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || isStreaming || callEnded) return;
+
+    const newMessages: DemoMessage[] = [...messages, { role: "caller", content: text }];
+    setMessages(newMessages);
+    setInput("");
+
+    await streamAiResponse(newMessages, enabledQuestions, businessName, tradeType);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleEndCall = async () => {
+    if (isEnding) return;
+    setIsEnding(true);
+    try {
+      const durationSeconds = Math.round((Date.now() - callStartTime) / 1000);
+      const result = await completeMutation.mutateAsync({
+        data: {
+          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+          durationSeconds,
+        },
+      });
+      setResultCallId(result.id);
+      setCallEnded(true);
+    } catch {
+      toast({ title: "Failed to save demo call", variant: "destructive" });
+    } finally {
+      setIsEnding(false);
+    }
+  };
+
+  const handleViewRecord = () => {
+    onComplete();
+    onClose();
+  };
+
+  if (!open) return null;
+
+  // Split AI display content (strip CALL_COMPLETE marker)
+  const displayMessages = messages.map((m) => ({
+    ...m,
+    content: m.role === "ai" ? m.content.replace(/\nCALL_COMPLETE:.*$/s, "").trim() : m.content,
+  }));
+
+  const durationLabel = () => {
+    const s = Math.round((Date.now() - callStartTime) / 1000);
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.6)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-background border border-border rounded-3xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
+        style={{ maxHeight: "90vh" }}>
+
+        {/* Header */}
+        <div className="bg-primary/5 border-b border-border/60 px-5 py-4 flex items-center gap-3">
+          <div className="relative">
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+              <PhoneIncoming className="w-5 h-5 text-primary-foreground" />
+            </div>
+            {!callEnded && (
+              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-background animate-pulse" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-black text-sm tracking-tight">AI Receptionist — Demo Call</div>
+            <div className="text-xs text-muted-foreground font-medium flex items-center gap-2">
+              <span className={cn(
+                "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-widest border",
+                callEnded
+                  ? "bg-secondary text-muted-foreground border-border"
+                  : "bg-green-50 text-green-700 border-green-200"
+              )}>
+                {callEnded ? "Call ended" : "● Live demo"}
+              </span>
+              <span>You are the caller</span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full hover:bg-secondary flex items-center justify-center transition-colors"
+          >
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Context strip */}
+        <div className="px-5 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
+          <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+          <p className="text-xs text-amber-700 font-semibold">
+            Type what a caller would say. The AI responds as it would on a real call.
+          </p>
+        </div>
+
+        {/* Message thread */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-3" style={{ minHeight: 0 }}>
+          {(isStarting && messages.length === 0 && !streamingContent) && (
+            <div className="flex gap-3">
+              <div className="bg-secondary/80 text-foreground text-sm px-3 py-2 rounded-xl max-w-[80%] font-medium">
+                <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">AI Receptionist</span>
+                <span className="inline-flex gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "300ms" }} />
+                </span>
+              </div>
+            </div>
+          )}
+
+          {displayMessages.map((msg, i) => (
+            <div key={i} className={cn("flex gap-3", msg.role === "caller" ? "flex-row-reverse" : "")}>
+              <div className={cn(
+                "text-sm px-3 py-2 rounded-xl max-w-[80%] font-medium leading-relaxed",
+                msg.role === "ai"
+                  ? "bg-secondary/80 text-foreground"
+                  : "bg-primary/10 text-foreground border border-primary/20"
+              )}>
+                <span className={cn(
+                  "block text-[10px] font-bold uppercase tracking-widest mb-1",
+                  msg.role === "ai" ? "text-muted-foreground" : "text-primary"
+                )}>
+                  {msg.role === "ai" ? "AI Receptionist" : "You (caller)"}
+                </span>
+                {msg.content}
+              </div>
+            </div>
+          ))}
+
+          {/* Streaming bubble */}
+          {streamingContent && (
+            <div className="flex gap-3">
+              <div className="bg-secondary/80 text-foreground text-sm px-3 py-2 rounded-xl max-w-[80%] font-medium leading-relaxed">
+                <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">AI Receptionist</span>
+                {streamingContent}
+                <span className="inline-block w-1 h-3.5 bg-muted-foreground/50 ml-0.5 animate-pulse rounded-sm" />
+              </div>
+            </div>
+          )}
+
+          {isStreaming && !streamingContent && messages.length > 0 && (
+            <div className="flex gap-3">
+              <div className="bg-secondary/80 text-foreground text-sm px-3 py-2 rounded-xl font-medium">
+                <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">AI Receptionist</span>
+                <span className="inline-flex gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "300ms" }} />
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Result card shown after call ends */}
+        {callEnded && resultCallId && (
+          <div className="mx-5 mb-4 p-4 bg-green-50 border border-green-200 rounded-2xl">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="w-4 h-4 text-green-600" />
+              <span className="font-black text-sm text-green-800">Demo call saved!</span>
+            </div>
+            <p className="text-xs text-green-700 font-medium mb-3">
+              A fake call record has been created with AI summary and confidence score. View it in the Call Log.
+            </p>
+            <Button size="sm" className="w-full font-bold rounded-xl" onClick={handleViewRecord}>
+              <PhoneCall className="w-4 h-4 mr-2" />
+              View call record
+            </Button>
+          </div>
+        )}
+
+        {callEnded && !resultCallId && (
+          <div className="mx-5 mb-4 p-4 bg-secondary/50 border border-border rounded-2xl">
+            <p className="text-xs text-muted-foreground font-medium mb-2">Call ended. Save it as a demo record?</p>
+            <Button
+              size="sm"
+              className="w-full font-bold rounded-xl"
+              onClick={handleEndCall}
+              disabled={isEnding}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              {isEnding ? "Generating summary…" : "Save & generate AI summary"}
+            </Button>
+          </div>
+        )}
+
+        {/* Input area */}
+        {!callEnded && (
+          <div className="border-t border-border/60 p-4 flex items-center gap-3">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type what you'd say as a caller…"
+              disabled={isStreaming || isStarting}
+              className="flex-1 text-sm border border-border rounded-xl px-3 py-2.5 bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none font-medium disabled:opacity-50"
+            />
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || isStreaming || isStarting}
+              className="w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleEndCall}
+              disabled={isEnding || messages.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-bold hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            >
+              <PhoneOff className="w-4 h-4" />
+              {isEnding ? "Saving…" : "End"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AiReceptionist() {
   const [activeTab, setActiveTab] = useState<Tab>("setup");
+  const [demoOpen, setDemoOpen] = useState(false);
   const { toast } = useToast();
 
   const { data: settings, isLoading, refetch: refetchSettings } = useGetAiReceptionistSettings();
   const updateSettings = useUpdateAiReceptionistSettings();
   const { data: allCalls, refetch: refetchCalls } = useListAiCalls();
+  const { data: company } = useGetCompany({ query: { queryKey: ["company"] } });
 
   // Local state for editing
   const [welcomeType, setWelcomeType] = useState<string>("generate");
@@ -498,6 +859,7 @@ export default function AiReceptionist() {
   ];
 
   return (
+    <>
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in-0 duration-300">
 
       {/* ── Master enable/disable ── */}
@@ -643,7 +1005,15 @@ export default function AiReceptionist() {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setDemoOpen(true)}
+              className="font-bold rounded-xl gap-2 border-primary/40 text-primary hover:bg-primary/5"
+            >
+              <PhoneIncoming className="w-4 h-4" />
+              Test conversation
+            </Button>
             <Button
               onClick={() => saveSettings()}
               disabled={updateSettings.isPending}
@@ -885,5 +1255,19 @@ export default function AiReceptionist() {
         </div>
       )}
     </div>
+
+    {/* ── Demo call modal ── */}
+    <DemoCallModal
+      open={demoOpen}
+      onClose={() => setDemoOpen(false)}
+      onComplete={() => {
+        setActiveTab("calls");
+        refetchCalls();
+      }}
+      enabledQuestions={enabledQs}
+      businessName={company?.name ?? ""}
+      tradeType={company?.tradeType ?? ""}
+    />
+    </>
   );
 }

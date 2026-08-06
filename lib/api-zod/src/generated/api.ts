@@ -1025,3 +1025,52 @@ export const ProcessAiCallResponse = zod.object({
 })
 
 
+/**
+ * @summary Send a message in a demo AI receptionist conversation (returns SSE stream)
+ */
+export const SendDemoMessageBody = zod.object({
+  "messages": zod.array(zod.object({
+  "role": zod.string(),
+  "content": zod.string()
+})),
+  "enabledQuestions": zod.array(zod.string()).optional(),
+  "businessName": zod.string().optional(),
+  "tradeType": zod.string().optional()
+})
+
+export const SendDemoMessageResponse = zod.unknown()
+
+
+/**
+ * @summary Complete a demo call — create a fake AI call record from the conversation
+ */
+export const CompleteDemoCallBody = zod.object({
+  "messages": zod.array(zod.object({
+  "role": zod.string(),
+  "content": zod.string()
+})),
+  "durationSeconds": zod.number().optional()
+})
+
+export const CompleteDemoCallResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number().nullish(),
+  "callStatus": zod.string(),
+  "callerPhone": zod.string().nullish(),
+  "callerName": zod.string().nullish(),
+  "durationSeconds": zod.number().nullish(),
+  "callStartedAt": zod.coerce.date().nullish(),
+  "collectedData": zod.string().nullish(),
+  "transcript": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "confidenceScore": zod.number().nullish(),
+  "surveySuggested": zod.boolean().nullish(),
+  "followUpRequired": zod.boolean(),
+  "followUpNotes": zod.string().nullish(),
+  "providerId": zod.string().nullish(),
+  "providerData": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

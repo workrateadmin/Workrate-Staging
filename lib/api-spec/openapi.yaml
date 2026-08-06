@@ -877,6 +877,49 @@ paths:
               schema:
                 $ref: "#/components/schemas/AiCall"
 
+  # Demo / simulation mode
+  /ai-receptionist/demo/message:
+    post:
+      operationId: sendDemoMessage
+      tags: [ai-receptionist]
+      summary: Send a message in a demo AI receptionist conversation (returns SSE stream)
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DemoMessageRequest"
+      responses:
+        "200":
+          description: SSE stream of AI response chunks
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /ai-receptionist/demo/complete:
+    post:
+      operationId: completeDemoCall
+      tags: [ai-receptionist]
+      summary: Complete a demo call — create a fake AI call record from the conversation
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DemoCompleteRequest"
+      responses:
+        "201":
+          description: Created demo AI call record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiCall"
+
 components:
   schemas:
     HealthStatus:
@@ -1592,6 +1635,52 @@ components:
           type: string
         webhookUrl:
           type: string
+
+    DemoMessageRequest:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+              content:
+                type: string
+            required:
+              - role
+              - content
+        enabledQuestions:
+          type: array
+          items:
+            type: string
+        businessName:
+          type: string
+        tradeType:
+          type: string
+      required:
+        - messages
+
+    DemoCompleteRequest:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+              content:
+                type: string
+            required:
+              - role
+              - content
+        durationSeconds:
+          type: number
+      required:
+        - messages
 
     EnquiryAttachment:
       type: object

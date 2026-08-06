@@ -386,6 +386,28 @@ export interface AiReceptionistSettingsUpdate {
   webhookUrl?: string;
 }
 
+export type DemoMessageRequestMessagesItem = {
+  role: string;
+  content: string;
+};
+
+export interface DemoMessageRequest {
+  messages: DemoMessageRequestMessagesItem[];
+  enabledQuestions?: string[];
+  businessName?: string;
+  tradeType?: string;
+}
+
+export type DemoCompleteRequestMessagesItem = {
+  role: string;
+  content: string;
+};
+
+export interface DemoCompleteRequest {
+  messages: DemoCompleteRequestMessagesItem[];
+  durationSeconds?: number;
+}
+
 export interface EnquiryAttachment {
   id: number;
   enquiryId: number;
