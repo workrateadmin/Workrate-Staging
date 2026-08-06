@@ -18,7 +18,7 @@ const businessNav = [
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
-export function Sidebar({ className }: { className?: string }) {
+export function Sidebar({ className, onClose }: { className?: string; onClose?: () => void }) {
   const [location] = useLocation();
   const { signOut } = useClerk();
   const { user } = useUser();
@@ -29,6 +29,7 @@ export function Sidebar({ className }: { className?: string }) {
       <Link
         key={item.name}
         href={item.href}
+        onClick={onClose}
         className={cn(
           "flex items-center gap-3 px-4 h-[44px] relative rounded-md text-sm font-semibold transition-colors mx-2 mb-1",
           isActive
@@ -128,7 +129,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         className={cn(
           "fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden shadow-2xl",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        )} 
+        )}
+        onClose={() => setSidebarOpen(false)}
       />
 
       <div className="flex-1 flex flex-col md:pl-[260px] min-w-0">
