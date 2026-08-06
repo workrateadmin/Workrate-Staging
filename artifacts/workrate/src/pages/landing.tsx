@@ -1,7 +1,7 @@
 /**
  * Public landing page — two audiences, two clear journeys.
  *
- * "Start Free Trial"  → business owners → /sign-up
+ * "Sign Up Here"  → business owners → /sign-up
  * "Trade Log In"      → existing businesses → /sign-in
  * "Try WorkRate AI"   → customers → opens the AI chat widget (no login)
  *
@@ -107,7 +107,7 @@ export default function LandingPage() {
                     className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-[0_8px_40px_rgba(37,99,235,0.5)] hover:shadow-[0_12px_50px_rgba(37,99,235,0.6)] transition-all hover:-translate-y-0.5 active:translate-y-0"
                   >
                     <LayoutDashboard className="w-5 h-5" />
-                    Start Free Trial
+                    Sign Up Here
                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </button>
                   <button
@@ -433,7 +433,7 @@ export default function LandingPage() {
                 className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-0.5"
               >
                 <LayoutDashboard className="w-5 h-5" />
-                Start Free Trial
+                Sign Up Here
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
               <button
