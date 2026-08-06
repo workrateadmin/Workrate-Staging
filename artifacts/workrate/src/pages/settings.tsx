@@ -1,3 +1,4 @@
+import { useUser } from "@clerk/react";
 import { useGetCompany, useUpdateCompany, type CompanyInput } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -436,20 +437,23 @@ export default function Settings() {
 // ── Embed Code Card ───────────────────────────────────────────────────────────
 function EmbedCodeCard() {
   const [copied, setCopied] = useLocalState(false);
+  const { user } = useUser();
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const basePath = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-  const widgetUrl = `${origin}${basePath}/widget`;
+  const widgetJsUrl = `${origin}${basePath}/widget.js`;
+  const widgetPreviewUrl = `${origin}${basePath}/widget`;
+  const businessId = user?.id ?? "YOUR_BUSINESS_ID";
 
-  const iframeSnippet = `<!-- WorkRate Chat Widget -->
-<iframe
-  src="${widgetUrl}"
-  style="position:fixed;bottom:0;right:0;width:420px;height:640px;border:none;z-index:9999;background:transparent;pointer-events:none;"
-  allow="camera;microphone"
-  title="WorkRate Chat Widget"
-></iframe>`;
+  const scriptSnippet =
+`<!-- WorkRate Chat Widget -->
+<script
+  src="${widgetJsUrl}"
+  data-business-id="${businessId}"
+  defer>
+</script>`;
 
   function copySnippet() {
-    navigator.clipboard.writeText(iframeSnippet).then(() => {
+    navigator.clipboard.writeText(scriptSnippet).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -474,7 +478,7 @@ function EmbedCodeCard() {
             <p className="text-xs text-muted-foreground mt-0.5">See how the widget looks on your website</p>
           </div>
           <a
-            href={widgetUrl}
+            href={widgetPreviewUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 text-sm font-bold text-primary hover:text-primary/80 transition-colors"
@@ -516,15 +520,15 @@ function EmbedCodeCard() {
           <div className="relative bg-[#0F172A] rounded-xl overflow-hidden border border-border/40">
             <pre className="text-[11px] leading-relaxed text-slate-300 p-5 overflow-x-auto font-mono whitespace-pre">
               <span className="text-slate-500">{`<!-- WorkRate Chat Widget -->`}</span>{"\n"}
-              <span className="text-sky-400">{`<iframe`}</span>{"\n"}
-              {"  "}<span className="text-green-400">src</span><span className="text-slate-400">=</span><span className="text-amber-300">{`"${widgetUrl}"`}</span>{"\n"}
-              {"  "}<span className="text-green-400">style</span><span className="text-slate-400">=</span><span className="text-amber-300">{`"position:fixed;bottom:0;right:0;"`}</span>{"\n"}
-              {"  "}<span className="text-green-400">allow</span><span className="text-slate-400">=</span><span className="text-amber-300">{`"camera;microphone"`}</span>{"\n"}
-              <span className="text-sky-400">{`></iframe>`}</span>
+              <span className="text-sky-400">{`<script`}</span>{"\n"}
+              {"  "}<span className="text-green-400">src</span><span className="text-slate-400">=</span><span className="text-amber-300">{`"${widgetJsUrl}"`}</span>{"\n"}
+              {"  "}<span className="text-green-400">data-business-id</span><span className="text-slate-400">=</span><span className="text-amber-300">{`"${businessId}"`}</span>{"\n"}
+              {"  "}<span className="text-green-400">defer</span><span className="text-sky-400">{`>`}</span>{"\n"}
+              <span className="text-sky-400">{`</script>`}</span>
             </pre>
           </div>
           <p className="text-xs text-muted-foreground font-medium">
-            The widget works on any HTML website, WordPress, Squarespace, Wix, Webflow, and more.
+            Works on any HTML website, WordPress, Squarespace, Wix, Webflow, and more. No other code needed.
           </p>
         </div>
 
