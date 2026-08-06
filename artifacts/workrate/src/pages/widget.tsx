@@ -11,6 +11,11 @@ import ChatWidget from "@/components/chat-widget";
 
 export default function WidgetPage() {
   const isEmbedded = typeof window !== "undefined" && window !== window.top;
+  // ?embedded=1 is set by widget.js — tells ChatWidget to fill the iframe and
+  // use postMessage for close instead of hiding itself.
+  const isEmbeddedParam =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("embedded") === "1";
 
   return (
     <div className="w-full h-full min-h-screen relative">
@@ -41,7 +46,7 @@ export default function WidgetPage() {
         </div>
       )}
 
-      <ChatWidget />
+      <ChatWidget embedded={isEmbeddedParam} />
     </div>
   );
 }

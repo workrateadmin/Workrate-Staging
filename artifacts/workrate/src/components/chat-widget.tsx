@@ -46,9 +46,11 @@ function parseSse(raw: string): { content?: string; done?: boolean }[] {
 }
 
 // ── Chat Widget ───────────────────────────────────────────────────────────────
-const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean) => void }>(
-  function ChatWidget({ onOpenChange }, ref) {
-    const [stage, setStage] = useState<WidgetStage>("closed");
+const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean) => void; embedded?: boolean }>(
+  function ChatWidget({ onOpenChange, embedded = false }, ref) {
+    // In embedded mode the launcher button is provided by widget.js outside the
+    // iframe, so the widget starts open (welcome stage) and never goes "closed".
+    const [stage, setStage] = useState<WidgetStage>(embedded ? "welcome" : "closed");
     const [tradeType, setTradeType] = useState<string | null>(null);
     const [token, setToken] = useState<string | null>(null);
     const [isStarting, setIsStarting] = useState(false);
@@ -80,6 +82,13 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
       }
     }, [messages, stage]);
 
+    // Notify parent widget.js of unread messages when in embedded mode
+    useEffect(() => {
+      if (embedded && unread) {
+        window.parent.postMessage({ type: "workrate:unread" }, "*");
+      }
+    }, [embedded, unread]);
+
     // Notify parent of open/close
     useEffect(() => {
       onOpenChange?.(stage !== "closed");
@@ -90,7 +99,15 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
       setStage(token ? "chat" : "welcome");
     }, [token]);
 
-    const close = useCallback(() => setStage("closed"), []);
+    const close = useCallback(() => {
+      if (embedded) {
+        // Tell the parent page (widget.js) to hide the panel. The iframe itself
+        // stays mounted so the next open is instant.
+        window.parent.postMessage({ type: "workrate:close" }, "*");
+      } else {
+        setStage("closed");
+      }
+    }, [embedded]);
 
     // Expose open/close to parent via ref
     useImperativeHandle(ref, () => ({ open, close }), [open, close]);
@@ -255,20 +272,31 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
     const isOpen = stage !== "closed";
 
     return (
-      // pointer-events-none on the wrapper stops the invisible closed panel from
-      // intercepting touch events on mobile; each interactive child opts back in.
-      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col items-end gap-3 pointer-events-none">
+      // In embedded mode the entire component is the panel content — no fixed
+      // positioning, no launcher button; it fills the iframe viewport.
+      // In standalone mode it floats fixed over the page as before.
+      <div className={embedded
+        ? "w-full h-screen flex flex-col overflow-hidden bg-white"
+        : "fixed bottom-5 right-5 z-[9999] flex flex-col items-end gap-3 pointer-events-none"
+      }>
 
         {/* ── Chat panel ───────────────────────────────────────────────── */}
         <div
           className={cn(
-            "w-[370px] rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-white flex flex-col",
-            "transition-all duration-300 ease-out origin-bottom-right",
-            isOpen
-              ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
-              : "opacity-0 scale-95 translate-y-4 pointer-events-none",
+            "bg-white flex flex-col overflow-hidden",
+            embedded
+              // Embedded: fills the entire iframe — no positioning, border, or shadow
+              ? "w-full h-full flex-1"
+              // Standalone: floating card with animation
+              : cn(
+                  "w-[370px] rounded-2xl shadow-2xl border border-white/20",
+                  "transition-all duration-300 ease-out origin-bottom-right",
+                  isOpen
+                    ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
+                    : "opacity-0 scale-95 translate-y-4 pointer-events-none",
+                ),
           )}
-          style={{ height: 580, maxHeight: "calc(100vh - 100px)" }}
+          style={embedded ? undefined : { height: 580, maxHeight: "calc(100vh - 100px)" }}
         >
           {/* ── Panel header ──────────────────────────────────────────── */}
           <div
@@ -497,8 +525,8 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
           )}
         </div>
 
-        {/* ── Launcher bubble ───────────────────────────────────────────── */}
-        <button
+        {/* ── Launcher bubble — hidden in embedded mode (widget.js owns it) ── */}
+        {!embedded && <button
           onClick={isOpen ? close : open}
           className={cn(
             "relative w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300",
@@ -518,7 +546,7 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
           <span className={cn("transition-all duration-300 absolute", isOpen ? "opacity-0 scale-75" : "opacity-100 scale-100")}>
             <MessageCircle className="w-6 h-6 text-white" />
           </span>
-        </button>
+        </button>}
       </div>
     );
   }
