@@ -1,0 +1,19 @@
+kind = "design-system"
+previewPath = "/memphis-bold/"
+title = "Memphis Bold"
+description = "A neo-Memphis design system extracted from the NestMatch mockup — vivid primary palette (hot pink, teal, yellow, electric blue) on warm cream, thick black borders, hard offset shadows, zero border-radius, and bold uppercase display type. Designed for high-energy consumer products that want maximum personality."
+version = "1.0.0"
+id = "artifacts/memphis-bold"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/memphis-bold/" ]
+localPort = 24141
+
+[services.development]
+run = "pnpm --filter @workspace/memphis-bold run dev"
+
+[services.env]
+PORT = "24141"
+BASE_PATH = "/memphis-bold/"
