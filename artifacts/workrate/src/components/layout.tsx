@@ -1,29 +1,34 @@
 import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, Settings, LogOut, Menu, Bell, Hammer, Plug, Briefcase, CalendarDays, PhoneCall } from "lucide-react";
+import {
+  LayoutDashboard, Settings, LogOut, Menu, Bell, Hammer,
+  Plug, Briefcase, CalendarDays, PhoneCall, Search, Plus,
+  ChevronDown, Inbox, Users,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 const pipelineNav = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Leads", href: "/enquiries", icon: Users },
-  { name: "Jobs", href: "/jobs", icon: Briefcase },
-  { name: "Schedule", href: "/schedule", icon: CalendarDays },
+  { name: "Dashboard",       href: "/dashboard",       icon: LayoutDashboard },
+  { name: "Enquiries",       href: "/enquiries",       icon: Inbox },
+  { name: "Jobs",            href: "/jobs",            icon: Briefcase },
+  { name: "Schedule",        href: "/schedule",        icon: CalendarDays },
   { name: "AI Receptionist", href: "/ai-receptionist", icon: PhoneCall },
 ];
 
 const businessNav = [
   { name: "Integrations", href: "/integrations", icon: Plug },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Settings",     href: "/settings",     icon: Settings },
 ];
 
+/* ── Mobile drawer sidebar (unchanged design) ─────────────────────────────── */
 export function Sidebar({ className, onClose }: { className?: string; onClose?: () => void }) {
   const [location] = useLocation();
   const { signOut } = useClerk();
   const { user } = useUser();
 
-  const renderNavItem = (item: any) => {
+  const renderNavItem = (item: { name: string; href: string; icon: any }) => {
     const isActive = location === item.href || location.startsWith(item.href + "/");
     return (
       <Link
@@ -37,9 +42,7 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
             : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
         )}
       >
-        {isActive && (
-          <div className="absolute left-0 top-[10%] bottom-[10%] w-[3px] bg-primary rounded-r-full" />
-        )}
+        {isActive && <div className="absolute left-0 top-[10%] bottom-[10%] w-[3px] bg-primary rounded-r-full" />}
         <item.icon className={cn("w-5 h-5", isActive ? "text-primary" : "text-sidebar-foreground/50")} />
         {item.name}
       </Link>
@@ -62,7 +65,6 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
           <div className="px-6 mb-3 text-xs font-bold tracking-widest text-sidebar-foreground/40 uppercase">Pipeline</div>
           {pipelineNav.map(renderNavItem)}
         </div>
-
         <div className="flex flex-col">
           <div className="px-6 mb-3 text-xs font-bold tracking-widest text-sidebar-foreground/40 uppercase">Business</div>
           {businessNav.map(renderNavItem)}
@@ -93,81 +95,128 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
   );
 }
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+/* ── Horizontal top navigation bar ───────────────────────────────────────── */
+export function TopNav({ onMenuClick }: { onMenuClick: () => void }) {
   const [location] = useLocation();
+  const { signOut } = useClerk();
+  const { user } = useUser();
 
-  const getPageTitle = () => {
-    if (location.startsWith("/dashboard")) return "Dashboard";
-    if (location.startsWith("/enquiries") && location !== "/enquiries") return "Lead Details";
-    if (location.startsWith("/enquiries")) return "Leads";
-    if (location.startsWith("/jobs") && location !== "/jobs") return "Job Details";
-    if (location.startsWith("/jobs")) return "Jobs";
-    if (location.startsWith("/schedule")) return "Schedule";
-    if (location.startsWith("/ai-receptionist")) return "AI Receptionist";
-    if (location.startsWith("/integrations")) return "Integrations";
-    if (location.startsWith("/settings")) return "Settings";
-    if (location.startsWith("/quotes")) return "Quote Editor";
-    return "";
-  };
+  const topNavItems = [...pipelineNav, ...businessNav];
 
   return (
-    <div className="min-h-[100dvh] bg-background flex">
-      {/* Desktop Sidebar */}
-      <Sidebar className="hidden md:flex fixed inset-y-0 left-0 z-50 shadow-xl" />
-      
-      {/* Mobile Sidebar Backdrop */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity"
-          onClick={() => setSidebarOpen(false)}
+    <header className="h-[60px] bg-sidebar border-b border-sidebar-border flex items-center px-4 md:px-8 sticky top-0 z-50 shrink-0">
+      {/* Mobile hamburger */}
+      <button
+        onClick={onMenuClick}
+        className="md:hidden p-2 -ml-1 mr-2 text-sidebar-foreground/60 hover:text-sidebar-foreground rounded-lg hover:bg-sidebar-accent transition-colors"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
+      {/* Logo */}
+      <Link href="/dashboard" className="flex items-center gap-2 mr-8 shrink-0 hover:opacity-90 transition-opacity">
+        <div className="bg-primary text-primary-foreground p-1.5 rounded-lg shadow-sm">
+          <Hammer className="w-[18px] h-[18px]" />
+        </div>
+        <span className="font-black text-[17px] text-sidebar-foreground tracking-tight leading-none">WorkRate</span>
+      </Link>
+
+      {/* Nav links — desktop */}
+      <nav className="hidden md:flex items-center gap-0.5 flex-1">
+        {topNavItems.map((item) => {
+          const isActive = location === item.href || location.startsWith(item.href + "/");
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-[7px] h-9 px-3.5 rounded-lg text-[13px] font-semibold transition-colors relative",
+                isActive
+                  ? "bg-primary/[0.14] text-sidebar-foreground"
+                  : "text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+              )}
+            >
+              <item.icon
+                className={cn("w-[15px] h-[15px] shrink-0", isActive ? "text-primary" : "text-sidebar-foreground/40")}
+              />
+              {item.name}
+              {isActive && (
+                <span className="absolute bottom-[-12px] left-3 right-3 h-[2px] bg-primary rounded-full" />
+              )}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Right side controls */}
+      <div className="flex items-center gap-2.5 ml-auto shrink-0">
+        {/* Search field */}
+        <div className="hidden lg:flex items-center gap-2 bg-white/[0.07] border border-white/10 rounded-lg h-[34px] px-3 w-[220px] cursor-text">
+          <Search className="w-3.5 h-3.5 text-sidebar-foreground/35 shrink-0" />
+          <span className="text-[12.5px] text-sidebar-foreground/30 font-normal select-none">Search jobs, customers…</span>
+        </div>
+
+        {/* New Enquiry */}
+        <Link href="/enquiries">
+          <Button size="sm" className="h-[34px] px-3.5 text-[12.5px] font-bold gap-1.5 shadow-none rounded-lg">
+            <Plus className="w-[14px] h-[14px]" /> New Enquiry
+          </Button>
+        </Link>
+
+        {/* Bell */}
+        <button className="w-[34px] h-[34px] rounded-lg bg-white/[0.06] flex items-center justify-center text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors relative">
+          <Bell className="w-4 h-4" />
+          <span className="absolute top-[7px] right-[7px] w-[7px] h-[7px] bg-primary rounded-full border-[1.5px] border-sidebar" />
+        </button>
+
+        {/* User avatar + name → click to sign out */}
+        <button
+          onClick={() => signOut({ redirectUrl: "/" })}
+          className="flex items-center gap-2 pl-1 text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
+          title="Sign out"
+        >
+          <div className="w-[30px] h-[30px] rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-black shrink-0">
+            {user?.firstName?.charAt(0) || user?.primaryEmailAddress?.emailAddress?.charAt(0)?.toUpperCase() || "U"}
+          </div>
+          <span className="hidden lg:block text-[12.5px] font-semibold max-w-[130px] truncate">
+            {user?.fullName || user?.firstName || "Account"}
+          </span>
+          <ChevronDown className="hidden lg:block w-3 h-3 text-sidebar-foreground/40 shrink-0" />
+        </button>
+      </div>
+    </header>
+  );
+}
+
+/* ── Root app layout ──────────────────────────────────────────────────────── */
+export function AppLayout({ children }: { children: React.ReactNode }) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  return (
+    <div className="min-h-[100dvh] bg-background flex flex-col">
+      <TopNav onMenuClick={() => setDrawerOpen(true)} />
+
+      {/* Mobile drawer backdrop */}
+      {drawerOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setDrawerOpen(false)}
         />
       )}
-      
-      {/* Mobile Sidebar */}
-      <Sidebar 
+
+      {/* Mobile sidebar drawer */}
+      <Sidebar
         className={cn(
           "fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden shadow-2xl",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          drawerOpen ? "translate-x-0" : "-translate-x-full"
         )}
-        onClose={() => setSidebarOpen(false)}
+        onClose={() => setDrawerOpen(false)}
       />
 
-      <div className="flex-1 flex flex-col md:pl-[260px] min-w-0">
-        {/* Desktop Header */}
-        <header className="hidden md:flex h-[72px] items-center justify-between px-8 bg-background border-b border-border/60 sticky top-0 z-30">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">{getPageTitle()}</h1>
-          <div className="flex items-center gap-4">
-            <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full border-2 border-background" />
-            </button>
-            {location === "/enquiries" && (
-              <Button size="sm" className="font-semibold shadow-sm hover-elevate rounded-full px-5">
-                New Enquiry
-              </Button>
-            )}
-          </div>
-        </header>
-
-        {/* Mobile Header */}
-        <header className="md:hidden flex items-center justify-between h-16 px-4 border-b border-border/60 bg-background sticky top-0 z-30">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 text-foreground hover:bg-secondary rounded-lg">
-              <Menu className="w-6 h-6" />
-            </button>
-            <span className="font-bold text-lg">{getPageTitle()}</span>
-          </div>
-          <button className="p-2 text-muted-foreground hover:text-foreground relative">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full border-2 border-background" />
-          </button>
-        </header>
-
-        <main className="flex-1 py-8 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto w-full">
-          {children}
-        </main>
-      </div>
+      {/* Page content */}
+      <main className="flex-1 py-8 px-4 sm:px-6 md:px-8 w-full">
+        {children}
+      </main>
     </div>
   );
 }
