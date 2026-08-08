@@ -73,7 +73,7 @@ export default function LandingPage() {
             style={{ backgroundImage: `url(${heroSite})` }}
           />
           {/* Dark overlay — keeps text readable, adds brand tint */}
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-950/92 via-slate-900/85 to-[#134e4a]/80" />
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-950/75 via-slate-900/65 to-[#134e4a]/55" />
           {/* Teal glow */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-teal-500/10 rounded-full blur-[120px]" />
 
