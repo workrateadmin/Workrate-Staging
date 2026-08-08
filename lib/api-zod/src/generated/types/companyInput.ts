@@ -20,4 +20,15 @@ export interface CompanyInput {
   email?: string;
   phone?: string;
   address?: string;
+  website?: string;
+  companyRegNumber?: string;
+  vatNumber?: string;
+  bankPaymentDetails?: string;
+  brandColourPrimary?: string;
+  brandColourSecondary?: string;
+  paymentTerms?: string;
+  termsAndConditions?: string;
+  quoteFooter?: string;
+  invoiceFooter?: string;
+  documentMode?: string;
 }

@@ -9,6 +9,7 @@ import chatRouter from "./chat";
 import integrationsRouter from "./integrations";
 import jobsRouter from "./jobs";
 import aiReceptionistRouter from "./ai-receptionist";
+import uploadsRouter from "./uploads";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(chatRouter);
 router.use(integrationsRouter);
 router.use(jobsRouter);
 router.use(aiReceptionistRouter);
+router.use(uploadsRouter);
 
 export default router;

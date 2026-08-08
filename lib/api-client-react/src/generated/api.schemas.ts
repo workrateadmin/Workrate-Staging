@@ -48,6 +48,27 @@ export interface Company {
   phone?: string | null;
   /** @nullable */
   address?: string | null;
+  /** @nullable */
+  website?: string | null;
+  /** @nullable */
+  companyRegNumber?: string | null;
+  /** @nullable */
+  vatNumber?: string | null;
+  /** @nullable */
+  bankPaymentDetails?: string | null;
+  /** @nullable */
+  brandColourPrimary?: string | null;
+  /** @nullable */
+  brandColourSecondary?: string | null;
+  /** @nullable */
+  paymentTerms?: string | null;
+  /** @nullable */
+  termsAndConditions?: string | null;
+  /** @nullable */
+  quoteFooter?: string | null;
+  /** @nullable */
+  invoiceFooter?: string | null;
+  documentMode: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +87,17 @@ export interface CompanyInput {
   email?: string;
   phone?: string;
   address?: string;
+  website?: string;
+  companyRegNumber?: string;
+  vatNumber?: string;
+  bankPaymentDetails?: string;
+  brandColourPrimary?: string;
+  brandColourSecondary?: string;
+  paymentTerms?: string;
+  termsAndConditions?: string;
+  quoteFooter?: string;
+  invoiceFooter?: string;
+  documentMode?: string;
 }
 
 export interface Enquiry {
@@ -147,6 +179,8 @@ export interface Quote {
   /** @nullable */
   assumptions?: string | null;
   status: string;
+  /** @nullable */
+  brandingSnapshot?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -178,6 +212,7 @@ export interface DashboardStats {
 
 export interface ChatStartInput {
   tradeType: string;
+  businessId?: string | null;
 }
 
 export interface ChatSession {

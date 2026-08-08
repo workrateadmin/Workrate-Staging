@@ -35,6 +35,17 @@ export const GetCompanyResponse = zod.object({
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "companyRegNumber": zod.string().nullish(),
+  "vatNumber": zod.string().nullish(),
+  "bankPaymentDetails": zod.string().nullish(),
+  "brandColourPrimary": zod.string().nullish(),
+  "brandColourSecondary": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "quoteFooter": zod.string().nullish(),
+  "invoiceFooter": zod.string().nullish(),
+  "documentMode": zod.string(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -56,7 +67,18 @@ export const UpdateCompanyBody = zod.object({
   "logoUrl": zod.string().optional(),
   "email": zod.string().optional(),
   "phone": zod.string().optional(),
-  "address": zod.string().optional()
+  "address": zod.string().optional(),
+  "website": zod.string().optional(),
+  "companyRegNumber": zod.string().optional(),
+  "vatNumber": zod.string().optional(),
+  "bankPaymentDetails": zod.string().optional(),
+  "brandColourPrimary": zod.string().optional(),
+  "brandColourSecondary": zod.string().optional(),
+  "paymentTerms": zod.string().optional(),
+  "termsAndConditions": zod.string().optional(),
+  "quoteFooter": zod.string().optional(),
+  "invoiceFooter": zod.string().optional(),
+  "documentMode": zod.string().optional()
 })
 
 export const UpdateCompanyResponse = zod.object({
@@ -74,6 +96,17 @@ export const UpdateCompanyResponse = zod.object({
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "companyRegNumber": zod.string().nullish(),
+  "vatNumber": zod.string().nullish(),
+  "bankPaymentDetails": zod.string().nullish(),
+  "brandColourPrimary": zod.string().nullish(),
+  "brandColourSecondary": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "quoteFooter": zod.string().nullish(),
+  "invoiceFooter": zod.string().nullish(),
+  "documentMode": zod.string(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -337,6 +370,7 @@ export const GetQuoteResponse = zod.object({
   "notes": zod.string().nullish(),
   "assumptions": zod.string().nullish(),
   "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -362,6 +396,7 @@ export const GenerateQuoteResponse = zod.object({
   "notes": zod.string().nullish(),
   "assumptions": zod.string().nullish(),
   "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -400,6 +435,7 @@ export const UpdateQuoteResponse = zod.object({
   "notes": zod.string().nullish(),
   "assumptions": zod.string().nullish(),
   "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

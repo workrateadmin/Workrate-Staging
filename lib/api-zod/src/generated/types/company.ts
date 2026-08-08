@@ -29,6 +29,27 @@ export interface Company {
   phone?: string | null;
   /** @nullable */
   address?: string | null;
+  /** @nullable */
+  website?: string | null;
+  /** @nullable */
+  companyRegNumber?: string | null;
+  /** @nullable */
+  vatNumber?: string | null;
+  /** @nullable */
+  bankPaymentDetails?: string | null;
+  /** @nullable */
+  brandColourPrimary?: string | null;
+  /** @nullable */
+  brandColourSecondary?: string | null;
+  /** @nullable */
+  paymentTerms?: string | null;
+  /** @nullable */
+  termsAndConditions?: string | null;
+  /** @nullable */
+  quoteFooter?: string | null;
+  /** @nullable */
+  invoiceFooter?: string | null;
+  documentMode: string;
   createdAt: Date;
   updatedAt: Date;
 }

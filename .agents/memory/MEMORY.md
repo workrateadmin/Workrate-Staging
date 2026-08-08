@@ -3,3 +3,4 @@
 - [WorkRate API zod integer quirk](workrate-zod-int-quirk.md) — use type: number not integer in OpenAPI spec; zod.int() doesn't exist in this zod version
 - [WorkRate integrations architecture](workrate-integrations-arch.md) — provider registry pattern, DB schema, codegen quirks, comingSoon flag
 - [WorkRate ownership model](workrate-ownership-model.md) — owner_user_id on key tables, claim-on-first-login, widget businessId flow, migration 0002
+- [WorkRate documents & branding](workrate-documents-branding.md) — template modes, branding snapshot on send, upload routes, QuoteDocument custom branding

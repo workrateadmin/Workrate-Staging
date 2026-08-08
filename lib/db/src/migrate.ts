@@ -66,6 +66,23 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "0003_documents_branding",
+    sql: `
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "website" text;
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "company_reg_number" text;
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "vat_number" text;
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "bank_payment_details" text;
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "brand_colour_primary" text;
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "brand_colour_secondary" text;
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "payment_terms" text;
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "terms_and_conditions" text;
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "quote_footer" text;
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "invoice_footer" text;
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "document_mode" text NOT NULL DEFAULT 'workrate';
+      ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "branding_snapshot" text;
+    `,
+  },
+  {
     name: "0000_add_scheduling_dates",
     sql: `
       -- Add scheduling date columns to jobs table

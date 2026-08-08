@@ -548,6 +548,7 @@ export default function QuoteEditor() {
             quoteRef={`ENQ-${id}`}
             date={quote.updatedAt ? formatDate(String(quote.updatedAt)) : formatDate(new Date().toISOString())}
             company={company}
+            brandingSnapshot={(quote as any).brandingSnapshot}
             customerDetails={form.watch("customerDetails") ?? ""}
             projectDescription={form.watch("projectDescription") ?? ""}
             materials={materials}
@@ -797,10 +798,32 @@ function SectionCard({ label, children }: { label: string; children: React.React
 }
 
 // ── Quote document (the "PDF" preview) ─────────────────────────────────────────
+
+/** Branding data — derived from company settings or a historical snapshot. */
+interface BrandingData {
+  documentMode?: string | null;
+  name?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  companyRegNumber?: string | null;
+  vatNumber?: string | null;
+  bankPaymentDetails?: string | null;
+  brandColourPrimary?: string | null;
+  brandColourSecondary?: string | null;
+  paymentTerms?: string | null;
+  termsAndConditions?: string | null;
+  quoteFooter?: string | null;
+  invoiceFooter?: string | null;
+  logoUrl?: string | null;
+}
+
 interface DocProps {
   quoteRef: string;
   date: string;
   company: any;
+  brandingSnapshot?: string | null;
   customerDetails: string;
   projectDescription: string;
   materials: number;
@@ -818,6 +841,7 @@ function QuoteDocument({
   quoteRef,
   date,
   company,
+  brandingSnapshot,
   customerDetails,
   projectDescription,
   materials,
@@ -831,7 +855,37 @@ function QuoteDocument({
   status,
 }: DocProps) {
   const isSent = status === "sent";
-  const companyName = company?.name ?? "Your Trade Business";
+
+  // Use historical snapshot for sent/accepted quotes so they always
+  // render with the branding they had when they were sent.
+  const snapshotData: BrandingData | null = (() => {
+    if (!brandingSnapshot) return null;
+    try { return JSON.parse(brandingSnapshot); } catch { return null; }
+  })();
+
+  // Effective branding: snapshot (for sent quotes) → current company
+  const b: BrandingData = snapshotData ?? (company as BrandingData) ?? {};
+  const isCustom = (b.documentMode ?? "workrate") === "custom";
+
+  const companyName = b.name ?? "Your Trade Business";
+  const headerBg = isCustom && b.brandColourPrimary ? b.brandColourPrimary : "#1E293B";
+  const accentColour = isCustom && b.brandColourSecondary ? b.brandColourSecondary : "#2563EB";
+
+  // Derive readable text colour for header (simple luminance check)
+  function isLight(hex: string): boolean {
+    const c = hex.replace("#", "");
+    if (c.length !== 6) return false;
+    const r = parseInt(c.slice(0, 2), 16);
+    const g = parseInt(c.slice(2, 4), 16);
+    const blue = parseInt(c.slice(4, 6), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * blue) > 160;
+  }
+  const headerTextClass = isLight(headerBg) ? "text-gray-900" : "text-white";
+  const headerSubTextClass = isLight(headerBg) ? "text-gray-500" : "text-slate-400";
+
+  const footerText = isCustom && b.quoteFooter
+    ? b.quoteFooter
+    : "This quotation is valid for 30 days from the date of issue. All prices are in GBP.";
 
   return (
     <div className="print-doc">
@@ -842,29 +896,62 @@ function QuoteDocument({
         style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
       >
         {/* ── Header ───────────────────────────────────────────────── */}
-        <div className="bg-[#1E293B] px-10 py-8 flex items-start justify-between gap-6">
+        <div
+          className="px-10 py-8 flex items-start justify-between gap-6"
+          style={{ backgroundColor: headerBg }}
+        >
           <div>
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-[#2563EB] rounded-xl flex items-center justify-center shadow-lg">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <span className="text-2xl font-black text-white tracking-tight">{companyName}</span>
+              {/* Logo: show company logo if custom mode and logo exists, otherwise WorkRate icon */}
+              {isCustom && b.logoUrl ? (
+                <img
+                  src={b.logoUrl}
+                  alt={companyName}
+                  className="h-12 max-w-[160px] object-contain"
+                  style={{ filter: isLight(headerBg) ? "none" : "brightness(0) invert(1)" }}
+                />
+              ) : (
+                <>
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
+                    style={{ backgroundColor: accentColour }}
+                  >
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </div>
+                  <span className={`text-2xl font-black tracking-tight ${headerTextClass}`}>{companyName}</span>
+                </>
+              )}
+              {isCustom && b.logoUrl && (
+                <span className={`text-2xl font-black tracking-tight ${headerTextClass}`}>{companyName}</span>
+              )}
             </div>
-            <div className="text-sm text-slate-400 space-y-0.5 font-medium">
-              {company?.address && <p>{company.address}</p>}
-              {company?.phone && <p>{company.phone}</p>}
-              {company?.email && <p>{company.email}</p>}
+            <div className={`text-sm space-y-0.5 font-medium ${headerSubTextClass}`}>
+              {b.address && <p>{b.address}</p>}
+              {b.phone && <p>{b.phone}</p>}
+              {b.email && <p>{b.email}</p>}
+              {isCustom && b.website && <p>{b.website}</p>}
+              {isCustom && b.companyRegNumber && <p>Co. Reg: {b.companyRegNumber}</p>}
+              {isCustom && b.vatNumber && <p>VAT: {b.vatNumber}</p>}
             </div>
           </div>
 
           <div className="text-right shrink-0">
-            <p className="text-3xl font-black text-white tracking-tight mb-3">QUOTATION</p>
-            <div className="text-sm text-slate-400 space-y-1">
-              <p><span className="text-slate-500 font-medium">Ref:</span> <span className="text-white font-bold">#{quoteRef}</span></p>
-              <p><span className="text-slate-500 font-medium">Date:</span> <span className="text-white font-bold">{date}</span></p>
-              <p><span className="text-slate-500 font-medium">Valid for:</span> <span className="text-white font-bold">30 days</span></p>
+            <p className={`text-3xl font-black tracking-tight mb-3 ${headerTextClass}`}>QUOTATION</p>
+            <div className={`text-sm space-y-1 ${headerSubTextClass}`}>
+              <p>
+                <span className="font-medium">Ref:</span>{" "}
+                <span className={`font-bold ${headerTextClass}`}>#{quoteRef}</span>
+              </p>
+              <p>
+                <span className="font-medium">Date:</span>{" "}
+                <span className={`font-bold ${headerTextClass}`}>{date}</span>
+              </p>
+              <p>
+                <span className="font-medium">Valid for:</span>{" "}
+                <span className={`font-bold ${headerTextClass}`}>30 days</span>
+              </p>
             </div>
             {isSent && (
               <div className="mt-3 inline-block px-3 py-1 bg-violet-500/20 border border-violet-400/30 rounded-full">
@@ -923,9 +1010,14 @@ function QuoteDocument({
                   </tr>
                 </tbody>
                 <tfoot>
-                  <tr className="bg-[#1E293B] text-white">
-                    <td className="px-5 py-4 font-black text-sm uppercase tracking-wide">Total (inc. VAT)</td>
-                    <td className="px-5 py-4 text-right font-black text-xl text-[#60A5FA]">{formatCurrency(total)}</td>
+                  <tr style={{ backgroundColor: headerBg }}>
+                    <td className={`px-5 py-4 font-black text-sm uppercase tracking-wide ${headerTextClass}`}>Total (inc. VAT)</td>
+                    <td
+                      className="px-5 py-4 text-right font-black text-xl"
+                      style={{ color: isLight(headerBg) ? accentColour : "#60A5FA" }}
+                    >
+                      {formatCurrency(total)}
+                    </td>
                   </tr>
                 </tfoot>
               </table>
@@ -952,6 +1044,26 @@ function QuoteDocument({
             </div>
           )}
 
+          {/* ── Payment Terms (custom branding) ──────────────────────── */}
+          {isCustom && b.paymentTerms && (
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Payment Terms</p>
+              <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4">
+                <p className="text-sm text-gray-700 leading-relaxed">{b.paymentTerms}</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Bank / Payment Details (custom branding) ─────────────── */}
+          {isCustom && b.bankPaymentDetails && (
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Bank &amp; Payment Details</p>
+              <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4">
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line font-medium">{b.bankPaymentDetails}</p>
+              </div>
+            </div>
+          )}
+
           {/* ── Acceptance block ─────────────────────────────────────── */}
           <div className="border-t border-gray-100 pt-8">
             <div className="grid grid-cols-2 gap-8">
@@ -968,14 +1080,24 @@ function QuoteDocument({
             </div>
           </div>
 
+          {/* ── Terms & Conditions (custom branding) ─────────────────── */}
+          {isCustom && b.termsAndConditions && (
+            <div className="border-t border-gray-100 pt-6">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Terms &amp; Conditions</p>
+              <div className="text-xs text-gray-500 leading-relaxed whitespace-pre-line border border-gray-100 rounded-xl px-5 py-4 bg-gray-50/50">
+                {b.termsAndConditions}
+              </div>
+            </div>
+          )}
+
           {/* ── Footer ───────────────────────────────────────────────── */}
           <div className="border-t border-gray-100 pt-6 text-center space-y-1">
-            <p className="text-xs text-gray-400 font-medium">
-              This quotation is valid for 30 days from the date of issue. All prices are in GBP.
-            </p>
-            <p className="text-xs text-gray-400 font-medium">
-              Thank you for the opportunity to quote for your project.
-            </p>
+            <p className="text-xs text-gray-400 font-medium">{footerText}</p>
+            {(!isCustom || !b.quoteFooter) && (
+              <p className="text-xs text-gray-400 font-medium">
+                Thank you for the opportunity to quote for your project.
+              </p>
+            )}
           </div>
         </div>
       </div>

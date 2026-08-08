@@ -41,6 +41,34 @@ function parseQuote(q: any) {
   };
 }
 
+/** Snapshot current company branding so historical quotes retain their design. */
+async function snapshotBranding(userId: string): Promise<string | null> {
+  const [company] = await db
+    .select()
+    .from(companiesTable)
+    .where(eq(companiesTable.ownerUserId, userId))
+    .limit(1);
+  if (!company) return null;
+  return JSON.stringify({
+    documentMode: company.documentMode ?? "workrate",
+    name: company.name,
+    address: company.address,
+    phone: company.phone,
+    email: company.email,
+    website: (company as any).website,
+    companyRegNumber: (company as any).companyRegNumber,
+    vatNumber: (company as any).vatNumber,
+    bankPaymentDetails: (company as any).bankPaymentDetails,
+    brandColourPrimary: (company as any).brandColourPrimary,
+    brandColourSecondary: (company as any).brandColourSecondary,
+    paymentTerms: (company as any).paymentTerms,
+    termsAndConditions: (company as any).termsAndConditions,
+    quoteFooter: (company as any).quoteFooter,
+    invoiceFooter: (company as any).invoiceFooter,
+    logoUrl: company.logoUrl,
+  });
+}
+
 // Get quote
 router.get("/enquiries/:id/quote", requireAuth, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
@@ -224,6 +252,17 @@ router.patch("/enquiries/:id/quote", requireAuth, async (req, res): Promise<void
   if (body.data.notes !== undefined) updates.notes = body.data.notes;
   if (body.data.assumptions !== undefined) updates.assumptions = body.data.assumptions;
   if (body.data.status !== undefined) updates.status = body.data.status;
+
+  // Snapshot branding the first time a quote is sent/accepted so historical
+  // quotes always render with the design they had at the time of sending.
+  if (
+    body.data.status === "sent" || body.data.status === "accepted"
+  ) {
+    const snap = await snapshotBranding(userId!);
+    if (snap && !existing.brandingSnapshot) {
+      updates.brandingSnapshot = snap;
+    }
+  }
 
   const [updated] = await db
     .update(quotesTable)

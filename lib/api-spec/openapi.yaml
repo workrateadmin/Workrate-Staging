@@ -995,6 +995,28 @@ components:
           type: ["string", "null"]
         address:
           type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        companyRegNumber:
+          type: ["string", "null"]
+        vatNumber:
+          type: ["string", "null"]
+        bankPaymentDetails:
+          type: ["string", "null"]
+        brandColourPrimary:
+          type: ["string", "null"]
+        brandColourSecondary:
+          type: ["string", "null"]
+        paymentTerms:
+          type: ["string", "null"]
+        termsAndConditions:
+          type: ["string", "null"]
+        quoteFooter:
+          type: ["string", "null"]
+        invoiceFooter:
+          type: ["string", "null"]
+        documentMode:
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -1008,6 +1030,7 @@ components:
         - serviceArea
         - labourRatePerHour
         - materialMarkupPercent
+        - documentMode
         - createdAt
         - updatedAt
 
@@ -1039,6 +1062,28 @@ components:
         phone:
           type: string
         address:
+          type: string
+        website:
+          type: string
+        companyRegNumber:
+          type: string
+        vatNumber:
+          type: string
+        bankPaymentDetails:
+          type: string
+        brandColourPrimary:
+          type: string
+        brandColourSecondary:
+          type: string
+        paymentTerms:
+          type: string
+        termsAndConditions:
+          type: string
+        quoteFooter:
+          type: string
+        invoiceFooter:
+          type: string
+        documentMode:
           type: string
 
     Enquiry:
@@ -1182,6 +1227,8 @@ components:
           type: ["string", "null"]
         status:
           type: string
+        brandingSnapshot:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time

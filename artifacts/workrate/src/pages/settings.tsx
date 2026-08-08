@@ -11,11 +11,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useRef } from "react";
-import { Save, Building2, MapPin, PoundSterling, Brain, Users, Clock, Package, Wrench, TrendingUp, Sparkles, Code2, Copy, ExternalLink, CheckCheck, AlertTriangle } from "lucide-react";
+import {
+  Save, Building2, MapPin, PoundSterling, Brain, Users, Clock, Package, Wrench,
+  TrendingUp, Sparkles, Code2, Copy, ExternalLink, CheckCheck, AlertTriangle,
+  Palette, FileText, Upload, X, ImageIcon, CheckCircle2, Globe,
+} from "lucide-react";
 import { useState as useLocalState } from "react";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 type FormValues = z.infer<typeof companySchema>;
 
@@ -428,9 +433,583 @@ export default function Settings() {
         </form>
       </Form>
 
+      {/* ── Documents & Branding ─────────────────────────────────────────── */}
+      <DocumentsBrandingCard />
+
       {/* ── Chat Widget ─────────────────────────────────────────────────── */}
       <EmbedCodeCard />
     </div>
+  );
+}
+
+// ── Documents & Branding Card ─────────────────────────────────────────────────
+function DocumentsBrandingCard() {
+  const { data: company, isLoading } = useGetCompany();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [logoUploading, setLogoUploading] = useLocalState(false);
+  const [templateQuoteUploading, setTemplateQuoteUploading] = useLocalState(false);
+  const [templateInvoiceUploading, setTemplateInvoiceUploading] = useLocalState(false);
+  const [currentLogoUrl, setCurrentLogoUrl] = useLocalState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const templateQuoteInputRef = useRef<HTMLInputElement>(null);
+  const templateInvoiceInputRef = useRef<HTMLInputElement>(null);
+  const initialized = useRef(false);
+
+  const updateCompany = useUpdateCompany({
+    mutation: {
+      onSuccess: (data) => {
+        toast({ title: "Branding saved" });
+        queryClient.setQueryData(["/api/company"], data);
+      },
+      onError: () => {
+        toast({ title: "Failed to save branding", variant: "destructive" });
+      },
+    },
+  });
+
+  const brandingSchema = z.object({
+    documentMode: z.enum(["workrate", "custom"]),
+    brandColourPrimary: z.string().optional().default("#1E293B"),
+    brandColourSecondary: z.string().optional().default("#2563EB"),
+    website: z.string().optional().default(""),
+    companyRegNumber: z.string().optional().default(""),
+    vatNumber: z.string().optional().default(""),
+    bankPaymentDetails: z.string().optional().default(""),
+    paymentTerms: z.string().optional().default(""),
+    termsAndConditions: z.string().optional().default(""),
+    quoteFooter: z.string().optional().default(""),
+    invoiceFooter: z.string().optional().default(""),
+  });
+  type BrandingValues = z.infer<typeof brandingSchema>;
+
+  const form = useForm<BrandingValues>({
+    resolver: zodResolver(brandingSchema),
+    defaultValues: {
+      documentMode: "workrate",
+      brandColourPrimary: "#1E293B",
+      brandColourSecondary: "#2563EB",
+      website: "",
+      companyRegNumber: "",
+      vatNumber: "",
+      bankPaymentDetails: "",
+      paymentTerms: "",
+      termsAndConditions: "",
+      quoteFooter: "",
+      invoiceFooter: "",
+    },
+  });
+
+  useEffect(() => {
+    if (company && !initialized.current) {
+      initialized.current = true;
+      setCurrentLogoUrl((company as any).logoUrl ?? null);
+      form.reset({
+        documentMode: ((company as any).documentMode as "workrate" | "custom") ?? "workrate",
+        brandColourPrimary: (company as any).brandColourPrimary ?? "#1E293B",
+        brandColourSecondary: (company as any).brandColourSecondary ?? "#2563EB",
+        website: (company as any).website ?? "",
+        companyRegNumber: (company as any).companyRegNumber ?? "",
+        vatNumber: (company as any).vatNumber ?? "",
+        bankPaymentDetails: (company as any).bankPaymentDetails ?? "",
+        paymentTerms: (company as any).paymentTerms ?? "",
+        termsAndConditions: (company as any).termsAndConditions ?? "",
+        quoteFooter: (company as any).quoteFooter ?? "",
+        invoiceFooter: (company as any).invoiceFooter ?? "",
+      });
+    }
+  }, [company, form]);
+
+  const documentMode = form.watch("documentMode");
+
+  const basePath = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+  const apiBase = `${basePath}/api`;
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${apiBase}/uploads/logo`, { method: "POST", body: fd });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json();
+      setCurrentLogoUrl(url);
+      updateCompany.mutate({ data: { logoUrl: url } as any });
+    } catch {
+      toast({ title: "Logo upload failed", variant: "destructive" });
+    } finally {
+      setLogoUploading(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  }
+
+  async function handleTemplateUpload(
+    e: React.ChangeEvent<HTMLInputElement>,
+    docType: "quote" | "invoice"
+  ) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (docType === "quote") setTemplateQuoteUploading(true);
+    else setTemplateInvoiceUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${apiBase}/uploads/template`, { method: "POST", body: fd });
+      if (!res.ok) throw new Error("Upload failed");
+      await res.json(); // URL stored server-side for reference
+      toast({ title: `${docType === "quote" ? "Quote" : "Invoice"} template uploaded`, description: "Saved as a reference — your branding settings above are applied to all documents." });
+    } catch {
+      toast({ title: "Template upload failed", variant: "destructive" });
+    } finally {
+      if (docType === "quote") { setTemplateQuoteUploading(false); if (templateQuoteInputRef.current) templateQuoteInputRef.current.value = ""; }
+      else { setTemplateInvoiceUploading(false); if (templateInvoiceInputRef.current) templateInvoiceInputRef.current.value = ""; }
+    }
+  }
+
+  function onSubmit(values: BrandingValues) {
+    updateCompany.mutate({ data: values as any });
+  }
+
+  if (isLoading) return null;
+
+  return (
+    <Card className="shadow-sm border-border/60 overflow-hidden rounded-2xl bg-card">
+      <div className="px-8 py-5 border-b border-border/60 bg-secondary/30 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+            <Palette className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold">Documents &amp; Branding</h2>
+            <p className="text-xs text-muted-foreground font-medium">Customise how your quotes and invoices look</p>
+          </div>
+        </div>
+      </div>
+
+      <CardContent className="p-8 space-y-8">
+        {/* ── Template Mode Toggle ────────────────────────────────────────── */}
+        <div>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Document template</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* WorkRate Template */}
+            <button
+              type="button"
+              onClick={() => form.setValue("documentMode", "workrate")}
+              className={cn(
+                "relative rounded-2xl border-2 p-5 text-left transition-all",
+                documentMode === "workrate"
+                  ? "border-primary bg-primary/5 shadow-md"
+                  : "border-border/50 hover:border-border bg-secondary/20"
+              )}
+            >
+              {documentMode === "workrate" && (
+                <CheckCircle2 className="absolute top-3 right-3 w-4 h-4 text-primary" />
+              )}
+              <div className="w-8 h-8 bg-[#1E293B] rounded-lg flex items-center justify-center mb-3">
+                <FileText className="w-4 h-4 text-white" />
+              </div>
+              <p className="font-bold text-sm">WorkRate Template</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Professional document design. Looks great immediately — no setup required.
+              </p>
+              {documentMode === "workrate" && (
+                <span className="inline-block mt-2 text-[10px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full uppercase tracking-widest">
+                  Active
+                </span>
+              )}
+            </button>
+
+            {/* My Own Branding */}
+            <button
+              type="button"
+              onClick={() => form.setValue("documentMode", "custom")}
+              className={cn(
+                "relative rounded-2xl border-2 p-5 text-left transition-all",
+                documentMode === "custom"
+                  ? "border-primary bg-primary/5 shadow-md"
+                  : "border-border/50 hover:border-border bg-secondary/20"
+              )}
+            >
+              {documentMode === "custom" && (
+                <CheckCircle2 className="absolute top-3 right-3 w-4 h-4 text-primary" />
+              )}
+              <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-indigo-600 rounded-lg flex items-center justify-center mb-3">
+                <Palette className="w-4 h-4 text-white" />
+              </div>
+              <p className="font-bold text-sm">My Own Branding</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Apply your logo, colours, and custom footer text to all documents.
+              </p>
+              {documentMode === "custom" && (
+                <span className="inline-block mt-2 text-[10px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full uppercase tracking-widest">
+                  Active
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* ── Custom branding fields (only shown when mode = custom) ──────── */}
+        {documentMode === "custom" && (
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            {/* Logo */}
+            <div>
+              <div className="border-t border-border/40 mb-6" />
+              <div className="flex items-center gap-2 mb-4">
+                <ImageIcon className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Company Logo</h3>
+              </div>
+              <div className="flex items-start gap-5">
+                {/* Logo preview */}
+                <div className="w-24 h-24 rounded-xl border-2 border-dashed border-border/60 bg-secondary/30 flex items-center justify-center overflow-hidden shrink-0">
+                  {currentLogoUrl ? (
+                    <img src={currentLogoUrl} alt="Company logo" className="w-full h-full object-contain p-1" />
+                  ) : (
+                    <ImageIcon className="w-8 h-8 text-muted-foreground/40" />
+                  )}
+                </div>
+                <div className="space-y-2 flex-1">
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="font-bold rounded-xl border-border/60"
+                    disabled={logoUploading}
+                    onClick={() => logoInputRef.current?.click()}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {logoUploading ? "Uploading…" : currentLogoUrl ? "Replace Logo" : "Upload Logo"}
+                  </Button>
+                  {currentLogoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => { setCurrentLogoUrl(null); updateCompany.mutate({ data: { logoUrl: "" } as any }); }}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors font-semibold"
+                    >
+                      <X className="w-3 h-3" /> Remove logo
+                    </button>
+                  )}
+                  <p className="text-xs text-muted-foreground font-medium">PNG, JPG, WebP, or SVG. Max 5 MB. Will appear in the document header.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Brand Colours */}
+            <div>
+              <div className="border-t border-border/40 mb-6" />
+              <div className="flex items-center gap-2 mb-4">
+                <Palette className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Brand Colours</h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <FormField control={form.control} name="brandColourPrimary" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="field-label">Primary Colour</FormLabel>
+                    <FormControl>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          className="w-10 h-10 rounded-lg cursor-pointer border border-border/60 p-0.5 bg-background"
+                          value={field.value ?? "#1E293B"}
+                          onChange={(e) => field.onChange(e.target.value)}
+                        />
+                        <Input
+                          className="field-input font-mono flex-1"
+                          placeholder="#1E293B"
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                        />
+                      </div>
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground font-medium mt-1">Used for the document header background</p>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="brandColourSecondary" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="field-label">Accent Colour</FormLabel>
+                    <FormControl>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          className="w-10 h-10 rounded-lg cursor-pointer border border-border/60 p-0.5 bg-background"
+                          value={field.value ?? "#2563EB"}
+                          onChange={(e) => field.onChange(e.target.value)}
+                        />
+                        <Input
+                          className="field-input font-mono flex-1"
+                          placeholder="#2563EB"
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                        />
+                      </div>
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground font-medium mt-1">Used for totals row and accents</p>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+
+            {/* Company Details (extended) */}
+            <div>
+              <div className="border-t border-border/40 mb-6" />
+              <div className="flex items-center gap-2 mb-4">
+                <Building2 className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Company &amp; Legal Details</h3>
+              </div>
+              <p className="text-xs text-muted-foreground font-medium mb-4">These appear in the document header and footer. Company name, address, phone, and email are taken from Business Details above.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <FormField control={form.control} name="website" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="field-label">
+                      <Globe className="w-3.5 h-3.5 inline mr-1" />
+                      Website
+                    </FormLabel>
+                    <FormControl>
+                      <Input className="field-input" placeholder="https://www.mytradecompany.co.uk" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="companyRegNumber" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="field-label">Company Registration No.</FormLabel>
+                    <FormControl>
+                      <Input className="field-input" placeholder="e.g. 12345678" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="vatNumber" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="field-label">VAT Registration No.</FormLabel>
+                    <FormControl>
+                      <Input className="field-input" placeholder="e.g. GB123456789" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+
+            {/* Payment Information */}
+            <div>
+              <div className="border-t border-border/40 mb-6" />
+              <div className="flex items-center gap-2 mb-4">
+                <PoundSterling className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Payment Information</h3>
+              </div>
+              <div className="space-y-5">
+                <FormField control={form.control} name="bankPaymentDetails" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="field-label">Bank / Payment Details</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        className="field-input resize-none min-h-[96px]"
+                        placeholder={"e.g.\nAccount name: Smith Joinery Ltd\nSort code: 12-34-56\nAccount number: 12345678\nReference: [Invoice number]"}
+                        {...field}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground font-medium mt-1.5">Shown at the bottom of every invoice and quote</p>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="paymentTerms" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="field-label">Payment Terms</FormLabel>
+                    <FormControl>
+                      <Input className="field-input" placeholder="e.g. Payment due within 14 days of invoice. 50% deposit required to confirm booking." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+
+            {/* Document Footers */}
+            <div>
+              <div className="border-t border-border/40 mb-6" />
+              <div className="flex items-center gap-2 mb-4">
+                <FileText className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Document Footers</h3>
+              </div>
+              <div className="space-y-5">
+                <FormField control={form.control} name="quoteFooter" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="field-label">Quote Footer</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        className="field-input resize-none min-h-[80px]"
+                        placeholder="e.g. This quotation is valid for 30 days. All prices are in GBP and include materials and labour."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="invoiceFooter" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="field-label">Invoice Footer</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        className="field-input resize-none min-h-[80px]"
+                        placeholder="e.g. Thank you for your business. Late payments may be subject to interest under the Late Payment of Commercial Debts Act."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+
+            {/* Terms & Conditions */}
+            <div>
+              <div className="border-t border-border/40 mb-6" />
+              <div className="flex items-center gap-2 mb-4">
+                <FileText className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Terms &amp; Conditions</h3>
+              </div>
+              <FormField control={form.control} name="termsAndConditions" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="field-label">Full Terms &amp; Conditions</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      className="field-input resize-none min-h-[140px]"
+                      placeholder="Paste your full terms and conditions here. These will appear on the final page of every quote and invoice."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+
+            {/* Reference template upload — clearly explained */}
+            <div>
+              <div className="border-t border-border/40 mb-6" />
+              <div className="flex items-center gap-2 mb-2">
+                <Upload className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Reference Templates</h3>
+              </div>
+
+              {/* Limitation notice */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-5 flex items-start gap-3">
+                <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-amber-800">How template uploads work</p>
+                  <p className="text-xs text-amber-700 mt-1 leading-relaxed font-medium">
+                    WorkRate generates your documents using its own layout engine with your branding settings above applied (logo, colours, footer text, etc.). Automatically reading the exact layout of an uploaded PDF or DOCX is unreliable, so WorkRate does not attempt to replicate your existing template's layout.
+                  </p>
+                  <p className="text-xs text-amber-700 mt-1.5 leading-relaxed font-medium">
+                    Upload your current template here as a <strong>reference</strong> — your team can compare it against WorkRate's output and adjust the branding settings above to get as close as possible.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Quote template */}
+                <div className="border border-border/50 rounded-xl p-4 space-y-3 bg-secondary/20">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    <p className="text-sm font-bold">Quote Template</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-medium">Your current quote template for reference</p>
+                  <input
+                    ref={templateQuoteInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    className="hidden"
+                    onChange={(e) => handleTemplateUpload(e, "quote")}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full font-bold rounded-xl border-border/60 text-xs"
+                    disabled={templateQuoteUploading}
+                    onClick={() => templateQuoteInputRef.current?.click()}
+                  >
+                    <Upload className="w-3.5 h-3.5 mr-2" />
+                    {templateQuoteUploading ? "Uploading…" : "Upload PDF or DOCX"}
+                  </Button>
+                </div>
+
+                {/* Invoice template */}
+                <div className="border border-border/50 rounded-xl p-4 space-y-3 bg-secondary/20">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    <p className="text-sm font-bold">Invoice Template</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-medium">Your current invoice template for reference</p>
+                  <input
+                    ref={templateInvoiceInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    className="hidden"
+                    onChange={(e) => handleTemplateUpload(e, "invoice")}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full font-bold rounded-xl border-border/60 text-xs"
+                    disabled={templateInvoiceUploading}
+                    onClick={() => templateInvoiceInputRef.current?.click()}
+                  >
+                    <Upload className="w-3.5 h-3.5 mr-2" />
+                    {templateInvoiceUploading ? "Uploading…" : "Upload PDF or DOCX"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Save branding */}
+            <div className="pt-2 flex justify-end">
+              <Button
+                type="submit"
+                size="lg"
+                className="font-bold shadow-xl h-14 px-10 text-base rounded-2xl"
+                disabled={updateCompany.isPending}
+              >
+                <Save className="w-5 h-5 mr-3" />
+                {updateCompany.isPending ? "Saving…" : "Save Branding"}
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {/* When WorkRate template is selected, show a save button to persist the mode change */}
+        {documentMode === "workrate" && (
+          <div className="flex justify-end pt-2">
+            <Button
+              type="button"
+              size="lg"
+              className="font-bold shadow-xl h-14 px-10 text-base rounded-2xl"
+              disabled={updateCompany.isPending}
+              onClick={() => updateCompany.mutate({ data: { documentMode: "workrate" } as any })}
+            >
+              <Save className="w-5 h-5 mr-3" />
+              {updateCompany.isPending ? "Saving…" : "Save Template Choice"}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

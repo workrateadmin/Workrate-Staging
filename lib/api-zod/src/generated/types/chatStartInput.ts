@@ -8,4 +8,5 @@
 
 export interface ChatStartInput {
   tradeType: string;
+  businessId?: string | null;
 }

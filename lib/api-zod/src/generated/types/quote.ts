@@ -23,6 +23,8 @@ export interface Quote {
   /** @nullable */
   assumptions?: string | null;
   status: string;
+  /** @nullable */
+  brandingSnapshot?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

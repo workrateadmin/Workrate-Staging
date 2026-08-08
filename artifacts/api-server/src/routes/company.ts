@@ -120,6 +120,17 @@ router.put("/company", requireAuth, async (req, res): Promise<void> => {
     ...(d.email !== undefined && { email: d.email }),
     ...(d.phone !== undefined && { phone: d.phone }),
     ...(d.address !== undefined && { address: d.address }),
+    ...(d.website !== undefined && { website: d.website }),
+    ...(d.companyRegNumber !== undefined && { companyRegNumber: d.companyRegNumber }),
+    ...(d.vatNumber !== undefined && { vatNumber: d.vatNumber }),
+    ...(d.bankPaymentDetails !== undefined && { bankPaymentDetails: d.bankPaymentDetails }),
+    ...(d.brandColourPrimary !== undefined && { brandColourPrimary: d.brandColourPrimary }),
+    ...(d.brandColourSecondary !== undefined && { brandColourSecondary: d.brandColourSecondary }),
+    ...(d.paymentTerms !== undefined && { paymentTerms: d.paymentTerms }),
+    ...(d.termsAndConditions !== undefined && { termsAndConditions: d.termsAndConditions }),
+    ...(d.quoteFooter !== undefined && { quoteFooter: d.quoteFooter }),
+    ...(d.invoiceFooter !== undefined && { invoiceFooter: d.invoiceFooter }),
+    ...(d.documentMode !== undefined && { documentMode: d.documentMode }),
   };
 
   if (!existing) {
