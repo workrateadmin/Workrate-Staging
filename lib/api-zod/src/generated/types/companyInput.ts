@@ -36,4 +36,10 @@ export interface CompanyInput {
   defaultDepositFixed?: number;
   depositPaymentInstructions?: string;
   remainingBalanceDueDays?: number;
+  notificationsFromEmail?: string;
+  enquiryConfirmationEnabled?: boolean;
+  enquiryEmailEnabled?: boolean;
+  enquirySmsEnabled?: boolean;
+  enquiryConfirmationMessage?: string;
+  proposalEmailEnabled?: boolean;
 }

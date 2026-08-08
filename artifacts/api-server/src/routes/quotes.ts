@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, enquiriesTable, quotesTable, companiesTable } from "@workspace/db";
+import { sendProposalEmail } from "../services/customer-comms";
 import { eq, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import {
@@ -365,6 +366,102 @@ router.post("/enquiries/:id/quote/approve-and-send", requireAuth, async (req, re
     .set({ status: "quote_sent" })
     .where(eq(enquiriesTable.id, id));
 
+  // Send proposal email to customer (fire-and-forget — never fails the request)
+  Promise.resolve().then(async () => {
+    try {
+      // Derive proposal base URL from env (dev domain or configured domain)
+      const devDomain = process.env.REPLIT_DEV_DOMAIN;
+      const proposalBaseUrl = devDomain
+        ? `https://${devDomain}/workrate`
+        : (process.env.PROPOSAL_BASE_URL ?? "");
+
+      await sendProposalEmail(
+        updated.id,
+        {
+          customerName: enquiry.customerName,
+          customerEmail: enquiry.customerEmail ?? null,
+          projectType: enquiry.projectType ?? null,
+          totalWithVat: Number(updated.totalWithVat),
+          depositAmount: updated.depositAmount != null ? Number(updated.depositAmount) : null,
+          proposalToken: token,
+          proposalBaseUrl,
+        },
+        {
+          name: company?.name ?? "Your tradesperson",
+          email: company?.email ?? null,
+          phone: company?.phone ?? null,
+          website: company?.website ?? null,
+          logoUrl: company?.logoUrl ?? null,
+          brandColourPrimary: company?.brandColourPrimary ?? null,
+          notificationsFromEmail: company?.notificationsFromEmail ?? null,
+          proposalEmailEnabled: company?.proposalEmailEnabled ?? true,
+        }
+      );
+    } catch (err) {
+      console.error("[comms] proposal email failed:", err);
+    }
+  });
+
+  res.json(parseQuote(updated));
+});
+
+// Re-send proposal email — retry on failure or resend to customer
+router.post("/enquiries/:id/quote/resend-proposal-email", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid enquiry id" }); return; }
+
+  const [enquiry] = await db
+    .select()
+    .from(enquiriesTable)
+    .where(and(eq(enquiriesTable.id, id), eq(enquiriesTable.ownerUserId, userId!)));
+  if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
+
+  const [existing] = await db.select().from(quotesTable).where(eq(quotesTable.enquiryId, id));
+  if (!existing) { res.status(404).json({ error: "Quote not found" }); return; }
+  if (!existing.proposalToken) { res.status(400).json({ error: "Proposal not yet approved" }); return; }
+
+  const [company] = await db
+    .select()
+    .from(companiesTable)
+    .where(eq(companiesTable.ownerUserId, userId!))
+    .limit(1);
+
+  const devDomain = process.env.REPLIT_DEV_DOMAIN;
+  const proposalBaseUrl = devDomain
+    ? `https://${devDomain}/workrate`
+    : (process.env.PROPOSAL_BASE_URL ?? "");
+
+  // Clear previous error before resend
+  await db.update(quotesTable)
+    .set({ emailDeliveryStatus: "pending", emailError: null })
+    .where(eq(quotesTable.enquiryId, id));
+
+  await sendProposalEmail(
+    existing.id,
+    {
+      customerName: enquiry.customerName,
+      customerEmail: enquiry.customerEmail ?? null,
+      projectType: enquiry.projectType ?? null,
+      totalWithVat: Number(existing.totalWithVat),
+      depositAmount: existing.depositAmount != null ? Number(existing.depositAmount) : null,
+      proposalToken: existing.proposalToken,
+      proposalBaseUrl,
+    },
+    {
+      name: company?.name ?? "Your tradesperson",
+      email: company?.email ?? null,
+      phone: company?.phone ?? null,
+      website: company?.website ?? null,
+      logoUrl: company?.logoUrl ?? null,
+      brandColourPrimary: company?.brandColourPrimary ?? null,
+      notificationsFromEmail: company?.notificationsFromEmail ?? null,
+      proposalEmailEnabled: company?.proposalEmailEnabled ?? true,
+    }
+  );
+
+  // Reload and return updated quote
+  const [updated] = await db.select().from(quotesTable).where(eq(quotesTable.enquiryId, id));
   res.json(parseQuote(updated));
 });
 

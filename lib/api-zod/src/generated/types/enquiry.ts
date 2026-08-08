@@ -31,6 +31,12 @@ export interface Enquiry {
   attachmentCount: number;
   /** @nullable */
   chatToken?: string | null;
+  confirmationEmailStatus?: string;
+  /** @nullable */
+  confirmationEmailSentAt?: Date | null;
+  confirmationSmsStatus?: string;
+  /** @nullable */
+  confirmationSmsSentAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

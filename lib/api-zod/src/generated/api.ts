@@ -51,6 +51,12 @@ export const GetCompanyResponse = zod.object({
   "defaultDepositFixed": zod.number().nullish(),
   "depositPaymentInstructions": zod.string().nullish(),
   "remainingBalanceDueDays": zod.number(),
+  "notificationsFromEmail": zod.string().nullish(),
+  "enquiryConfirmationEnabled": zod.boolean().nullish(),
+  "enquiryEmailEnabled": zod.boolean().nullish(),
+  "enquirySmsEnabled": zod.boolean().nullish(),
+  "enquiryConfirmationMessage": zod.string().nullish(),
+  "proposalEmailEnabled": zod.boolean().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -88,7 +94,13 @@ export const UpdateCompanyBody = zod.object({
   "defaultDepositPercent": zod.number().optional(),
   "defaultDepositFixed": zod.number().optional(),
   "depositPaymentInstructions": zod.string().optional(),
-  "remainingBalanceDueDays": zod.number().optional()
+  "remainingBalanceDueDays": zod.number().optional(),
+  "notificationsFromEmail": zod.string().optional(),
+  "enquiryConfirmationEnabled": zod.boolean().optional(),
+  "enquiryEmailEnabled": zod.boolean().optional(),
+  "enquirySmsEnabled": zod.boolean().optional(),
+  "enquiryConfirmationMessage": zod.string().optional(),
+  "proposalEmailEnabled": zod.boolean().optional()
 })
 
 export const UpdateCompanyResponse = zod.object({
@@ -122,6 +134,12 @@ export const UpdateCompanyResponse = zod.object({
   "defaultDepositFixed": zod.number().nullish(),
   "depositPaymentInstructions": zod.string().nullish(),
   "remainingBalanceDueDays": zod.number(),
+  "notificationsFromEmail": zod.string().nullish(),
+  "enquiryConfirmationEnabled": zod.boolean().nullish(),
+  "enquiryEmailEnabled": zod.boolean().nullish(),
+  "enquirySmsEnabled": zod.boolean().nullish(),
+  "enquiryConfirmationMessage": zod.string().nullish(),
+  "proposalEmailEnabled": zod.boolean().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -149,6 +167,10 @@ export const ListEnquiriesResponseItem = zod.object({
   "attachmentUrls": zod.string().nullish(),
   "attachmentCount": zod.number(),
   "chatToken": zod.string().nullish(),
+  "confirmationEmailStatus": zod.string().optional(),
+  "confirmationEmailSentAt": zod.coerce.date().nullish(),
+  "confirmationSmsStatus": zod.string().optional(),
+  "confirmationSmsSentAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -185,6 +207,10 @@ export const CreateEnquiryResponse = zod.object({
   "attachmentUrls": zod.string().nullish(),
   "attachmentCount": zod.number(),
   "chatToken": zod.string().nullish(),
+  "confirmationEmailStatus": zod.string().optional(),
+  "confirmationEmailSentAt": zod.coerce.date().nullish(),
+  "confirmationSmsStatus": zod.string().optional(),
+  "confirmationSmsSentAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -212,6 +238,10 @@ export const GetEnquiryResponse = zod.object({
   "attachmentUrls": zod.string().nullish(),
   "attachmentCount": zod.number(),
   "chatToken": zod.string().nullish(),
+  "confirmationEmailStatus": zod.string().optional(),
+  "confirmationEmailSentAt": zod.coerce.date().nullish(),
+  "confirmationSmsStatus": zod.string().optional(),
+  "confirmationSmsSentAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -252,6 +282,10 @@ export const UpdateEnquiryResponse = zod.object({
   "attachmentUrls": zod.string().nullish(),
   "attachmentCount": zod.number(),
   "chatToken": zod.string().nullish(),
+  "confirmationEmailStatus": zod.string().optional(),
+  "confirmationEmailSentAt": zod.coerce.date().nullish(),
+  "confirmationSmsStatus": zod.string().optional(),
+  "confirmationSmsSentAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -360,6 +394,10 @@ export const GenerateEnquirySummaryResponse = zod.object({
   "attachmentUrls": zod.string().nullish(),
   "attachmentCount": zod.number(),
   "chatToken": zod.string().nullish(),
+  "confirmationEmailStatus": zod.string().optional(),
+  "confirmationEmailSentAt": zod.coerce.date().nullish(),
+  "confirmationSmsStatus": zod.string().optional(),
+  "confirmationSmsSentAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -514,6 +552,55 @@ export const ApproveAndSendProposalResponse = zod.object({
   "viewedAt": zod.coerce.date().nullish(),
   "acceptanceSnapshot": zod.string().nullish(),
   "customerQuestion": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Re-send the proposal email to the customer (retry on failure or resend)
+ */
+export const ResendProposalEmailParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ResendProposalEmailResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "customerDetails": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "estimatedTotal": zod.number(),
+  "vatAmount": zod.number(),
+  "totalWithVat": zod.number(),
+  "notes": zod.string().nullish(),
+  "assumptions": zod.string().nullish(),
+  "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
+  "proposalStatus": zod.string(),
+  "proposalToken": zod.string().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositFixed": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
+  "acceptedAt": zod.coerce.date().nullish(),
+  "acceptedByName": zod.string().nullish(),
+  "acceptedByEmail": zod.string().nullish(),
+  "viewedAt": zod.coerce.date().nullish(),
+  "acceptanceSnapshot": zod.string().nullish(),
+  "customerQuestion": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -559,6 +646,10 @@ export const MarkDepositPaidResponse = zod.object({
   "viewedAt": zod.coerce.date().nullish(),
   "acceptanceSnapshot": zod.string().nullish(),
   "customerQuestion": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -600,6 +691,10 @@ export const GetQuoteResponse = zod.object({
   "viewedAt": zod.coerce.date().nullish(),
   "acceptanceSnapshot": zod.string().nullish(),
   "customerQuestion": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -641,6 +736,10 @@ export const GenerateQuoteResponse = zod.object({
   "viewedAt": zod.coerce.date().nullish(),
   "acceptanceSnapshot": zod.string().nullish(),
   "customerQuestion": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -695,6 +794,10 @@ export const UpdateQuoteResponse = zod.object({
   "viewedAt": zod.coerce.date().nullish(),
   "acceptanceSnapshot": zod.string().nullish(),
   "customerQuestion": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1036,6 +1139,10 @@ export const GetDashboardResponse = zod.object({
   "attachmentUrls": zod.string().nullish(),
   "attachmentCount": zod.number(),
   "chatToken": zod.string().nullish(),
+  "confirmationEmailStatus": zod.string().optional(),
+  "confirmationEmailSentAt": zod.coerce.date().nullish(),
+  "confirmationSmsStatus": zod.string().optional(),
+  "confirmationSmsSentAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))

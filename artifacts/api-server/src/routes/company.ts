@@ -139,6 +139,12 @@ router.put("/company", requireAuth, async (req, res): Promise<void> => {
     ...(d.defaultDepositFixed !== undefined && { defaultDepositFixed: d.defaultDepositFixed !== null ? d.defaultDepositFixed.toString() : null }),
     ...(d.depositPaymentInstructions !== undefined && { depositPaymentInstructions: d.depositPaymentInstructions }),
     ...(d.remainingBalanceDueDays !== undefined && { remainingBalanceDueDays: d.remainingBalanceDueDays }),
+    ...(d.notificationsFromEmail !== undefined && { notificationsFromEmail: d.notificationsFromEmail }),
+    ...(d.enquiryConfirmationEnabled !== undefined && { enquiryConfirmationEnabled: d.enquiryConfirmationEnabled }),
+    ...(d.enquiryEmailEnabled !== undefined && { enquiryEmailEnabled: d.enquiryEmailEnabled }),
+    ...(d.enquirySmsEnabled !== undefined && { enquirySmsEnabled: d.enquirySmsEnabled }),
+    ...(d.enquiryConfirmationMessage !== undefined && { enquiryConfirmationMessage: d.enquiryConfirmationMessage }),
+    ...(d.proposalEmailEnabled !== undefined && { proposalEmailEnabled: d.proposalEmailEnabled }),
   };
 
   if (!existing) {

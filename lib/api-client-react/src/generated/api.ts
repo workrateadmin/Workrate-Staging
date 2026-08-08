@@ -1349,6 +1349,77 @@ export const useApproveAndSendProposal = <TError = ErrorType<ApiError>,
       return useMutation(getApproveAndSendProposalMutationOptions(options));
     }
 
+export const getResendProposalEmailUrl = (id: number,) => {
+
+
+
+
+  return `/api/enquiries/${id}/quote/resend-proposal-email`
+}
+
+/**
+ * @summary Re-send the proposal email to the customer (retry on failure or resend)
+ */
+export const resendProposalEmail = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Quote> => {
+
+  return customFetch<Quote>(getResendProposalEmailUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResendProposalEmailMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendProposalEmail>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resendProposalEmail>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['resendProposalEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resendProposalEmail>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  resendProposalEmail(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendProposalEmailMutationResult = NonNullable<Awaited<ReturnType<typeof resendProposalEmail>>>
+
+    export type ResendProposalEmailMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Re-send the proposal email to the customer (retry on failure or resend)
+ */
+export const useResendProposalEmail = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendProposalEmail>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resendProposalEmail>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getResendProposalEmailMutationOptions(options));
+    }
+
 export const getMarkDepositPaidUrl = (id: number,) => {
 
 

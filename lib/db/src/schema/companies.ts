@@ -37,6 +37,14 @@ export const companiesTable = pgTable("companies", {
   depositPaymentInstructions: text("deposit_payment_instructions"),
   remainingBalanceDueDays: integer("remaining_balance_due_days").notNull().default(30),
 
+  // ── Customer communications ─────────────────────────────────────────────
+  notificationsFromEmail: text("notifications_from_email"),
+  enquiryConfirmationEnabled: integer("enquiry_confirmation_enabled", { mode: "boolean" }).notNull().default(true),
+  enquiryEmailEnabled: integer("enquiry_email_enabled", { mode: "boolean" }).notNull().default(true),
+  enquirySmsEnabled: integer("enquiry_sms_enabled", { mode: "boolean" }).notNull().default(false),
+  enquiryConfirmationMessage: text("enquiry_confirmation_message"),
+  proposalEmailEnabled: integer("proposal_email_enabled", { mode: "boolean" }).notNull().default(true),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -425,6 +425,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /enquiries/{id}/quote/resend-proposal-email:
+    post:
+      operationId: resendProposalEmail
+      tags: [quotes]
+      summary: Re-send the proposal email to the customer (retry on failure or resend)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Updated quote with new email status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quote"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /enquiries/{id}/quote/mark-deposit-paid:
     post:
       operationId: markDepositPaid
@@ -1169,6 +1194,18 @@ components:
           type: ["string", "null"]
         remainingBalanceDueDays:
           type: number
+        notificationsFromEmail:
+          type: ["string", "null"]
+        enquiryConfirmationEnabled:
+          type: ["boolean", "null"]
+        enquiryEmailEnabled:
+          type: ["boolean", "null"]
+        enquirySmsEnabled:
+          type: ["boolean", "null"]
+        enquiryConfirmationMessage:
+          type: ["string", "null"]
+        proposalEmailEnabled:
+          type: ["boolean", "null"]
         createdAt:
           type: string
           format: date-time
@@ -1250,6 +1287,18 @@ components:
           type: string
         remainingBalanceDueDays:
           type: number
+        notificationsFromEmail:
+          type: string
+        enquiryConfirmationEnabled:
+          type: boolean
+        enquiryEmailEnabled:
+          type: boolean
+        enquirySmsEnabled:
+          type: boolean
+        enquiryConfirmationMessage:
+          type: string
+        proposalEmailEnabled:
+          type: boolean
 
     Enquiry:
       type: object
@@ -1282,6 +1331,16 @@ components:
           type: number
         chatToken:
           type: ["string", "null"]
+        confirmationEmailStatus:
+          type: string
+        confirmationEmailSentAt:
+          type: ["string", "null"]
+          format: date-time
+        confirmationSmsStatus:
+          type: string
+        confirmationSmsSentAt:
+          type: ["string", "null"]
+          format: date-time
         createdAt:
           type: string
           format: date-time
@@ -1426,6 +1485,15 @@ components:
         acceptanceSnapshot:
           type: ["string", "null"]
         customerQuestion:
+          type: ["string", "null"]
+        emailRecipient:
+          type: ["string", "null"]
+        emailDeliveryStatus:
+          type: ["string", "null"]
+        emailSentAt:
+          type: ["string", "null"]
+          format: date-time
+        emailError:
           type: ["string", "null"]
         createdAt:
           type: string

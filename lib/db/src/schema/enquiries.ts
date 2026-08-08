@@ -28,6 +28,13 @@ export const enquiriesTable = pgTable("enquiries", {
   aiSummary: text("ai_summary"),
   attachmentUrls: text("attachment_urls"),
   chatToken: text("chat_token"),
+  // ── Customer confirmation tracking ─────────────────────────────────────
+  confirmationEmailStatus: text("confirmation_email_status").notNull().default("pending"),
+  // 'pending' | 'sent' | 'failed' | 'not_configured' | 'disabled'
+  confirmationEmailSentAt: timestamp("confirmation_email_sent_at", { withTimezone: true }),
+  confirmationSmsStatus: text("confirmation_sms_status").notNull().default("pending"),
+  confirmationSmsSentAt: timestamp("confirmation_sms_sent_at", { withTimezone: true }),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

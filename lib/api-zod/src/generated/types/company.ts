@@ -58,6 +58,18 @@ export interface Company {
   /** @nullable */
   depositPaymentInstructions?: string | null;
   remainingBalanceDueDays: number;
+  /** @nullable */
+  notificationsFromEmail?: string | null;
+  /** @nullable */
+  enquiryConfirmationEnabled?: boolean | null;
+  /** @nullable */
+  enquiryEmailEnabled?: boolean | null;
+  /** @nullable */
+  enquirySmsEnabled?: boolean | null;
+  /** @nullable */
+  enquiryConfirmationMessage?: string | null;
+  /** @nullable */
+  proposalEmailEnabled?: boolean | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -77,6 +77,18 @@ export interface Company {
   /** @nullable */
   depositPaymentInstructions?: string | null;
   remainingBalanceDueDays: number;
+  /** @nullable */
+  notificationsFromEmail?: string | null;
+  /** @nullable */
+  enquiryConfirmationEnabled?: boolean | null;
+  /** @nullable */
+  enquiryEmailEnabled?: boolean | null;
+  /** @nullable */
+  enquirySmsEnabled?: boolean | null;
+  /** @nullable */
+  enquiryConfirmationMessage?: string | null;
+  /** @nullable */
+  proposalEmailEnabled?: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,6 +123,12 @@ export interface CompanyInput {
   defaultDepositFixed?: number;
   depositPaymentInstructions?: string;
   remainingBalanceDueDays?: number;
+  notificationsFromEmail?: string;
+  enquiryConfirmationEnabled?: boolean;
+  enquiryEmailEnabled?: boolean;
+  enquirySmsEnabled?: boolean;
+  enquiryConfirmationMessage?: string;
+  proposalEmailEnabled?: boolean;
 }
 
 export interface Enquiry {
@@ -138,6 +156,12 @@ export interface Enquiry {
   attachmentCount: number;
   /** @nullable */
   chatToken?: string | null;
+  confirmationEmailStatus?: string;
+  /** @nullable */
+  confirmationEmailSentAt?: string | null;
+  confirmationSmsStatus?: string;
+  /** @nullable */
+  confirmationSmsSentAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -223,6 +247,14 @@ export interface Quote {
   acceptanceSnapshot?: string | null;
   /** @nullable */
   customerQuestion?: string | null;
+  /** @nullable */
+  emailRecipient?: string | null;
+  /** @nullable */
+  emailDeliveryStatus?: string | null;
+  /** @nullable */
+  emailSentAt?: string | null;
+  /** @nullable */
+  emailError?: string | null;
   createdAt: string;
   updatedAt: string;
 }

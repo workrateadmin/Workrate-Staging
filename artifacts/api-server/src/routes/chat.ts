@@ -3,7 +3,8 @@ import { randomBytes } from "crypto";
 import path from "path";
 import { mkdirSync } from "fs";
 import multer from "multer";
-import { db, enquiriesTable, enquiryMessagesTable, enquiryAttachmentsTable } from "@workspace/db";
+import { db, enquiriesTable, enquiryMessagesTable, enquiryAttachmentsTable, companiesTable } from "@workspace/db";
+import { sendEnquiryConfirmation } from "../services/customer-comms";
 import { eq, sql } from "drizzle-orm";
 import {
   StartChatBody,
@@ -448,6 +449,46 @@ router.post("/chat/:token/message", async (req, res): Promise<void> => {
       generateAndSaveSummary(enquiry.id).catch((err) =>
         console.error("[summary] auto-generate failed:", err)
       );
+
+      // Send enquiry confirmation to customer (fire-and-forget — never fails the request)
+      if (extracted.customerEmail || extracted.customerPhone) {
+        const businessId = enquiry.ownerUserId;
+        Promise.resolve().then(async () => {
+          try {
+            let company: any = null;
+            if (businessId) {
+              [company] = await db
+                .select()
+                .from(companiesTable)
+                .where(eq(companiesTable.ownerUserId, businessId))
+                .limit(1);
+            }
+            if (!company) {
+              // Try any unowned company (single-user deployment)
+              const { isNull } = await import("drizzle-orm");
+              [company] = await db
+                .select()
+                .from(companiesTable)
+                .where(isNull(companiesTable.ownerUserId))
+                .limit(1);
+            }
+            if (company) {
+              await sendEnquiryConfirmation(
+                enquiry.id,
+                {
+                  customerName: extracted.customerName ?? enquiry.customerName,
+                  customerEmail: extracted.customerEmail ?? null,
+                  customerPhone: extracted.customerPhone ?? null,
+                  projectType: extracted.projectType ?? enquiry.projectType ?? null,
+                },
+                company
+              );
+            }
+          } catch (err) {
+            console.error("[comms] enquiry confirmation failed:", err);
+          }
+        });
+      }
     } catch {
       // ignore parse errors
     }

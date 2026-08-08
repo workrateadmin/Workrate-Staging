@@ -34,6 +34,13 @@ export const quotesTable = pgTable("quotes", {
   acceptanceSnapshot: text("acceptance_snapshot"),  // JSON snapshot at acceptance
   customerQuestion: text("customer_question"),
 
+  // ── Proposal email tracking ─────────────────────────────────────────────
+  emailRecipient: text("email_recipient"),
+  emailDeliveryStatus: text("email_delivery_status"),
+  // 'sent' | 'failed' | 'not_configured' | 'no_recipient'
+  emailSentAt: timestamp("email_sent_at", { withTimezone: true }),
+  emailError: text("email_error"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

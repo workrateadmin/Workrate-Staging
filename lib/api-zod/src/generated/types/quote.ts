@@ -54,6 +54,14 @@ export interface Quote {
   acceptanceSnapshot?: string | null;
   /** @nullable */
   customerQuestion?: string | null;
+  /** @nullable */
+  emailRecipient?: string | null;
+  /** @nullable */
+  emailDeliveryStatus?: string | null;
+  /** @nullable */
+  emailSentAt?: Date | null;
+  /** @nullable */
+  emailError?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

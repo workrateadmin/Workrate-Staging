@@ -5,9 +5,11 @@ import {
   useGenerateQuote,
   useGetCompany,
   useApproveAndSendProposal,
+  useResendProposalEmail,
   getGetQuoteQueryKey,
   getGetEnquiryQueryKey,
 } from "@workspace/api-client-react";
+
 import { useParams, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -91,6 +93,27 @@ export default function QuoteEditor() {
       },
       onError: () => {
         toast({ title: "Failed to save quote", variant: "destructive" });
+      },
+    },
+  });
+
+  const resendEmail = useResendProposalEmail({
+    mutation: {
+      onSuccess: (data) => {
+        const status = (data as any).emailDeliveryStatus;
+        if (status === "sent") {
+          toast({ title: "📧 Proposal email resent successfully!" });
+        } else if (status === "not_configured") {
+          toast({ title: "Email not sent — RESEND_API_KEY not configured", variant: "destructive" });
+        } else if (status === "no_recipient") {
+          toast({ title: "No customer email address on file", variant: "destructive" });
+        } else {
+          toast({ title: `Email failed: ${(data as any).emailError ?? "Unknown error"}`, variant: "destructive" });
+        }
+        queryClient.setQueryData([`/api/enquiries/${id}/quote`], data);
+      },
+      onError: () => {
+        toast({ title: "Failed to resend email", variant: "destructive" });
       },
     },
   });
@@ -657,6 +680,49 @@ export default function QuoteEditor() {
                   <p className="text-xs text-teal-600 font-medium">Remaining balance: £{Number(quote.remainingBalance ?? 0).toFixed(2)}</p>
                 </div>
               )}
+              {/* Email delivery status */}
+              {(() => {
+                const status = (quote as any).emailDeliveryStatus;
+                if (!status) return null;
+                const cfg: Record<string, { bg: string; text: string; label: string }> = {
+                  sent: { bg: "bg-green-50 border-green-200", text: "text-green-700", label: "📧 Proposal email sent to customer" },
+                  failed: { bg: "bg-red-50 border-red-200", text: "text-red-700", label: "⚠️ Email failed to send" },
+                  not_configured: { bg: "bg-amber-50 border-amber-200", text: "text-amber-700", label: "⚙️ Email not configured — add RESEND_API_KEY" },
+                  no_recipient: { bg: "bg-secondary border-border/60", text: "text-muted-foreground", label: "ℹ️ No customer email on file" },
+                };
+                const c = cfg[status];
+                if (!c) return null;
+                return (
+                  <div className={`border rounded-xl p-3 ${c.bg}`}>
+                    <p className={`text-xs font-bold ${c.text}`}>{c.label}</p>
+                    {(quote as any).emailError && (
+                      <p className="text-xs text-red-600 mt-1 font-mono">{(quote as any).emailError}</p>
+                    )}
+                    {(status === "failed" || status === "not_configured") && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={resendEmail.isPending}
+                        onClick={() => resendEmail.mutate({ id })}
+                        className="mt-2 font-bold rounded-xl h-7 text-xs"
+                      >
+                        {resendEmail.isPending ? "Sending…" : "Retry Email"}
+                      </Button>
+                    )}
+                    {status === "sent" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={resendEmail.isPending}
+                        onClick={() => resendEmail.mutate({ id })}
+                        className="mt-2 font-bold rounded-xl h-7 text-xs"
+                      >
+                        {resendEmail.isPending ? "Sending…" : "Resend Email"}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             <DialogFooter>
               <Button

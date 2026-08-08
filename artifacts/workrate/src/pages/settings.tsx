@@ -21,6 +21,7 @@ import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { CustomerCommsCard } from "@/components/customer-comms-card";
 
 type FormValues = z.infer<typeof companySchema>;
 
@@ -435,6 +436,9 @@ export default function Settings() {
 
       {/* ── Documents & Branding ─────────────────────────────────────────── */}
       <DocumentsBrandingCard />
+
+      {/* ── Customer Communications ───────────────────────────────────────── */}
+      <CustomerCommsCard />
 
       {/* ── Chat Widget ─────────────────────────────────────────────────── */}
       <EmbedCodeCard />

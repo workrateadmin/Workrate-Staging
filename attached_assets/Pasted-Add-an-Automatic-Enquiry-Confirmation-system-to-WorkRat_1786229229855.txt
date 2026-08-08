@@ -1,0 +1,147 @@
+Add an Automatic Enquiry Confirmation system to WorkRate.
+
+IMPORTANT:
+Do not change or break the existing website widget, enquiry creation, quoting, proposal, deposit, job, scheduling or invoice systems.
+
+GOAL:
+
+Immediately after a customer successfully submits an enquiry through the WorkRate website widget, automatically send them confirmation that their enquiry has been received.
+
+The enquiry MUST be successfully saved to the database before any confirmation is sent.
+
+CUSTOMER EXPERIENCE:
+
+After submitting an enquiry, the customer should see:
+
+"Thanks, [First Name] — your enquiry has been sent to [Business Name]. They'll be in touch soon."
+
+Then trigger the business's configured customer confirmation methods.
+
+EMAIL CONFIRMATION:
+
+Subject:
+"We've received your enquiry – [Business Name]"
+
+Example message:
+
+"Hi [First Name],
+
+Thanks for getting in touch with [Business Name].
+
+We've received your enquiry regarding [Project Type / Enquiry Title].
+
+Your details have been passed through and we'll be in touch as soon as possible.
+
+Thanks,
+[Business Name]"
+
+Include:
+- Business logo where available
+- Business name
+- Phone number
+- Email
+- Website
+
+SMS CONFIRMATION:
+
+If SMS is enabled and the customer supplied a valid mobile number, prepare this message:
+
+"Hi [First Name], thanks for contacting [Business Name]. We've received your enquiry about [Project Type] and will be in touch soon."
+
+IMPORTANT:
+
+Do NOT attempt to send a real SMS yet if no SMS provider has been configured.
+
+Build the SMS confirmation system so a provider such as Twilio can be connected later without redesigning the enquiry workflow.
+
+If SMS is unavailable:
+- Do not fail the enquiry
+- Do not show the customer an error
+- Continue with email confirmation where available
+- Record that SMS was not sent because no provider is configured
+
+WORKRATE BRAIN SETTINGS:
+
+Add:
+
+WorkRate Brain → Customer Communications
+
+Allow each business to configure:
+
+Enquiry Confirmation:
+[ON/OFF]
+
+Email:
+[ON/OFF]
+
+SMS:
+[ON/OFF]
+
+Allow the business to edit its confirmation message.
+
+Provide a sensible WorkRate default message.
+
+Include a "Preview Customer Message" option.
+
+IMPORTANT:
+Do not allow businesses to accidentally remove essential information such as their business identity.
+
+LOGGING:
+
+Record against the enquiry:
+
+- confirmation_email_status
+- confirmation_email_sent_at
+- confirmation_sms_status
+- confirmation_sms_sent_at
+
+Possible statuses:
+
+pending
+sent
+failed
+not_configured
+disabled
+
+The enquiry itself must NEVER fail because a confirmation email or SMS fails.
+
+FUTURE-PROOFING:
+
+Build one reusable Customer Communications service.
+
+It should later support:
+
+- Enquiry received
+- Proposal ready
+- Proposal accepted
+- Deposit received
+- Appointment confirmation
+- Appointment reminder
+- Job scheduled
+- Invoice sent
+- Payment reminder
+- Payment received
+
+Do NOT build all of those automations now.
+
+Only build ENQUIRY RECEIVED at this stage.
+
+TEST:
+
+Submit a website enquiry containing:
+- Name
+- Email
+- Mobile number
+- Project information
+
+Confirm:
+
+1. Enquiry is saved correctly.
+2. Customer sees successful submission message.
+3. Email confirmation is queued/sent when email is configured.
+4. SMS is handled gracefully when no SMS provider exists.
+5. Enquiry appears normally in the WorkRate dashboard.
+6. No duplicate confirmations are sent if the page refreshes.
+7. Failure of email/SMS does not lose or duplicate the enquiry.
+
+After implementation, explain what was added and what remains to be connected for live email and SMS delivery.
