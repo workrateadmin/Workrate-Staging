@@ -1,0 +1,75 @@
+The desktop/mobile enquiry sync issue is STILL NOT FIXED.
+
+I deleted all previous test enquiries and started fresh.
+
+I have now submitted ONE brand new enquiry through my website widget.
+
+RESULT:
+- Mobile WorkRate dashboard shows the new enquiry correctly.
+- Desktop WorkRate dashboard shows nothing.
+- Both devices are logged in with the same Gmail account.
+
+This proves the problem is not old cached data and not polling frequency.
+
+DO NOT change polling or refresh behaviour.
+
+I need you to trace the exact new enquiry from database write to desktop read.
+
+Please investigate and report BEFORE changing any code:
+
+1. Find the new enquiry directly in the database.
+2. Show its:
+   - enquiry ID
+   - customer name
+   - created timestamp
+   - business ID
+   - workspace/tenant ID
+   - owner/user ID
+   - source
+
+3. On MOBILE, show:
+   - authenticated user ID
+   - email
+   - business ID
+   - workspace/tenant ID
+   - exact enquiry query being used
+
+4. On DESKTOP, show:
+   - authenticated user ID
+   - email
+   - business ID
+   - workspace/tenant ID
+   - exact enquiry query being used
+
+5. Compare those values side-by-side.
+
+6. Confirm whether mobile and desktop are actually using the same canonical business/workspace record.
+
+7. Check whether either device is reading a business ID from:
+   - localStorage
+   - sessionStorage
+   - cookies
+   - cached user profile data
+
+8. Check whether the desktop is accidentally loading a second business/workspace record for the same Gmail account.
+
+9. Check whether the website widget is writing enquiries to a business ID that only matches the mobile session.
+
+DO NOT say this is a cache issue unless the database IDs prove that.
+
+If there are duplicate business/workspace records for the same Gmail account:
+- keep the correct one
+- safely migrate the enquiry
+- make authentication resolve to one canonical business/workspace ID on every device
+- remove any device-specific localStorage dependency for business identity
+
+After fixing it, test exactly this:
+
+- submit ONE fresh website enquiry
+- confirm it appears on mobile
+- confirm the SAME enquiry appears on desktop
+- log out on both devices
+- log back in with the same Gmail account
+- confirm the enquiry is still visible on both
+
+Do not mark this fixed until the same database enquiry is visible on both mobile and desktop.
