@@ -84,7 +84,7 @@ export default function LandingPage() {
               <div className="text-center lg:text-left">
 
                 {/* Trade badge */}
-                <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white/80 text-xs font-bold tracking-widest uppercase px-4 py-2 rounded-full mb-8">
+                <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white text-xs font-bold tracking-widest uppercase px-4 py-2 rounded-full mb-8">
                   <Ruler className="w-3.5 h-3.5 text-amber-400" />
                   For The Construction Industry
                 </div>
@@ -94,7 +94,7 @@ export default function LandingPage() {
                   <span className="text-teal-300">Never chase a quote.</span>
                 </h1>
 
-                <p className="text-lg md:text-xl text-slate-300 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium">
+                <p className="text-lg md:text-xl text-white/90 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium">
                   WorkRate captures customer enquiries 24/7, qualifies every job with the right questions, and puts a complete brief in your dashboard — ready to quote.
                 </p>
 
