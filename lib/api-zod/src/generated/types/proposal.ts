@@ -5,8 +5,9 @@
  * WorkRate API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ProposalCompany } from './proposalCompany';
 
-export interface Quote {
+export interface Proposal {
   id: number;
   enquiryId: number;
   /** @nullable */
@@ -22,12 +23,7 @@ export interface Quote {
   notes?: string | null;
   /** @nullable */
   assumptions?: string | null;
-  status: string;
-  /** @nullable */
-  brandingSnapshot?: string | null;
   proposalStatus: string;
-  /** @nullable */
-  proposalToken?: string | null;
   /** @nullable */
   depositType?: string | null;
   /** @nullable */
@@ -39,21 +35,13 @@ export interface Quote {
   /** @nullable */
   remainingBalance?: number | null;
   /** @nullable */
-  depositPaidAt?: Date | null;
-  /** @nullable */
-  depositPaidAmount?: number | null;
-  /** @nullable */
   acceptedAt?: Date | null;
   /** @nullable */
   acceptedByName?: string | null;
   /** @nullable */
-  acceptedByEmail?: string | null;
-  /** @nullable */
   viewedAt?: Date | null;
   /** @nullable */
-  acceptanceSnapshot?: string | null;
-  /** @nullable */
   customerQuestion?: string | null;
+  company?: ProposalCompany;
   createdAt: Date;
-  updatedAt: Date;
 }

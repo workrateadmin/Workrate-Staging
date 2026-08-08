@@ -4,6 +4,7 @@ import {
   useGetEnquiry,
   useGenerateQuote,
   useGetCompany,
+  useApproveAndSendProposal,
   getGetQuoteQueryKey,
   getGetEnquiryQueryKey,
 } from "@workspace/api-client-react";
@@ -35,6 +36,8 @@ import {
   RefreshCw,
   Mail,
   CheckCircle2,
+  ExternalLink,
+  Copy,
 } from "lucide-react";
 import {
   Dialog,
@@ -68,7 +71,9 @@ export default function QuoteEditor() {
   const [vatRate, setVatRate] = useState(20);
   const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const initialized = useRef(false);
+  const basePath = (import.meta.env.BASE_URL ?? "").replace(/\/$/, "");
 
   const { data: quote, isLoading: isLoadingQuote } = useGetQuote(id, {
     query: { enabled: !!id, queryKey: getGetQuoteQueryKey(id) },
@@ -86,6 +91,19 @@ export default function QuoteEditor() {
       },
       onError: () => {
         toast({ title: "Failed to save quote", variant: "destructive" });
+      },
+    },
+  });
+
+  const approveAndSend = useApproveAndSendProposal({
+    mutation: {
+      onSuccess: (data) => {
+        toast({ title: "Proposal sent! Share the link with your customer." });
+        queryClient.setQueryData([`/api/enquiries/${id}/quote`], data);
+        setApproveDialogOpen(true);
+      },
+      onError: () => {
+        toast({ title: "Failed to send proposal", variant: "destructive" });
       },
     },
   });
@@ -287,19 +305,40 @@ export default function QuoteEditor() {
               <CheckCircle2 className="w-4 h-4 mr-2" /> Mark as Accepted
             </Button>
           )}
-          {form.watch("status") === "accepted" && (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-green-50 border border-green-200">
-              <CheckCircle2 className="w-4 h-4 text-green-600" />
-              <span className="text-sm font-bold text-green-700">Accepted</span>
+          {quote?.proposalStatus === "sent" || quote?.proposalStatus === "viewed" ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-violet-50 border border-violet-200">
+              <Send className="w-4 h-4 text-violet-600" />
+              <span className="text-sm font-bold text-violet-700">Proposal Sent</span>
             </div>
+          ) : quote?.proposalStatus === "accepted" || quote?.proposalStatus === "deposit_awaiting_payment" || quote?.proposalStatus === "deposit_paid" ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-green-50 border border-green-200">
+              <CheckCircle2 className="w-4 h-4 text-green-600" />
+              <span className="text-sm font-bold text-green-700">Proposal Accepted</span>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => {
+                onSave(); // save draft first
+                setTimeout(() => approveAndSend.mutate({ id }), 300);
+              }}
+              disabled={approveAndSend.isPending}
+              className="font-bold shadow-md hover-elevate rounded-xl h-10 bg-teal-600 hover:bg-teal-700 text-white"
+            >
+              <Send className="w-4 h-4 mr-2" />
+              {approveAndSend.isPending ? "Sending…" : "Approve & Send Proposal"}
+            </Button>
           )}
-          <Button
-            size="sm"
-            onClick={() => setSendDialogOpen(true)}
-            className="font-bold shadow-md hover-elevate rounded-xl h-10 bg-teal-600 hover:bg-teal-700 text-white"
-          >
-            <Mail className="w-4 h-4 mr-2" /> Send to Customer
-          </Button>
+          {quote?.proposalToken && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setApproveDialogOpen(true)}
+              className="font-bold rounded-xl h-10 border-violet-200 text-violet-700 hover:bg-violet-50"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" /> View Proposal Link
+            </Button>
+          )}
         </div>
       </div>
 
@@ -563,6 +602,78 @@ export default function QuoteEditor() {
           />
         </div>
       </div>
+      {/* Proposal link dialog */}
+      {quote?.proposalToken && (
+        <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-black">🎉 Proposal Ready to Share</DialogTitle>
+              <DialogDescription>
+                Your proposal has been approved. Share this link with your customer — they can accept, ask questions, or decline directly from it.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              {/* Proposal status */}
+              {quote.proposalStatus && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Status:</span>
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
+                    quote.proposalStatus === "accepted" || quote.proposalStatus === "deposit_paid" ? "bg-green-100 text-green-700" :
+                    quote.proposalStatus === "deposit_awaiting_payment" ? "bg-amber-100 text-amber-700" :
+                    quote.proposalStatus === "declined" ? "bg-red-100 text-red-700" :
+                    "bg-violet-100 text-violet-700"
+                  }`}>
+                    {quote.proposalStatus.replace(/_/g, " ")}
+                  </span>
+                </div>
+              )}
+              {/* Link */}
+              <div className="flex gap-2 items-center">
+                <input
+                  readOnly
+                  value={`${window.location.origin}${basePath}/proposal/${quote.proposalToken}`}
+                  className="flex-1 text-sm font-mono bg-secondary/60 border border-border/60 rounded-xl px-3 py-2.5 text-foreground min-w-0"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl shrink-0 font-bold"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}${basePath}/proposal/${quote.proposalToken}`);
+                    toast({ title: "Link copied to clipboard!" });
+                  }}
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground font-medium">
+                Tip: Paste this link into an email, WhatsApp, or SMS to your customer. The page is mobile-friendly.
+              </p>
+              {/* Deposit info */}
+              {quote.depositAmount != null && Number(quote.depositAmount) > 0 && (
+                <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 space-y-1">
+                  <p className="text-xs font-bold text-teal-700 uppercase tracking-widest">Deposit on Acceptance</p>
+                  <p className="text-2xl font-black text-teal-800">£{Number(quote.depositAmount).toFixed(2)}</p>
+                  <p className="text-xs text-teal-600 font-medium">Remaining balance: £{Number(quote.remainingBalance ?? 0).toFixed(2)}</p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => window.open(`${basePath}/proposal/${quote.proposalToken}`, "_blank")}
+                className="font-bold rounded-xl"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" /> Preview Proposal
+              </Button>
+              <Button onClick={() => setApproveDialogOpen(false)} className="font-bold rounded-xl">
+                Done
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Send to Customer dialog */}
       <SendQuoteDialog
         open={sendDialogOpen}

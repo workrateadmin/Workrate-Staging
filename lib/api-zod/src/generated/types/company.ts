@@ -50,6 +50,14 @@ export interface Company {
   /** @nullable */
   invoiceFooter?: string | null;
   documentMode: string;
+  defaultDepositType: string;
+  /** @nullable */
+  defaultDepositPercent: number | null;
+  /** @nullable */
+  defaultDepositFixed?: number | null;
+  /** @nullable */
+  depositPaymentInstructions?: string | null;
+  remainingBalanceDueDays: number;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, enquiriesTable, quotesTable, companiesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { randomBytes } from "crypto";
 import {
   GetQuoteParams,
   GetQuoteResponse,
@@ -38,7 +39,37 @@ function parseQuote(q: any) {
     estimatedTotal: Number(q.estimatedTotal ?? 0),
     vatAmount: Number(q.vatAmount ?? 0),
     totalWithVat: Number(q.totalWithVat ?? 0),
+    depositPercent: q.depositPercent != null ? Number(q.depositPercent) : null,
+    depositFixed: q.depositFixed != null ? Number(q.depositFixed) : null,
+    depositAmount: q.depositAmount != null ? Number(q.depositAmount) : null,
+    remainingBalance: q.remainingBalance != null ? Number(q.remainingBalance) : null,
+    depositPaidAmount: q.depositPaidAmount != null ? Number(q.depositPaidAmount) : null,
   };
+}
+
+/** Generate a unique proposal token */
+function generateProposalToken(): string {
+  return randomBytes(20).toString("base64url");
+}
+
+/** Calculate deposit amount from company settings and total */
+function calcDeposit(
+  total: number,
+  depositType: string,
+  depositPercent: number | null,
+  depositFixed: number | null,
+): { depositAmount: number; remainingBalance: number } {
+  if (depositType === "none") {
+    return { depositAmount: 0, remainingBalance: total };
+  }
+  if (depositType === "fixed" && depositFixed != null) {
+    const dep = Math.min(depositFixed, total);
+    return { depositAmount: Math.round(dep * 100) / 100, remainingBalance: Math.round((total - dep) * 100) / 100 };
+  }
+  // percentage (default)
+  const pct = depositPercent ?? 50;
+  const dep = Math.round(total * (pct / 100) * 100) / 100;
+  return { depositAmount: dep, remainingBalance: Math.round((total - dep) * 100) / 100 };
 }
 
 /** Snapshot current company branding so historical quotes retain their design. */
@@ -271,6 +302,113 @@ router.patch("/enquiries/:id/quote", requireAuth, async (req, res): Promise<void
     .returning();
 
   res.json(UpdateQuoteResponse.parse(parseQuote(updated)));
+});
+
+// Approve & Send — tradesperson approves the quote and sends it as a proposal
+router.post("/enquiries/:id/quote/approve-and-send", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid enquiry id" }); return; }
+
+  // Verify ownership
+  const [enquiry] = await db
+    .select()
+    .from(enquiriesTable)
+    .where(and(eq(enquiriesTable.id, id), eq(enquiriesTable.ownerUserId, userId!)));
+  if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
+
+  const [existing] = await db
+    .select()
+    .from(quotesTable)
+    .where(eq(quotesTable.enquiryId, id));
+  if (!existing) { res.status(404).json({ error: "Quote not found" }); return; }
+
+  // Load company deposit settings
+  const [company] = await db
+    .select()
+    .from(companiesTable)
+    .where(eq(companiesTable.ownerUserId, userId!))
+    .limit(1);
+
+  const depositType = company?.defaultDepositType ?? "percentage";
+  const depositPercent = company?.defaultDepositPercent ? Number(company.defaultDepositPercent) : 50;
+  const depositFixed = company?.defaultDepositFixed ? Number(company.defaultDepositFixed) : null;
+
+  const total = Number(existing.totalWithVat);
+  const { depositAmount, remainingBalance } = calcDeposit(total, depositType, depositPercent, depositFixed);
+
+  // Generate unique token
+  const token = generateProposalToken();
+
+  // Snapshot branding now (before customer sees it)
+  const snap = await snapshotBranding(userId!);
+
+  const [updated] = await db
+    .update(quotesTable)
+    .set({
+      proposalStatus: "sent",
+      proposalToken: token,
+      depositType,
+      depositPercent: depositPercent.toString(),
+      depositFixed: depositFixed != null ? depositFixed.toString() : null,
+      depositAmount: depositAmount.toString(),
+      remainingBalance: remainingBalance.toString(),
+      status: "sent",
+      brandingSnapshot: snap ?? existing.brandingSnapshot,
+    })
+    .where(eq(quotesTable.enquiryId, id))
+    .returning();
+
+  // Update enquiry status to quote_sent
+  await db
+    .update(enquiriesTable)
+    .set({ status: "quote_sent" })
+    .where(eq(enquiriesTable.id, id));
+
+  res.json(parseQuote(updated));
+});
+
+// Mark deposit as paid — tradesperson confirms receipt
+router.post("/enquiries/:id/quote/mark-deposit-paid", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid enquiry id" }); return; }
+
+  const amount = Number(req.body?.amount);
+  if (isNaN(amount) || amount <= 0) {
+    res.status(400).json({ error: "amount must be a positive number" });
+    return;
+  }
+
+  // Verify ownership
+  const [enquiry] = await db
+    .select()
+    .from(enquiriesTable)
+    .where(and(eq(enquiriesTable.id, id), eq(enquiriesTable.ownerUserId, userId!)));
+  if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
+
+  const [existing] = await db
+    .select()
+    .from(quotesTable)
+    .where(eq(quotesTable.enquiryId, id));
+  if (!existing) { res.status(404).json({ error: "Quote not found" }); return; }
+
+  const total = Number(existing.totalWithVat);
+  const remaining = Math.max(0, Math.round((total - amount) * 100) / 100);
+
+  const [updated] = await db
+    .update(quotesTable)
+    .set({
+      proposalStatus: "deposit_paid",
+      depositPaidAt: new Date(),
+      depositPaidAmount: amount.toString(),
+      remainingBalance: remaining.toString(),
+      status: "accepted",
+    })
+    .where(eq(quotesTable.enquiryId, id))
+    .returning();
+
+  res.json(parseQuote(updated));
 });
 
 export default router;

@@ -49,8 +49,12 @@ import type {
   JobUpdate,
   ListAiCallsParams,
   ListEnquiriesParams,
+  MarkDepositPaidBody,
+  Proposal,
+  ProposalResponse,
   Quote,
   QuoteUpdate,
+  RecordProposalView200,
   UploadEnquiryAttachmentBody
 } from './api.schemas';
 
@@ -1052,6 +1056,369 @@ export const useGenerateEnquirySummary = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getGenerateEnquirySummaryMutationOptions(options));
+    }
+
+export const getGetProposalUrl = (token: string,) => {
+
+
+
+
+  return `/api/proposals/${token}`
+}
+
+/**
+ * @summary Get a public proposal by token
+ */
+export const getProposal = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<Proposal> => {
+
+  return customFetch<Proposal>(getGetProposalUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProposalQueryKey = (token: string,) => {
+    return [
+    `/api/proposals/${token}`
+    ] as const;
+    }
+
+
+export const getGetProposalQueryOptions = <TData = Awaited<ReturnType<typeof getProposal>>, TError = ErrorType<ApiError>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProposal>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProposalQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProposal>>> = ({ signal }) => getProposal(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProposal>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProposalQueryResult = NonNullable<Awaited<ReturnType<typeof getProposal>>>
+export type GetProposalQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a public proposal by token
+ */
+
+export function useGetProposal<TData = Awaited<ReturnType<typeof getProposal>>, TError = ErrorType<ApiError>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProposal>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProposalQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordProposalViewUrl = (token: string,) => {
+
+
+
+
+  return `/api/proposals/${token}/view`
+}
+
+/**
+ * @summary Record that the customer viewed the proposal
+ */
+export const recordProposalView = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<RecordProposalView200> => {
+
+  return customFetch<RecordProposalView200>(getRecordProposalViewUrl(token),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRecordProposalViewMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordProposalView>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordProposalView>>, TError,{token: string}, TContext> => {
+
+const mutationKey = ['recordProposalView'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordProposalView>>, {token: string}> = (props) => {
+          const {token} = props ?? {};
+
+          return  recordProposalView(token,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordProposalViewMutationResult = NonNullable<Awaited<ReturnType<typeof recordProposalView>>>
+
+    export type RecordProposalViewMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Record that the customer viewed the proposal
+ */
+export const useRecordProposalView = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordProposalView>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordProposalView>>,
+        TError,
+        {token: string},
+        TContext
+      > => {
+      return useMutation(getRecordProposalViewMutationOptions(options));
+    }
+
+export const getRespondToProposalUrl = (token: string,) => {
+
+
+
+
+  return `/api/proposals/${token}/respond`
+}
+
+/**
+ * @summary Customer accepts, declines, or asks a question
+ */
+export const respondToProposal = async (token: string,
+    proposalResponse: ProposalResponse, options?: Parameters<typeof customFetch>[1]): Promise<Proposal> => {
+
+  return customFetch<Proposal>(getRespondToProposalUrl(token),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(proposalResponse)
+  }
+);}
+
+
+
+
+
+export const getRespondToProposalMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToProposal>>, TError,{token: string;data: BodyType<ProposalResponse>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof respondToProposal>>, TError,{token: string;data: BodyType<ProposalResponse>}, TContext> => {
+
+const mutationKey = ['respondToProposal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof respondToProposal>>, {token: string;data: BodyType<ProposalResponse>}> = (props) => {
+          const {token,data} = props ?? {};
+
+          return  respondToProposal(token,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RespondToProposalMutationResult = NonNullable<Awaited<ReturnType<typeof respondToProposal>>>
+    export type RespondToProposalMutationBody = BodyType<ProposalResponse>
+    export type RespondToProposalMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Customer accepts, declines, or asks a question
+ */
+export const useRespondToProposal = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToProposal>>, TError,{token: string;data: BodyType<ProposalResponse>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof respondToProposal>>,
+        TError,
+        {token: string;data: BodyType<ProposalResponse>},
+        TContext
+      > => {
+      return useMutation(getRespondToProposalMutationOptions(options));
+    }
+
+export const getApproveAndSendProposalUrl = (id: number,) => {
+
+
+
+
+  return `/api/enquiries/${id}/quote/approve-and-send`
+}
+
+/**
+ * @summary Tradesperson approves a quote and sends it as a proposal to the customer
+ */
+export const approveAndSendProposal = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Quote> => {
+
+  return customFetch<Quote>(getApproveAndSendProposalUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveAndSendProposalMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAndSendProposal>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveAndSendProposal>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['approveAndSendProposal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveAndSendProposal>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approveAndSendProposal(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveAndSendProposalMutationResult = NonNullable<Awaited<ReturnType<typeof approveAndSendProposal>>>
+
+    export type ApproveAndSendProposalMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Tradesperson approves a quote and sends it as a proposal to the customer
+ */
+export const useApproveAndSendProposal = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAndSendProposal>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveAndSendProposal>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApproveAndSendProposalMutationOptions(options));
+    }
+
+export const getMarkDepositPaidUrl = (id: number,) => {
+
+
+
+
+  return `/api/enquiries/${id}/quote/mark-deposit-paid`
+}
+
+/**
+ * @summary Tradesperson manually marks the deposit as received
+ */
+export const markDepositPaid = async (id: number,
+    markDepositPaidBody: MarkDepositPaidBody, options?: Parameters<typeof customFetch>[1]): Promise<Quote> => {
+
+  return customFetch<Quote>(getMarkDepositPaidUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(markDepositPaidBody)
+  }
+);}
+
+
+
+
+
+export const getMarkDepositPaidMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markDepositPaid>>, TError,{id: number;data: BodyType<MarkDepositPaidBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markDepositPaid>>, TError,{id: number;data: BodyType<MarkDepositPaidBody>}, TContext> => {
+
+const mutationKey = ['markDepositPaid'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markDepositPaid>>, {id: number;data: BodyType<MarkDepositPaidBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  markDepositPaid(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkDepositPaidMutationResult = NonNullable<Awaited<ReturnType<typeof markDepositPaid>>>
+    export type MarkDepositPaidMutationBody = BodyType<MarkDepositPaidBody>
+    export type MarkDepositPaidMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Tradesperson manually marks the deposit as received
+ */
+export const useMarkDepositPaid = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markDepositPaid>>, TError,{id: number;data: BodyType<MarkDepositPaidBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markDepositPaid>>,
+        TError,
+        {id: number;data: BodyType<MarkDepositPaidBody>},
+        TContext
+      > => {
+      return useMutation(getMarkDepositPaidMutationOptions(options));
     }
 
 export const getGetQuoteUrl = (id: number,) => {

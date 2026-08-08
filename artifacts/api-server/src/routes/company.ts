@@ -26,6 +26,9 @@ function parseCompany(c: any) {
     dayRate: c.dayRate != null ? Number(c.dayRate) : null,
     materialMarkupPercent: Number(c.materialMarkupPercent ?? 0),
     minimumProjectValue: c.minimumProjectValue != null ? Number(c.minimumProjectValue) : null,
+    defaultDepositPercent: c.defaultDepositPercent != null ? Number(c.defaultDepositPercent) : 50,
+    defaultDepositFixed: c.defaultDepositFixed != null ? Number(c.defaultDepositFixed) : null,
+    remainingBalanceDueDays: c.remainingBalanceDueDays != null ? Number(c.remainingBalanceDueDays) : 30,
   };
 }
 
@@ -131,6 +134,11 @@ router.put("/company", requireAuth, async (req, res): Promise<void> => {
     ...(d.quoteFooter !== undefined && { quoteFooter: d.quoteFooter }),
     ...(d.invoiceFooter !== undefined && { invoiceFooter: d.invoiceFooter }),
     ...(d.documentMode !== undefined && { documentMode: d.documentMode }),
+    ...(d.defaultDepositType !== undefined && { defaultDepositType: d.defaultDepositType }),
+    ...(d.defaultDepositPercent !== undefined && { defaultDepositPercent: d.defaultDepositPercent.toString() }),
+    ...(d.defaultDepositFixed !== undefined && { defaultDepositFixed: d.defaultDepositFixed !== null ? d.defaultDepositFixed.toString() : null }),
+    ...(d.depositPaymentInstructions !== undefined && { depositPaymentInstructions: d.depositPaymentInstructions }),
+    ...(d.remainingBalanceDueDays !== undefined && { remainingBalanceDueDays: d.remainingBalanceDueDays }),
   };
 
   if (!existing) {

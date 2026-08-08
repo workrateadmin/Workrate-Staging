@@ -480,6 +480,12 @@ function DocumentsBrandingCard() {
     termsAndConditions: z.string().optional().default(""),
     quoteFooter: z.string().optional().default(""),
     invoiceFooter: z.string().optional().default(""),
+    // Deposit settings
+    defaultDepositType: z.enum(["none", "percentage", "fixed"]).default("percentage"),
+    defaultDepositPercent: z.coerce.number().min(0).max(100).default(50),
+    defaultDepositFixed: z.coerce.number().min(0).optional(),
+    depositPaymentInstructions: z.string().optional().default(""),
+    remainingBalanceDueDays: z.coerce.number().min(0).default(30),
   });
   type BrandingValues = z.infer<typeof brandingSchema>;
 
@@ -497,6 +503,11 @@ function DocumentsBrandingCard() {
       termsAndConditions: "",
       quoteFooter: "",
       invoiceFooter: "",
+      defaultDepositType: "percentage",
+      defaultDepositPercent: 50,
+      defaultDepositFixed: undefined,
+      depositPaymentInstructions: "",
+      remainingBalanceDueDays: 30,
     },
   });
 
@@ -516,6 +527,11 @@ function DocumentsBrandingCard() {
         termsAndConditions: (company as any).termsAndConditions ?? "",
         quoteFooter: (company as any).quoteFooter ?? "",
         invoiceFooter: (company as any).invoiceFooter ?? "",
+        defaultDepositType: ((company as any).defaultDepositType ?? "percentage") as "none" | "percentage" | "fixed",
+        defaultDepositPercent: (company as any).defaultDepositPercent ?? 50,
+        defaultDepositFixed: (company as any).defaultDepositFixed ?? undefined,
+        depositPaymentInstructions: (company as any).depositPaymentInstructions ?? "",
+        remainingBalanceDueDays: (company as any).remainingBalanceDueDays ?? 30,
       });
     }
   }, [company, form]);
@@ -836,6 +852,118 @@ function DocumentsBrandingCard() {
                     <FormMessage />
                   </FormItem>
                 )} />
+              </div>
+            </div>
+
+            {/* ── Proposal Deposit Settings ──────────────────────────────────── */}
+            <div>
+              <div className="border-t border-border/40 mb-6" />
+              <div className="flex items-center gap-2 mb-1">
+                <PoundSterling className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Proposal Deposits</h3>
+              </div>
+              <p className="text-xs text-muted-foreground font-medium mb-5">
+                When you approve and send a proposal, WorkRate automatically calculates the deposit using these settings.
+              </p>
+              <div className="space-y-5">
+                <FormField control={form.control} name="defaultDepositType" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="field-label">Default Deposit Type</FormLabel>
+                    <FormControl>
+                      <div className="flex gap-2 flex-wrap">
+                        {(["none", "percentage", "fixed"] as const).map((t) => (
+                          <button key={t} type="button" onClick={() => field.onChange(t)}
+                            className={cn("px-4 py-2 rounded-xl text-sm font-bold border transition-all",
+                              field.value === t
+                                ? "bg-primary text-primary-foreground border-primary shadow-md"
+                                : "bg-secondary/60 text-foreground/70 border-border/40 hover:border-primary/30"
+                            )}>
+                            {t === "none" ? "No Deposit" : t === "percentage" ? "Percentage %" : "Fixed £ Amount"}
+                          </button>
+                        ))}
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                {form.watch("defaultDepositType") === "percentage" && (
+                  <FormField control={form.control} name="defaultDepositPercent" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="field-label">Deposit Percentage</FormLabel>
+                      <FormControl>
+                        <div className="space-y-3">
+                          <div className="flex gap-2 flex-wrap">
+                            {[10, 20, 25, 30, 40, 50].map((pct) => (
+                              <button key={pct} type="button" onClick={() => field.onChange(pct)}
+                                className={cn("px-3 py-1.5 rounded-xl text-sm font-bold border transition-all",
+                                  Number(field.value) === pct
+                                    ? "bg-primary text-primary-foreground border-primary shadow-md"
+                                    : "bg-secondary/60 text-foreground/70 border-border/40 hover:border-primary/30"
+                                )}>
+                                {pct}%
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Input type="number" min={1} max={100} className="field-input w-28" placeholder="Custom %"
+                              value={field.value ?? ""} onChange={(e) => field.onChange(Number(e.target.value))} />
+                            <span className="text-sm font-bold text-muted-foreground">%</span>
+                          </div>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                )}
+
+                {form.watch("defaultDepositType") === "fixed" && (
+                  <FormField control={form.control} name="defaultDepositFixed" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="field-label">Fixed Deposit Amount (£)</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={0} step={0.01} className="field-input w-40" placeholder="e.g. 500"
+                          value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                )}
+
+                <FormField control={form.control} name="depositPaymentInstructions" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="field-label">Deposit Payment Instructions</FormLabel>
+                    <FormControl>
+                      <Textarea className="field-input resize-none min-h-[80px]"
+                        placeholder={"e.g.\nPlease transfer your deposit to:\nAccount name: Smith Joinery Ltd\nSort code: 12-34-56\nAccount number: 12345678\nReference: Your name + project"}
+                        {...field} />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground font-medium mt-1.5">Shown to the customer after they accept the proposal</p>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                {form.watch("defaultDepositType") !== "none" && (
+                  <div className="bg-teal-50 border border-teal-200 rounded-xl p-4">
+                    <p className="text-xs font-bold text-teal-700 uppercase tracking-widest mb-2">Example — £4,000 project</p>
+                    <div className="flex justify-between text-sm font-semibold text-teal-800">
+                      <span>Deposit</span>
+                      <span>
+                        {form.watch("defaultDepositType") === "percentage"
+                          ? `£${(4000 * (Number(form.watch("defaultDepositPercent") ?? 50) / 100)).toFixed(2)} (${form.watch("defaultDepositPercent") ?? 50}%)`
+                          : `£${Number(form.watch("defaultDepositFixed") ?? 0).toFixed(2)}`}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm font-semibold text-teal-800 mt-1">
+                      <span>Remaining balance</span>
+                      <span>
+                        {form.watch("defaultDepositType") === "percentage"
+                          ? `£${(4000 - 4000 * (Number(form.watch("defaultDepositPercent") ?? 50) / 100)).toFixed(2)}`
+                          : `£${Math.max(0, 4000 - Number(form.watch("defaultDepositFixed") ?? 0)).toFixed(2)}`}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -69,6 +69,14 @@ export interface Company {
   /** @nullable */
   invoiceFooter?: string | null;
   documentMode: string;
+  defaultDepositType: string;
+  /** @nullable */
+  defaultDepositPercent: number | null;
+  /** @nullable */
+  defaultDepositFixed?: number | null;
+  /** @nullable */
+  depositPaymentInstructions?: string | null;
+  remainingBalanceDueDays: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -98,6 +106,11 @@ export interface CompanyInput {
   quoteFooter?: string;
   invoiceFooter?: string;
   documentMode?: string;
+  defaultDepositType?: string;
+  defaultDepositPercent?: number;
+  defaultDepositFixed?: number;
+  depositPaymentInstructions?: string;
+  remainingBalanceDueDays?: number;
 }
 
 export interface Enquiry {
@@ -181,6 +194,35 @@ export interface Quote {
   status: string;
   /** @nullable */
   brandingSnapshot?: string | null;
+  proposalStatus: string;
+  /** @nullable */
+  proposalToken?: string | null;
+  /** @nullable */
+  depositType?: string | null;
+  /** @nullable */
+  depositPercent?: number | null;
+  /** @nullable */
+  depositFixed?: number | null;
+  /** @nullable */
+  depositAmount?: number | null;
+  /** @nullable */
+  remainingBalance?: number | null;
+  /** @nullable */
+  depositPaidAt?: string | null;
+  /** @nullable */
+  depositPaidAmount?: number | null;
+  /** @nullable */
+  acceptedAt?: string | null;
+  /** @nullable */
+  acceptedByName?: string | null;
+  /** @nullable */
+  acceptedByEmail?: string | null;
+  /** @nullable */
+  viewedAt?: string | null;
+  /** @nullable */
+  acceptanceSnapshot?: string | null;
+  /** @nullable */
+  customerQuestion?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -196,6 +238,83 @@ export interface QuoteUpdate {
   notes?: string;
   assumptions?: string;
   status?: string;
+}
+
+export type ProposalCompany = {
+  name: string;
+  /** @nullable */
+  logoUrl?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  website?: string | null;
+  /** @nullable */
+  vatNumber?: string | null;
+  /** @nullable */
+  brandColourPrimary?: string | null;
+  /** @nullable */
+  paymentTerms?: string | null;
+  /** @nullable */
+  termsAndConditions?: string | null;
+  /** @nullable */
+  bankPaymentDetails?: string | null;
+  /** @nullable */
+  depositPaymentInstructions?: string | null;
+};
+
+export interface Proposal {
+  id: number;
+  enquiryId: number;
+  /** @nullable */
+  customerDetails?: string | null;
+  /** @nullable */
+  projectDescription?: string | null;
+  materialsAllowance: number;
+  labourAllowance: number;
+  estimatedTotal: number;
+  vatAmount: number;
+  totalWithVat: number;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  assumptions?: string | null;
+  proposalStatus: string;
+  /** @nullable */
+  depositType?: string | null;
+  /** @nullable */
+  depositPercent?: number | null;
+  /** @nullable */
+  depositFixed?: number | null;
+  /** @nullable */
+  depositAmount?: number | null;
+  /** @nullable */
+  remainingBalance?: number | null;
+  /** @nullable */
+  acceptedAt?: string | null;
+  /** @nullable */
+  acceptedByName?: string | null;
+  /** @nullable */
+  viewedAt?: string | null;
+  /** @nullable */
+  customerQuestion?: string | null;
+  company?: ProposalCompany;
+  createdAt: string;
+}
+
+export interface ProposalResponse {
+  /** 'accept' | 'decline' | 'question' */
+  action: string;
+  name?: string;
+  email?: string;
+  message?: string;
+}
+
+export interface MarkDepositPaidBody {
+  amount: number;
 }
 
 export interface DashboardStats {
@@ -462,6 +581,10 @@ status?: string;
 
 export type UploadEnquiryAttachmentBody = {
   file: Blob;
+};
+
+export type RecordProposalView200 = {
+  ok: boolean;
 };
 
 export type ConnectIntegrationBody = { [key: string]: unknown };

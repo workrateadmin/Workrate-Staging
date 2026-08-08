@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -29,6 +29,14 @@ export const companiesTable = pgTable("companies", {
   quoteFooter: text("quote_footer"),
   invoiceFooter: text("invoice_footer"),
   documentMode: text("document_mode").notNull().default("workrate"),
+
+  // ── Deposit settings ────────────────────────────────────────────────────
+  defaultDepositType: text("default_deposit_type").notNull().default("percentage"),  // 'none' | 'percentage' | 'fixed'
+  defaultDepositPercent: numeric("default_deposit_percent", { precision: 5, scale: 2 }).notNull().default("50"),
+  defaultDepositFixed: numeric("default_deposit_fixed", { precision: 10, scale: 2 }),
+  depositPaymentInstructions: text("deposit_payment_instructions"),
+  remainingBalanceDueDays: integer("remaining_balance_due_days").notNull().default(30),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

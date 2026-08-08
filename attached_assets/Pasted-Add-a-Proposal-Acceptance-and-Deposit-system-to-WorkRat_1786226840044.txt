@@ -1,0 +1,170 @@
+Add a Proposal Acceptance and Deposit system to WorkRate.
+
+IMPORTANT:
+Do not remove, redesign or break the existing quoting, invoicing, enquiry, job management or scheduling functionality.
+
+The tradesperson must ALWAYS approve the final price before anything is shown to the customer.
+
+CORE WORKFLOW:
+
+1. Customer submits an enquiry.
+2. WorkRate AI may create a draft quote.
+3. Draft quote is INTERNAL ONLY.
+4. Tradesperson reviews and edits all prices.
+5. Tradesperson clicks "Approve & Send".
+6. Only then does the customer receive the official proposal.
+7. Customer can:
+   - Accept Proposal
+   - Ask a Question
+   - Decline Proposal
+8. If accepted, WorkRate requests the configured deposit.
+9. Once deposit is confirmed as paid, update the proposal/job status to "Deposit Paid".
+10. The remaining balance must automatically be calculated and tracked.
+
+CUSTOMER PROPOSAL PAGE:
+
+Create a professional mobile-friendly branded proposal page.
+
+Display:
+
+- Business logo and branding
+- Customer name
+- Project title
+- Project description
+- Scope of works
+- Optional project/customer photos
+- Quote line items
+- Subtotal
+- VAT where applicable
+- Total price
+- Expected timescale
+- Payment terms
+- Terms and conditions
+- Deposit percentage
+- Deposit amount
+- Remaining balance
+
+At the bottom show:
+
+[ Accept Proposal ]
+[ Ask a Question ]
+[ Decline Proposal ]
+
+Also provide:
+
+[ Download PDF ]
+
+DEPOSIT SETTINGS:
+
+Add a section inside:
+
+WorkRate Brain → Payments
+
+Default deposit:
+50%
+
+IMPORTANT:
+50% must be the default but NOT hard-coded.
+
+Allow each business to select:
+
+- No deposit
+- Fixed percentage
+- Fixed £ amount
+
+For percentage deposits allow values such as:
+10%
+20%
+25%
+30%
+40%
+50%
+Custom %
+
+Allow the business to configure:
+
+- Deposit due on acceptance
+- Remaining balance due date
+- Payment instructions
+- Bank transfer details
+
+PAYMENT METHODS:
+
+Prepare the interface for:
+
+- Debit/credit card
+- Apple Pay
+- Google Pay
+- Bank transfer
+- Payment link
+- Cash / payment received outside WorkRate
+
+DO NOT connect Stripe or another payment processor yet.
+
+For V1 testing, allow the tradesperson to manually click:
+
+"Mark Deposit as Paid"
+
+When this happens:
+
+- Record payment date
+- Record payment amount
+- Update deposit status
+- Calculate remaining balance
+- Update the customer/job timeline
+- Make the job ready for scheduling
+
+STATUSES:
+
+Draft
+Approved
+Sent
+Viewed
+Accepted
+Deposit Awaiting Payment
+Deposit Paid
+Declined
+Completed
+
+IMPORTANT SAFETY RULE:
+
+AI-generated prices must NEVER automatically become customer-facing prices.
+
+Only a price explicitly approved by the authenticated business owner can be sent to a customer or used to calculate a deposit.
+
+DOCUMENT HISTORY:
+
+If a proposal has already been accepted, later edits must not silently change the accepted agreement.
+
+Keep a snapshot/version of the proposal that the customer accepted, including:
+- price
+- scope
+- deposit
+- terms
+- acceptance date
+
+Do not alter historical accepted proposals when business settings change.
+
+Before making changes, inspect the existing quote, invoice, job and scheduling architecture and reuse the current data structures where sensible.
+
+Do not create duplicate quote/job systems.
+
+After implementation, explain:
+1. What you added
+2. Which database tables/fields changed
+3. How an approved quote becomes a proposal
+4. How acceptance is recorded
+5. How deposits are calculated
+6. How the remaining balance is calculated
+7. How this connects to the existing job and invoice workflow
+
+Then test the complete flow using a £4,000 quote with the default 50% deposit:
+
+£4,000 approved proposal
+→ customer accepts
+→ £2,000 deposit requested
+→ mark £2,000 paid
+→ £2,000 remaining
+→ job ready for scheduling
+
+Do not mark the task complete unless that full test succeeds.

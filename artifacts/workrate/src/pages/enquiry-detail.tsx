@@ -2,7 +2,7 @@ import {
   useGetEnquiry, useUpdateEnquiry, useGenerateEnquirySummary,
   useListEnquiryMessages, useGenerateQuote, useGetQuote,
   useListEnquiryAttachments, useUploadEnquiryAttachment, useDeleteEnquiryAttachment,
-  useConvertEnquiryToJob, useDeleteEnquiry,
+  useConvertEnquiryToJob, useDeleteEnquiry, useMarkDepositPaid,
   getGetQuoteQueryKey, getListEnquiryAttachmentsQueryKey,
 } from "@workspace/api-client-react";
 import { useParams, Link, useLocation } from "wouter";
@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, MapPin, Hammer, Calendar, Phone, Mail, Sparkles, Plus, Clock,
   PoundSterling, MessageSquare, ChevronDown, Save, ImageIcon, X, FileText,
-  Upload, Trash2, ExternalLink, Paperclip, Briefcase, CheckCircle2,
+  Upload, Trash2, ExternalLink, Paperclip, Briefcase, CheckCircle2, Copy,
 } from "lucide-react";
 import { SummaryCard, SummaryCardSkeleton } from "@/components/summary-card";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,6 +26,10 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export default function EnquiryDetail() {
@@ -73,6 +77,25 @@ export default function EnquiryDetail() {
         toast({ title: "Failed to generate quote", variant: "destructive" });
       }
     }
+  });
+
+  const [depositDialogOpen, setDepositDialogOpen] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
+  const basePath = (import.meta.env.BASE_URL ?? "").replace(/\/$/, "");
+
+  const markDepositPaid = useMarkDepositPaid({
+    mutation: {
+      onSuccess: (data) => {
+        toast({ title: "Deposit marked as paid! Job is ready to schedule." });
+        queryClient.setQueryData([`/api/enquiries/${id}/quote`], data);
+        queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+        setDepositDialogOpen(false);
+        setDepositAmount("");
+      },
+      onError: () => {
+        toast({ title: "Failed to mark deposit paid", variant: "destructive" });
+      },
+    },
   });
 
   const convertToJob = useConvertEnquiryToJob({
@@ -354,8 +377,59 @@ export default function EnquiryDetail() {
                     )}
                   </div>
 
-                  {/* Convert to Job — shown when quote is accepted */}
-                  {quote.status === "accepted" && (
+                  {/* Proposal status */}
+                  {(quote as any).proposalStatus && (quote as any).proposalStatus !== "draft" && (
+                    <div className={cn(
+                      "text-center py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider border",
+                      (quote as any).proposalStatus === "accepted" || (quote as any).proposalStatus === "deposit_paid"
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : (quote as any).proposalStatus === "deposit_awaiting_payment"
+                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                        : (quote as any).proposalStatus === "declined"
+                        ? "bg-red-50 text-red-700 border-red-200"
+                        : "bg-violet-50 text-violet-700 border-violet-200"
+                    )}>
+                      Proposal: {(quote as any).proposalStatus.replace(/_/g, " ")}
+                    </div>
+                  )}
+
+                  {/* Proposal link */}
+                  {(quote as any).proposalToken && (
+                    <div className="flex gap-1.5">
+                      <a
+                        href={`${basePath}/proposal/${(quote as any).proposalToken}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-violet-700 hover:text-violet-900 border border-violet-200 rounded-xl py-2 bg-violet-50 hover:bg-violet-100 transition-colors"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> View Proposal
+                      </a>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}${basePath}/proposal/${(quote as any).proposalToken}`);
+                          toast({ title: "Proposal link copied!" });
+                        }}
+                        className="flex items-center justify-center px-3 border border-violet-200 rounded-xl bg-violet-50 hover:bg-violet-100 transition-colors"
+                        title="Copy link"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-violet-700" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Mark Deposit as Paid */}
+                  {(quote as any).proposalStatus === "deposit_awaiting_payment" && (
+                    <Button
+                      onClick={() => setDepositDialogOpen(true)}
+                      className="w-full font-bold hover-elevate h-12 rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-md"
+                    >
+                      <CheckCircle2 className="w-5 h-5 mr-2" />
+                      Mark Deposit as Paid
+                    </Button>
+                  )}
+
+                  {/* Convert to Job — shown when deposit paid or quote accepted */}
+                  {(quote.status === "accepted" || (quote as any).proposalStatus === "deposit_paid") && (
                     <Button
                       onClick={() => convertToJob.mutate({ id })}
                       disabled={convertToJob.isPending}
@@ -394,6 +468,58 @@ export default function EnquiryDetail() {
           </Card>
         </div>
       </div>
+
+      {/* Mark Deposit as Paid dialog */}
+      <Dialog open={depositDialogOpen} onOpenChange={setDepositDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black">Mark Deposit as Paid</DialogTitle>
+            <DialogDescription>
+              Record that you have received the deposit payment from the customer.
+              {(quote as any)?.depositAmount && (
+                <span className="block mt-1 font-semibold text-foreground">
+                  Expected: {formatCurrency(Number((quote as any).depositAmount))}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 space-y-3">
+            <div>
+              <label className="block text-sm font-bold text-muted-foreground mb-1.5">Amount Received (£)</label>
+              <Input
+                type="number"
+                min={0}
+                step={0.01}
+                placeholder={String(Number((quote as any)?.depositAmount ?? 0).toFixed(2))}
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                className="h-11 font-mono"
+              />
+            </div>
+            {depositAmount && (quote as any)?.totalWithVat && (
+              <div className="bg-secondary/50 rounded-xl p-3 text-sm font-semibold">
+                <div className="flex justify-between text-green-700">
+                  <span>Deposit paid</span><span>{formatCurrency(Number(depositAmount))}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground mt-1">
+                  <span>Remaining balance</span>
+                  <span>{formatCurrency(Math.max(0, Number((quote as any).totalWithVat) - Number(depositAmount)))}</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDepositDialogOpen(false)} className="font-bold rounded-xl">Cancel</Button>
+            <Button
+              disabled={!depositAmount || Number(depositAmount) <= 0 || markDepositPaid.isPending}
+              onClick={() => markDepositPaid.mutate({ id, data: { amount: Number(depositAmount) } })}
+              className="font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {markDepositPaid.isPending ? "Saving…" : "✅ Confirm Deposit Paid"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

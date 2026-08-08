@@ -31,4 +31,9 @@ export interface CompanyInput {
   quoteFooter?: string;
   invoiceFooter?: string;
   documentMode?: string;
+  defaultDepositType?: string;
+  defaultDepositPercent?: number;
+  defaultDepositFixed?: number;
+  depositPaymentInstructions?: string;
+  remainingBalanceDueDays?: number;
 }

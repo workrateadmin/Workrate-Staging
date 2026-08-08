@@ -46,6 +46,11 @@ export const GetCompanyResponse = zod.object({
   "quoteFooter": zod.string().nullish(),
   "invoiceFooter": zod.string().nullish(),
   "documentMode": zod.string(),
+  "defaultDepositType": zod.string(),
+  "defaultDepositPercent": zod.number().nullable(),
+  "defaultDepositFixed": zod.number().nullish(),
+  "depositPaymentInstructions": zod.string().nullish(),
+  "remainingBalanceDueDays": zod.number(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -78,7 +83,12 @@ export const UpdateCompanyBody = zod.object({
   "termsAndConditions": zod.string().optional(),
   "quoteFooter": zod.string().optional(),
   "invoiceFooter": zod.string().optional(),
-  "documentMode": zod.string().optional()
+  "documentMode": zod.string().optional(),
+  "defaultDepositType": zod.string().optional(),
+  "defaultDepositPercent": zod.number().optional(),
+  "defaultDepositFixed": zod.number().optional(),
+  "depositPaymentInstructions": zod.string().optional(),
+  "remainingBalanceDueDays": zod.number().optional()
 })
 
 export const UpdateCompanyResponse = zod.object({
@@ -107,6 +117,11 @@ export const UpdateCompanyResponse = zod.object({
   "quoteFooter": zod.string().nullish(),
   "invoiceFooter": zod.string().nullish(),
   "documentMode": zod.string(),
+  "defaultDepositType": zod.string(),
+  "defaultDepositPercent": zod.number().nullable(),
+  "defaultDepositFixed": zod.number().nullish(),
+  "depositPaymentInstructions": zod.string().nullish(),
+  "remainingBalanceDueDays": zod.number(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -351,6 +366,205 @@ export const GenerateEnquirySummaryResponse = zod.object({
 
 
 /**
+ * @summary Get a public proposal by token
+ */
+export const GetProposalParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const GetProposalResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "customerDetails": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "estimatedTotal": zod.number(),
+  "vatAmount": zod.number(),
+  "totalWithVat": zod.number(),
+  "notes": zod.string().nullish(),
+  "assumptions": zod.string().nullish(),
+  "proposalStatus": zod.string(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositFixed": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "acceptedAt": zod.coerce.date().nullish(),
+  "acceptedByName": zod.string().nullish(),
+  "viewedAt": zod.coerce.date().nullish(),
+  "customerQuestion": zod.string().nullish(),
+  "company": zod.object({
+  "name": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "vatNumber": zod.string().nullish(),
+  "brandColourPrimary": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "bankPaymentDetails": zod.string().nullish(),
+  "depositPaymentInstructions": zod.string().nullish()
+}).optional(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Record that the customer viewed the proposal
+ */
+export const RecordProposalViewParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const RecordProposalViewResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Customer accepts, declines, or asks a question
+ */
+export const RespondToProposalParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const RespondToProposalBody = zod.object({
+  "action": zod.string().describe('\'accept\' | \'decline\' | \'question\''),
+  "name": zod.string().optional(),
+  "email": zod.string().optional(),
+  "message": zod.string().optional()
+})
+
+export const RespondToProposalResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "customerDetails": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "estimatedTotal": zod.number(),
+  "vatAmount": zod.number(),
+  "totalWithVat": zod.number(),
+  "notes": zod.string().nullish(),
+  "assumptions": zod.string().nullish(),
+  "proposalStatus": zod.string(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositFixed": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "acceptedAt": zod.coerce.date().nullish(),
+  "acceptedByName": zod.string().nullish(),
+  "viewedAt": zod.coerce.date().nullish(),
+  "customerQuestion": zod.string().nullish(),
+  "company": zod.object({
+  "name": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "vatNumber": zod.string().nullish(),
+  "brandColourPrimary": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "termsAndConditions": zod.string().nullish(),
+  "bankPaymentDetails": zod.string().nullish(),
+  "depositPaymentInstructions": zod.string().nullish()
+}).optional(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Tradesperson approves a quote and sends it as a proposal to the customer
+ */
+export const ApproveAndSendProposalParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveAndSendProposalResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "customerDetails": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "estimatedTotal": zod.number(),
+  "vatAmount": zod.number(),
+  "totalWithVat": zod.number(),
+  "notes": zod.string().nullish(),
+  "assumptions": zod.string().nullish(),
+  "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
+  "proposalStatus": zod.string(),
+  "proposalToken": zod.string().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositFixed": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
+  "acceptedAt": zod.coerce.date().nullish(),
+  "acceptedByName": zod.string().nullish(),
+  "acceptedByEmail": zod.string().nullish(),
+  "viewedAt": zod.coerce.date().nullish(),
+  "acceptanceSnapshot": zod.string().nullish(),
+  "customerQuestion": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Tradesperson manually marks the deposit as received
+ */
+export const MarkDepositPaidParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const MarkDepositPaidBody = zod.object({
+  "amount": zod.number()
+})
+
+export const MarkDepositPaidResponse = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number(),
+  "customerDetails": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "estimatedTotal": zod.number(),
+  "vatAmount": zod.number(),
+  "totalWithVat": zod.number(),
+  "notes": zod.string().nullish(),
+  "assumptions": zod.string().nullish(),
+  "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
+  "proposalStatus": zod.string(),
+  "proposalToken": zod.string().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositFixed": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
+  "acceptedAt": zod.coerce.date().nullish(),
+  "acceptedByName": zod.string().nullish(),
+  "acceptedByEmail": zod.string().nullish(),
+  "viewedAt": zod.coerce.date().nullish(),
+  "acceptanceSnapshot": zod.string().nullish(),
+  "customerQuestion": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Get quote for an enquiry
  */
 export const GetQuoteParams = zod.object({
@@ -371,6 +585,21 @@ export const GetQuoteResponse = zod.object({
   "assumptions": zod.string().nullish(),
   "status": zod.string(),
   "brandingSnapshot": zod.string().nullish(),
+  "proposalStatus": zod.string(),
+  "proposalToken": zod.string().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositFixed": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
+  "acceptedAt": zod.coerce.date().nullish(),
+  "acceptedByName": zod.string().nullish(),
+  "acceptedByEmail": zod.string().nullish(),
+  "viewedAt": zod.coerce.date().nullish(),
+  "acceptanceSnapshot": zod.string().nullish(),
+  "customerQuestion": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -397,6 +626,21 @@ export const GenerateQuoteResponse = zod.object({
   "assumptions": zod.string().nullish(),
   "status": zod.string(),
   "brandingSnapshot": zod.string().nullish(),
+  "proposalStatus": zod.string(),
+  "proposalToken": zod.string().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositFixed": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
+  "acceptedAt": zod.coerce.date().nullish(),
+  "acceptedByName": zod.string().nullish(),
+  "acceptedByEmail": zod.string().nullish(),
+  "viewedAt": zod.coerce.date().nullish(),
+  "acceptanceSnapshot": zod.string().nullish(),
+  "customerQuestion": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -436,6 +680,21 @@ export const UpdateQuoteResponse = zod.object({
   "assumptions": zod.string().nullish(),
   "status": zod.string(),
   "brandingSnapshot": zod.string().nullish(),
+  "proposalStatus": zod.string(),
+  "proposalToken": zod.string().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositFixed": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
+  "acceptedAt": zod.coerce.date().nullish(),
+  "acceptedByName": zod.string().nullish(),
+  "acceptedByEmail": zod.string().nullish(),
+  "viewedAt": zod.coerce.date().nullish(),
+  "acceptanceSnapshot": zod.string().nullish(),
+  "customerQuestion": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

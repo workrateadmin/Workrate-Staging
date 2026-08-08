@@ -19,6 +19,7 @@ import AiReceptionist from "./pages/ai-receptionist";
 import Settings from "./pages/settings";
 import WidgetPage from "./pages/widget";
 import IntegrationsPage from "./pages/integrations";
+import ProposalPage from "./pages/proposal";
 import NotFound from "./pages/not-found";
 
 const clerkPubKey = publishableKeyFromHost(
@@ -229,6 +230,7 @@ function ClerkProviderWithRoutes() {
           {/* ── Customer experience (public) ── */}
           <Route path="/" component={HomeRedirect} />
           <Route path="/widget" component={WidgetPage} />
+          <Route path="/proposal/:token" component={ProposalPage} />
 
           {/* ── Business authentication ── */}
           <Route path="/sign-in/*?" component={SignInPage} />

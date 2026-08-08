@@ -314,6 +314,148 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  # Proposal (public – no auth)
+  /proposals/{token}:
+    get:
+      operationId: getProposal
+      tags: [quotes]
+      summary: Get a public proposal by token
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Proposal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Proposal"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /proposals/{token}/view:
+    post:
+      operationId: recordProposalView
+      tags: [quotes]
+      summary: Record that the customer viewed the proposal
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+
+  /proposals/{token}/respond:
+    post:
+      operationId: respondToProposal
+      tags: [quotes]
+      summary: Customer accepts, declines, or asks a question
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProposalResponse"
+      responses:
+        "200":
+          description: Updated proposal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Proposal"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /enquiries/{id}/quote/approve-and-send:
+    post:
+      operationId: approveAndSendProposal
+      tags: [quotes]
+      summary: Tradesperson approves a quote and sends it as a proposal to the customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Approved proposal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quote"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /enquiries/{id}/quote/mark-deposit-paid:
+    post:
+      operationId: markDepositPaid
+      tags: [quotes]
+      summary: Tradesperson manually marks the deposit as received
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkDepositPaidBody"
+      responses:
+        "200":
+          description: Updated quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quote"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   # Quotes
   /enquiries/{id}/quote:
     get:
@@ -1017,6 +1159,16 @@ components:
           type: ["string", "null"]
         documentMode:
           type: string
+        defaultDepositType:
+          type: string
+        defaultDepositPercent:
+          type: ["number", "null"]
+        defaultDepositFixed:
+          type: ["number", "null"]
+        depositPaymentInstructions:
+          type: ["string", "null"]
+        remainingBalanceDueDays:
+          type: number
         createdAt:
           type: string
           format: date-time
@@ -1031,6 +1183,9 @@ components:
         - labourRatePerHour
         - materialMarkupPercent
         - documentMode
+        - defaultDepositType
+        - defaultDepositPercent
+        - remainingBalanceDueDays
         - createdAt
         - updatedAt
 
@@ -1085,6 +1240,16 @@ components:
           type: string
         documentMode:
           type: string
+        defaultDepositType:
+          type: string
+        defaultDepositPercent:
+          type: number
+        defaultDepositFixed:
+          type: number
+        depositPaymentInstructions:
+          type: string
+        remainingBalanceDueDays:
+          type: number
 
     Enquiry:
       type: object
@@ -1229,6 +1394,39 @@ components:
           type: string
         brandingSnapshot:
           type: ["string", "null"]
+        proposalStatus:
+          type: string
+        proposalToken:
+          type: ["string", "null"]
+        depositType:
+          type: ["string", "null"]
+        depositPercent:
+          type: ["number", "null"]
+        depositFixed:
+          type: ["number", "null"]
+        depositAmount:
+          type: ["number", "null"]
+        remainingBalance:
+          type: ["number", "null"]
+        depositPaidAt:
+          type: ["string", "null"]
+          format: date-time
+        depositPaidAmount:
+          type: ["number", "null"]
+        acceptedAt:
+          type: ["string", "null"]
+          format: date-time
+        acceptedByName:
+          type: ["string", "null"]
+        acceptedByEmail:
+          type: ["string", "null"]
+        viewedAt:
+          type: ["string", "null"]
+          format: date-time
+        acceptanceSnapshot:
+          type: ["string", "null"]
+        customerQuestion:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
@@ -1244,6 +1442,7 @@ components:
         - vatAmount
         - totalWithVat
         - status
+        - proposalStatus
         - createdAt
         - updatedAt
 
@@ -1270,6 +1469,118 @@ components:
           type: string
         status:
           type: string
+
+    Proposal:
+      type: object
+      properties:
+        id:
+          type: number
+        enquiryId:
+          type: number
+        customerDetails:
+          type: ["string", "null"]
+        projectDescription:
+          type: ["string", "null"]
+        materialsAllowance:
+          type: number
+        labourAllowance:
+          type: number
+        estimatedTotal:
+          type: number
+        vatAmount:
+          type: number
+        totalWithVat:
+          type: number
+        notes:
+          type: ["string", "null"]
+        assumptions:
+          type: ["string", "null"]
+        proposalStatus:
+          type: string
+        depositType:
+          type: ["string", "null"]
+        depositPercent:
+          type: ["number", "null"]
+        depositFixed:
+          type: ["number", "null"]
+        depositAmount:
+          type: ["number", "null"]
+        remainingBalance:
+          type: ["number", "null"]
+        acceptedAt:
+          type: ["string", "null"]
+          format: date-time
+        acceptedByName:
+          type: ["string", "null"]
+        viewedAt:
+          type: ["string", "null"]
+          format: date-time
+        customerQuestion:
+          type: ["string", "null"]
+        company:
+          type: object
+          properties:
+            name:
+              type: string
+            logoUrl:
+              type: ["string", "null"]
+            email:
+              type: ["string", "null"]
+            phone:
+              type: ["string", "null"]
+            address:
+              type: ["string", "null"]
+            website:
+              type: ["string", "null"]
+            vatNumber:
+              type: ["string", "null"]
+            brandColourPrimary:
+              type: ["string", "null"]
+            paymentTerms:
+              type: ["string", "null"]
+            termsAndConditions:
+              type: ["string", "null"]
+            bankPaymentDetails:
+              type: ["string", "null"]
+            depositPaymentInstructions:
+              type: ["string", "null"]
+          required: [name]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - enquiryId
+        - materialsAllowance
+        - labourAllowance
+        - estimatedTotal
+        - vatAmount
+        - totalWithVat
+        - proposalStatus
+        - createdAt
+
+    ProposalResponse:
+      type: object
+      properties:
+        action:
+          type: string
+          description: "'accept' | 'decline' | 'question'"
+        name:
+          type: string
+        email:
+          type: string
+        message:
+          type: string
+      required:
+        - action
+
+    MarkDepositPaidBody:
+      type: object
+      properties:
+        amount:
+          type: number
+      required:
+        - amount
 
     DashboardStats:
       type: object
