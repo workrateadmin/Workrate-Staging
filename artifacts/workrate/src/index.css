@@ -75,7 +75,7 @@
   
   --border: 214 32% 91%;
   --input: 214 32% 91%;
-  --ring: 221 83% 53%; /* Blue 600 */
+  --ring: 174 72% 40%; /* Teal */
 
   /* White cards */
   --card: 0 0% 100%;
@@ -86,18 +86,18 @@
   --sidebar: 217 33% 17%;
   --sidebar-foreground: 210 40% 98%;
   --sidebar-border: 217 33% 17%;
-  --sidebar-primary: 221 83% 53%;
+  --sidebar-primary: 174 72% 40%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 215 25% 27%; /* Lighter charcoal for hover */
   --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 221 83% 53%;
+  --sidebar-ring: 174 72% 40%;
 
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
   --popover-border: 214 32% 91%;
 
   /* Professional Blue */
-  --primary: 221 83% 53%;
+  --primary: 174 72% 40%;
   --primary-foreground: 0 0% 100%;
 
   --secondary: 210 40% 96%;
@@ -112,7 +112,7 @@
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 40% 98%;
 
-  --chart-1: 221 83% 53%;
+  --chart-1: 174 72% 40%;
   --chart-2: 215 16% 47%;
   --chart-3: 222 47% 11%;
   --chart-4: 217 33% 17%;
@@ -155,7 +155,7 @@
 
   --border: 217 33% 17%;
   --input: 217 33% 17%;
-  --ring: 221 83% 53%;
+  --ring: 174 72% 40%;
 
   --card: 222 47% 11%;
   --card-foreground: 210 40% 98%;
@@ -164,17 +164,17 @@
   --sidebar: 222 47% 11%;
   --sidebar-foreground: 210 40% 98%;
   --sidebar-border: 217 33% 17%;
-  --sidebar-primary: 221 83% 53%;
+  --sidebar-primary: 174 72% 40%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 217 33% 17%;
   --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 221 83% 53%;
+  --sidebar-ring: 174 72% 40%;
 
   --popover: 222 47% 11%;
   --popover-foreground: 210 40% 98%;
   --popover-border: 217 33% 17%;
 
-  --primary: 221 83% 53%;
+  --primary: 174 72% 40%;
   --primary-foreground: 0 0% 100%;
 
   --secondary: 217 33% 17%;
@@ -189,7 +189,7 @@
   --destructive: 0 62% 30%;
   --destructive-foreground: 210 40% 98%;
 
-  --chart-1: 221 83% 53%;
+  --chart-1: 174 72% 40%;
   --chart-2: 215 16% 47%;
   --chart-3: 222 47% 11%;
   --chart-4: 217 33% 17%;
