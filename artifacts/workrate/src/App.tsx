@@ -29,16 +29,7 @@ const clerkPubKey = publishableKeyFromHost(
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Always refetch when the window/tab regains focus (covers mobile app-switching too)
-      refetchOnWindowFocus: true,
-      // Treat cached data as stale immediately so a focus/mount always goes to the network
-      staleTime: 0,
-    },
-  },
-});
+const queryClient = new QueryClient();
 
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)

@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useRef } from "react";
-import { Save, Building2, MapPin, PoundSterling, Brain, Users, Clock, Package, Wrench, TrendingUp, Sparkles, Code2, Copy, ExternalLink, CheckCheck } from "lucide-react";
+import { Save, Building2, MapPin, PoundSterling, Brain, Users, Clock, Package, Wrench, TrendingUp, Sparkles, Code2, Copy, ExternalLink, CheckCheck, AlertTriangle } from "lucide-react";
 import { useState as useLocalState } from "react";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
@@ -444,6 +444,13 @@ function EmbedCodeCard() {
   const widgetPreviewUrl = `${origin}${basePath}/widget`;
   const businessId = user?.id ?? "YOUR_BUSINESS_ID";
 
+  // Detect whether we're on the Replit development preview (*.replit.dev).
+  // If so, the snippet below uses the dev URL — warn the user to copy from
+  // their PUBLISHED app instead so their website widget hits the live database.
+  const isDevUrl =
+    typeof window !== "undefined" &&
+    window.location.hostname.endsWith(".replit.dev");
+
   const scriptSnippet =
 `<!-- WorkRate Chat Widget -->
 <script
@@ -471,6 +478,22 @@ function EmbedCodeCard() {
         </div>
       </div>
       <CardContent className="p-8 space-y-6">
+        {/* Dev URL warning */}
+        {isDevUrl && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
+            <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-amber-800">You are viewing the development preview</p>
+              <p className="text-xs text-amber-700 mt-1 font-medium leading-relaxed">
+                The snippet below uses your <strong>development URL</strong>. Enquiries submitted through a widget installed with this snippet will only appear here in the development preview — not in your published app.
+              </p>
+              <p className="text-xs text-amber-700 mt-1.5 font-medium leading-relaxed">
+                To get the correct snippet for your live website, open <strong>Settings</strong> from your <strong>published WorkRate app</strong> and copy it from there.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Preview link */}
         <div className="flex items-center justify-between bg-secondary/40 border border-border/50 rounded-xl px-5 py-4">
           <div>

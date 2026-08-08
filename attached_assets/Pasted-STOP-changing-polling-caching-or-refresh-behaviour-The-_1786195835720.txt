@@ -1,0 +1,66 @@
+STOP changing polling, caching or refresh behaviour.
+
+The previous fix did NOT solve the problem.
+
+FACTS:
+
+- I am logged into WorkRate on mobile using my Gmail account.
+- I am logged into WorkRate on desktop using the exact same Gmail account.
+- My mobile dashboard shows two real test enquiries submitted through my website widget.
+- My desktop dashboard does NOT show those same enquiries.
+- Refreshing the desktop does not make them appear.
+
+This proves this is NOT simply a 30-second refresh problem.
+
+I need you to diagnose whether mobile and desktop are resolving the same authenticated user to DIFFERENT WorkRate business/workspace records.
+
+DO NOT modify the app until you have investigated.
+
+Compare mobile vs desktop and report:
+
+1. Authenticated user ID
+2. Email address
+3. WorkRate Business ID / organisation ID / tenant ID
+4. Workspace ID
+5. The business ID stored in localStorage/sessionStorage
+6. The business ID used by the website widget
+7. The exact database query used to load enquiries
+8. The exact business/owner ID attached to the two missing enquiries
+
+Find the two enquiries that appear on mobile but not desktop directly in the database.
+
+For EACH missing enquiry tell me:
+
+- enquiry ID
+- customer name
+- business ID
+- owner/user ID
+- source
+- created date
+- whether desktop's query should return it
+
+Then compare that against the desktop user's current business ID.
+
+I strongly suspect the same Gmail account has accidentally created or loaded two different WorkRate business/workspace records on different devices.
+
+If this is the cause:
+
+- Do NOT delete the enquiries.
+- Do NOT create another account.
+- Merge/fix the account-to-business relationship safely.
+- Ensure one authenticated user has one canonical business/workspace ID.
+- Make mobile, desktop and the website widget all use that same business ID.
+- Remove reliance on stale localStorage business IDs where authentication/database membership should be the source of truth.
+
+After fixing it, test:
+
+1. Existing two enquiries appear on BOTH mobile and desktop.
+2. Submit a NEW website enquiry.
+3. It appears on both devices.
+4. Log out of both devices.
+5. Log back in using the same Gmail account.
+6. All three enquiries remain visible on both.
+
+Do not tell me this is fixed merely because automated tests pass.
+
+First explain the exact root cause you found, then make the fix, then verify the existing missing records are visible on desktop.

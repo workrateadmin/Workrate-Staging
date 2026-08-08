@@ -1,4 +1,4 @@
-import { useListEnquiries, useUpdateEnquiry, getListEnquiriesQueryKey } from "@workspace/api-client-react";
+import { useListEnquiries, useUpdateEnquiry } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
 import { useState } from "react";
@@ -54,8 +54,7 @@ export default function Leads() {
   const [search, setSearch] = useState("");
 
   const { data: enquiries, isLoading } = useListEnquiries(
-    view === "list" && statusFilter !== "all" ? { status: statusFilter } : undefined,
-    { query: { queryKey: getListEnquiriesQueryKey(), refetchInterval: 30_000 } }
+    view === "list" && statusFilter !== "all" ? { status: statusFilter } : undefined
   );
 
   const filtered = enquiries?.filter((e) =>

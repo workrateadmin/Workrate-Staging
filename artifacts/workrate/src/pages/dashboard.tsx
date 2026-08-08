@@ -1,4 +1,4 @@
-import { useGetDashboard, useListJobs, useListAiCalls, getGetDashboardQueryKey } from "@workspace/api-client-react";
+import { useGetDashboard, useListJobs, useListAiCalls } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,9 +11,7 @@ import { format, isToday, parseISO, addDays, isBefore, isAfter, startOfDay, form
 import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
-  const { data: stats, isLoading, isError } = useGetDashboard({
-    query: { queryKey: getGetDashboardQueryKey(), refetchInterval: 30_000 },
-  });
+  const { data: stats, isLoading, isError } = useGetDashboard();
 
   if (isLoading) {
     return (
