@@ -1,0 +1,130 @@
+Add automated customer email sending when a proposal is approved.
+
+IMPORTANT:
+Do not remove or redesign the existing Proposal Acceptance & Deposit system.
+
+Current working flow:
+Draft quote
+→ Tradesperson clicks "Approve & Send Proposal"
+→ Proposal token/link is created
+→ Customer can view /proposal/:token
+→ Customer can Accept / Ask a Question / Decline
+→ Deposit workflow continues from there
+
+NEW REQUIREMENT:
+
+When the tradesperson clicks "Approve & Send Proposal", WorkRate must automatically send the customer a professional branded email containing the proposal link.
+
+Do NOT require the tradesperson to copy and paste the proposal link manually.
+
+EMAIL CONTENT:
+
+Subject:
+"Your proposal from [Business Name] is ready"
+
+Email body should include:
+
+- Business logo
+- Business name
+- Customer first name
+- Project title
+- Short project summary
+- Total proposal value
+- Deposit required
+- Proposal expiry date if configured
+- A large button:
+  "View Proposal"
+
+The button must link to the customer's unique public proposal URL:
+ /proposal/:token
+
+Below the button include:
+
+"If you have any questions, you can reply to this email or use the Ask a Question option inside your proposal."
+
+Add business contact details in the footer.
+
+BRANDING:
+
+Use the business's:
+- Logo
+- Brand colours
+- Business name
+- Email
+- Phone
+- Website
+
+from WorkRate Brain / Documents & Branding.
+
+EMAIL STATUS TRACKING:
+
+Add proposal email fields to the database if they do not already exist:
+
+- email_sent_at
+- email_delivery_status
+- email_error
+- email_recipient
+
+Proposal statuses should support:
+
+- Approved
+- Sent
+- Viewed
+- Accepted
+- Deposit Awaiting Payment
+- Deposit Paid
+- Declined
+- Expired
+
+When email sending succeeds:
+- Set proposal status to "Sent"
+- Record email_sent_at
+
+If email sending fails:
+- Do NOT lose the proposal
+- Keep the proposal link available
+- Show a clear error to the tradesperson
+- Add a "Retry Email" button
+
+Add a "Resend Proposal" button after the first email has been sent.
+
+PRE-SEND VALIDATION:
+
+Before sending, confirm:
+- Customer email exists
+- Proposal has been approved
+- Proposal token exists
+- Business sender details exist
+
+If customer email is missing, do not send.
+Show:
+"Customer email address required before proposal can be sent."
+
+SECURITY:
+
+Never expose private business dashboard URLs in the email.
+Only use the public proposal token URL.
+
+Do not include internal notes, AI reasoning, cost margins, or private pricing information.
+
+TEST FLOW:
+
+Use a test proposal and verify:
+
+1. Tradesperson approves proposal
+2. Customer receives email
+3. Email contains correct business branding
+4. "View Proposal" opens correct public proposal
+5. Proposal status changes to Sent
+6. Opening proposal changes status to Viewed
+7. Customer can Accept / Question / Decline
+8. Existing deposit workflow continues without breaking
+
+Do not mark complete until the full email flow has been tested successfully.
+
+After implementation, explain:
+- Which email provider/service is being used
+- Which database fields were added or changed
+- How failed emails are handled
+- How resend works
+- How proposal status changes are tracked
