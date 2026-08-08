@@ -84,7 +84,7 @@ export default function LandingPage() {
               <div className="text-center lg:text-left">
 
                 {/* Trade badge */}
-                <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white text-xs font-bold tracking-widest uppercase px-4 py-2 rounded-full mb-8">
+                <div className="inline-flex items-center gap-2 bg-white/15 border border-white/30 text-white text-xs font-extrabold tracking-widest uppercase px-4 py-2 rounded-full mb-8 drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]">
                   <Ruler className="w-3.5 h-3.5 text-amber-400" />
                   For The Construction Industry
                 </div>
