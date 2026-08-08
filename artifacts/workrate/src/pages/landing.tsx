@@ -91,7 +91,7 @@ export default function LandingPage() {
 
                 <h1 className="text-5xl md:text-6xl font-black tracking-tighter text-white mb-6 leading-[1.05]">
                   Never miss an enquiry.<br />
-                  <span className="text-[#2dd4bf]">Never chase a quote.</span>
+                  <span className="text-teal-300">Never chase a quote.</span>
                 </h1>
 
                 <p className="text-lg md:text-xl text-slate-300 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium">
