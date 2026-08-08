@@ -2,7 +2,7 @@ import {
   useGetEnquiry, useUpdateEnquiry, useGenerateEnquirySummary,
   useListEnquiryMessages, useGenerateQuote, useGetQuote,
   useListEnquiryAttachments, useUploadEnquiryAttachment, useDeleteEnquiryAttachment,
-  useConvertEnquiryToJob,
+  useConvertEnquiryToJob, useDeleteEnquiry,
   getGetQuoteQueryKey, getListEnquiryAttachmentsQueryKey,
 } from "@workspace/api-client-react";
 import { useParams, Link, useLocation } from "wouter";
@@ -21,6 +21,11 @@ import { SummaryCard, SummaryCardSkeleton } from "@/components/summary-card";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { useState, useRef, useCallback } from "react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 export default function EnquiryDetail() {
@@ -88,6 +93,20 @@ export default function EnquiryDetail() {
     }
   });
 
+  const deleteEnquiry = useDeleteEnquiry({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Enquiry deleted" });
+        queryClient.invalidateQueries({ queryKey: ["/api/enquiries"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+        setLocation("/enquiries");
+      },
+      onError: () => {
+        toast({ title: "Failed to delete enquiry", variant: "destructive" });
+      },
+    },
+  });
+
   if (isLoadingEnquiry || !enquiry) {
     return <div className="space-y-4 max-w-6xl mx-auto"><Skeleton className="h-8 w-64 rounded-lg"/><Skeleton className="h-64 w-full rounded-2xl"/></div>;
   }
@@ -123,8 +142,32 @@ export default function EnquiryDetail() {
                     <span className="flex items-center gap-2 text-foreground/80"><Calendar className="w-4 h-4"/> {formatDate(enquiry.createdAt)}</span>
                   </div>
                 </div>
-                <div className="hidden sm:block">
-                   <StatusBadge status={enquiry.status} />
+                <div className="hidden sm:flex items-center gap-3">
+                  <StatusBadge status={enquiry.status} />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete enquiry?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete the enquiry for <strong>{enquiry.customerName}</strong> along with all messages and attachments. This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => deleteEnquiry.mutate({ id })}
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </div>
