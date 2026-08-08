@@ -102,7 +102,7 @@ export default function LandingPage() {
                 <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
                   <button
                     onClick={() => navigate("/sign-up")}
-                    className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#0d9488] hover:bg-[#0f766e] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-[0_8px_40px_rgba(13,148,136,0.5)] hover:shadow-[0_12px_50px_rgba(13,148,136,0.6)] transition-all hover:-translate-y-0.5 active:translate-y-0"
+                    className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-primary hover:bg-primary/80 text-primary-foreground text-lg font-black px-10 py-5 rounded-2xl shadow-[0_8px_40px_rgba(94,234,212,0.35)] hover:shadow-[0_12px_50px_rgba(94,234,212,0.45)] transition-all hover:-translate-y-0.5 active:translate-y-0"
                   >
                     <LayoutDashboard className="w-5 h-5" />
                     Sign Up Here
@@ -186,7 +186,7 @@ export default function LandingPage() {
                     </div>
 
                     {/* Card CTA */}
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-[#0d9488] rounded-xl">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-primary rounded-xl">
                       <span className="text-xs font-bold text-white">Open Dashboard</span>
                       <ChevronRight className="w-3.5 h-3.5 text-teal-200" />
                     </div>
@@ -248,7 +248,7 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-4">
               The admin you hate,{" "}
-              <span className="text-[#0d9488]">handled.</span>
+              <span className="text-primary">handled.</span>
             </h2>
             <p className="text-lg text-slate-500 font-medium max-w-xl mx-auto">
               Three problems every trade business runs into. WorkRate fixes all of them.
@@ -428,7 +428,7 @@ export default function LandingPage() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <button
                 onClick={() => navigate("/sign-up")}
-                className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#0d9488] hover:bg-[#0f766e] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-0.5"
+                className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-primary hover:bg-primary/80 text-primary-foreground text-lg font-black px-10 py-5 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-0.5"
               >
                 <LayoutDashboard className="w-5 h-5" />
                 Sign Up Here
@@ -454,7 +454,7 @@ export default function LandingPage() {
       <footer className="border-t border-slate-100 py-8 bg-white">
         <div className="max-w-5xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-[#0d9488] rounded-md flex items-center justify-center">
+            <div className="w-6 h-6 bg-primary rounded-md flex items-center justify-center">
               <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
                   d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />

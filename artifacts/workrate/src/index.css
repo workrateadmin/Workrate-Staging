@@ -86,19 +86,19 @@
   --sidebar: 217 33% 17%;
   --sidebar-foreground: 210 40% 98%;
   --sidebar-border: 217 33% 17%;
-  --sidebar-primary: 174 72% 40%;
-  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary: 171 77% 64%;
+  --sidebar-primary-foreground: 172 72% 10%;
   --sidebar-accent: 215 25% 27%; /* Lighter charcoal for hover */
   --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 174 72% 40%;
+  --sidebar-ring: 171 77% 64%;
 
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
   --popover-border: 214 32% 91%;
 
-  /* Professional Blue */
-  --primary: 174 72% 40%;
-  --primary-foreground: 0 0% 100%;
+  /* Teal */
+  --primary: 171 77% 64%;
+  --primary-foreground: 172 72% 10%;
 
   --secondary: 210 40% 96%;
   --secondary-foreground: 222 47% 11%;
@@ -112,7 +112,7 @@
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 40% 98%;
 
-  --chart-1: 174 72% 40%;
+  --chart-1: 171 77% 64%;
   --chart-2: 215 16% 47%;
   --chart-3: 222 47% 11%;
   --chart-4: 217 33% 17%;
@@ -164,18 +164,18 @@
   --sidebar: 222 47% 11%;
   --sidebar-foreground: 210 40% 98%;
   --sidebar-border: 217 33% 17%;
-  --sidebar-primary: 174 72% 40%;
-  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary: 171 77% 64%;
+  --sidebar-primary-foreground: 172 72% 10%;
   --sidebar-accent: 217 33% 17%;
   --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 174 72% 40%;
+  --sidebar-ring: 171 77% 64%;
 
   --popover: 222 47% 11%;
   --popover-foreground: 210 40% 98%;
   --popover-border: 217 33% 17%;
 
-  --primary: 174 72% 40%;
-  --primary-foreground: 0 0% 100%;
+  --primary: 171 77% 64%;
+  --primary-foreground: 172 72% 10%;
 
   --secondary: 217 33% 17%;
   --secondary-foreground: 210 40% 98%;
@@ -189,7 +189,7 @@
   --destructive: 0 62% 30%;
   --destructive-foreground: 210 40% 98%;
 
-  --chart-1: 174 72% 40%;
+  --chart-1: 171 77% 64%;
   --chart-2: 215 16% 47%;
   --chart-3: 222 47% 11%;
   --chart-4: 217 33% 17%;

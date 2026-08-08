@@ -308,7 +308,7 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
             style={{ background: "linear-gradient(135deg, #1E293B 0%, #0F172A 100%)" }}
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-[#0d9488] rounded-xl flex items-center justify-center shadow-lg shrink-0">
+              <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-lg shrink-0">
                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
                     d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -339,7 +339,7 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
             <div className="flex-1 flex flex-col overflow-hidden">
               <div
                 className="px-6 pt-8 pb-10 text-white text-center"
-                style={{ background: "linear-gradient(160deg, #0d9488 0%, #0f766e 60%, #1E293B 100%)" }}
+                style={{ background: "linear-gradient(160deg, #5eead4 0%, #2dd4bf 60%, #1E293B 100%)" }}
               >
                 <div className="w-16 h-16 bg-white/15 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg border border-white/20">
                   <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -356,7 +356,7 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
               <div className="flex-1 bg-white px-5 py-6 flex flex-col gap-4">
                 <button
                   onClick={() => setStage("trade")}
-                  className="w-full flex items-center justify-between bg-[#0d9488] hover:bg-[#0f766e] text-white font-bold rounded-xl px-5 py-4 transition-all shadow-md hover:shadow-lg group"
+                  className="w-full flex items-center justify-between bg-primary hover:bg-primary/80 text-primary-foreground font-bold rounded-xl px-5 py-4 transition-all shadow-md hover:shadow-lg group"
                 >
                   <div className="flex items-center gap-3">
                     <MessageCircle className="w-5 h-5" />
@@ -398,16 +398,16 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
                     key={trade.id}
                     onClick={() => startChat(trade.id)}
                     disabled={isStarting}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-100 bg-white hover:border-[#0d9488]/30 hover:bg-teal-50/50 transition-all text-left group disabled:opacity-60"
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-100 bg-white hover:border-primary/30 hover:bg-teal-50/50 transition-all text-left group disabled:opacity-60"
                   >
                     <span className="text-xl shrink-0">{trade.icon}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-800 group-hover:text-[#0d9488] transition-colors">{trade.label}</p>
+                      <p className="text-sm font-bold text-slate-800 group-hover:text-primary transition-colors">{trade.label}</p>
                       <p className="text-xs text-slate-500 truncate">{trade.desc}</p>
                     </div>
                     {isStarting && tradeType === trade.id
-                      ? <Loader2 className="w-4 h-4 animate-spin text-[#0d9488] shrink-0" />
-                      : <span className="text-slate-300 group-hover:text-[#0d9488] transition-colors text-sm">→</span>
+                      ? <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+                      : <span className="text-slate-300 group-hover:text-primary transition-colors text-sm">→</span>
                     }
                   </button>
                 ))}
@@ -427,7 +427,7 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
                 {messages.map((msg, i) => (
                   <div key={i} className={cn("flex gap-2", msg.role === "customer" ? "justify-end" : "justify-start")}>
                     {msg.role === "assistant" && (
-                      <div className="w-7 h-7 bg-[#0d9488] rounded-full flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                      <div className="w-7 h-7 bg-primary rounded-full flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
                             d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -437,7 +437,7 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
                     <div className={cn(
                       "max-w-[80%] rounded-2xl text-sm leading-relaxed overflow-hidden shadow-sm",
                       msg.role === "customer"
-                        ? "bg-[#0d9488] text-white rounded-tr-sm"
+                        ? "bg-primary text-primary-foreground rounded-tr-sm"
                         : "bg-white border border-slate-100 rounded-tl-sm text-slate-800"
                     )}>
                       {msg.imageUrl && (
@@ -491,7 +491,7 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
                       title="Attach a photo"
                       className="w-9 h-9 rounded-full bg-teal-50 hover:bg-teal-100 border border-teal-200 hover:border-teal-300 flex items-center justify-center transition-all disabled:opacity-40 shrink-0 group"
                     >
-                      <Camera className="w-4 h-4 text-[#0d9488] group-hover:scale-110 transition-transform" />
+                      <Camera className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
                     </button>
                     <input
                       ref={fileInputRef}
@@ -506,12 +506,12 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
                       onChange={(e) => setInputValue(e.target.value)}
                       placeholder={pendingPhoto ? "Add a caption (optional)…" : "Type your message…"}
                       disabled={isStreaming || isUploadingPhoto}
-                      className="flex-1 h-10 px-4 rounded-full bg-slate-100 border-none outline-none text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-[#0d9488]/30 transition-all"
+                      className="flex-1 h-10 px-4 rounded-full bg-slate-100 border-none outline-none text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-primary/30 transition-all"
                     />
                     <button
                       type="submit"
                       disabled={(isStreaming || isUploadingPhoto) || (!pendingPhoto && !inputValue.trim())}
-                      className="w-9 h-9 rounded-full bg-[#0d9488] hover:bg-[#0f766e] disabled:bg-slate-200 flex items-center justify-center transition-all shadow-sm shrink-0"
+                      className="w-9 h-9 rounded-full bg-primary hover:bg-primary/80 disabled:bg-slate-200 flex items-center justify-center transition-all shadow-sm shrink-0"
                     >
                       {isUploadingPhoto ? (
                         <Loader2 className="w-4 h-4 animate-spin text-white" />
@@ -537,7 +537,7 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
             "hover:scale-110 active:scale-95 pointer-events-auto",
             isOpen
               ? "bg-[#1E293B] hover:bg-[#0F172A]"
-              : "bg-[#0d9488] hover:bg-[#0f766e]"
+              : "bg-primary hover:bg-primary/80"
           )}
           style={{ boxShadow: isOpen ? "0 8px 30px rgba(0,0,0,0.3)" : "0 8px 30px rgba(13,148,136,0.45)" }}
         >
