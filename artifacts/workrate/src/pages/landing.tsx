@@ -12,7 +12,7 @@ import { useLocation } from "wouter";
 import {
   ArrowRight, Star, CheckCircle2, MessageCircle, LayoutDashboard,
   FileText, Phone, Bot, ClipboardList, Receipt, Calendar,
-  Ruler, Wrench, Truck, ChevronRight,
+  Ruler, Wrench, Truck, ChevronRight, Hammer,
 } from "lucide-react";
 import ChatWidget, { type ChatWidgetHandle } from "@/components/chat-widget";
 
@@ -39,26 +39,23 @@ export default function LandingPage() {
     <div className="flex flex-col min-h-[100dvh] bg-white">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="px-6 md:px-10 py-4 flex items-center justify-between border-b border-slate-100 sticky top-0 z-40 bg-white/90 backdrop-blur-md">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center">
-            <svg className="w-[18px] h-[18px] text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
-                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
+      <header className="h-[60px] px-6 md:px-10 flex items-center justify-between sticky top-0 z-40 bg-sidebar border-b border-sidebar-border">
+        <div className="flex items-center gap-2">
+          <div className="bg-primary text-primary-foreground p-1.5 rounded-lg shadow-sm">
+            <Hammer className="w-[18px] h-[18px]" />
           </div>
-          <span className="font-black text-xl tracking-tight text-slate-900">WorkRate</span>
+          <span className="font-black text-[17px] text-sidebar-foreground tracking-tight leading-none">WorkRate</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={() => navigate("/sign-in")}
-            className="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors px-4 py-2 rounded-lg hover:bg-slate-50 hidden sm:block"
+            className="text-[13px] font-semibold text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors px-3.5 py-2 rounded-lg hover:bg-sidebar-accent hidden sm:block"
           >
             Sign in
           </button>
           <button
             onClick={() => navigate("/sign-in")}
-            className="text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors px-4 py-2 rounded-lg shadow-sm"
+            className="text-[13px] font-bold text-primary-foreground bg-primary hover:opacity-90 transition-opacity px-3.5 py-2 rounded-lg shadow-sm"
           >
             Trade Log In
           </button>
