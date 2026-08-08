@@ -15,6 +15,7 @@ import {
   Ruler, Wrench, Truck, ChevronRight, Hammer,
 } from "lucide-react";
 import ChatWidget, { type ChatWidgetHandle } from "@/components/chat-widget";
+import heroSite from "@/assets/hero-site.jpg";
 
 // ── Static mockup data (never connected to real DB) ──────────────────────────
 const MOCK_ENQUIRIES = [
@@ -66,15 +67,15 @@ export default function LandingPage() {
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
         <section className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-[#134e4a]" />
+          {/* Building site photo */}
           <div
-            className="absolute inset-0 opacity-[0.04]"
-            style={{
-              backgroundImage: `linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)`,
-              backgroundSize: "50px 50px",
-            }}
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: `url(${heroSite})` }}
           />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-teal-500/15 rounded-full blur-[120px]" />
+          {/* Dark overlay — keeps text readable, adds brand tint */}
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-950/92 via-slate-900/85 to-[#134e4a]/80" />
+          {/* Teal glow */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-teal-500/10 rounded-full blur-[120px]" />
 
           <div className="relative z-10 max-w-6xl mx-auto px-6 py-20 md:py-28">
             <div className="grid lg:grid-cols-[1fr_400px] gap-12 lg:gap-16 items-center">
