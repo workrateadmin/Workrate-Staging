@@ -296,7 +296,7 @@ export default function QuoteEditor() {
           <Button
             size="sm"
             onClick={() => setSendDialogOpen(true)}
-            className="font-bold shadow-md hover-elevate rounded-xl h-10 bg-blue-600 hover:bg-blue-700 text-white"
+            className="font-bold shadow-md hover-elevate rounded-xl h-10 bg-teal-600 hover:bg-teal-700 text-white"
           >
             <Mail className="w-4 h-4 mr-2" /> Send to Customer
           </Button>
@@ -869,7 +869,7 @@ function QuoteDocument({
 
   const companyName = b.name ?? "Your Trade Business";
   const headerBg = isCustom && b.brandColourPrimary ? b.brandColourPrimary : "#1E293B";
-  const accentColour = isCustom && b.brandColourSecondary ? b.brandColourSecondary : "#2563EB";
+  const accentColour = isCustom && b.brandColourSecondary ? b.brandColourSecondary : "#0d9488";
 
   // Derive readable text colour for header (simple luminance check)
   function isLight(hex: string): boolean {
@@ -1014,7 +1014,7 @@ function QuoteDocument({
                     <td className={`px-5 py-4 font-black text-sm uppercase tracking-wide ${headerTextClass}`}>Total (inc. VAT)</td>
                     <td
                       className="px-5 py-4 text-right font-black text-xl"
-                      style={{ color: isLight(headerBg) ? accentColour : "#60A5FA" }}
+                      style={{ color: isLight(headerBg) ? accentColour : "#2dd4bf" }}
                     >
                       {formatCurrency(total)}
                     </td>
@@ -1028,7 +1028,7 @@ function QuoteDocument({
           {notes && (
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Notes</p>
-              <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-4">
+              <div className="bg-teal-50 border border-teal-100 rounded-xl px-5 py-4">
                 <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{notes}</p>
               </div>
             </div>

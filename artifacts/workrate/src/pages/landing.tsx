@@ -18,16 +18,16 @@ import ChatWidget, { type ChatWidgetHandle } from "@/components/chat-widget";
 
 // ── Static mockup data (never connected to real DB) ──────────────────────────
 const MOCK_ENQUIRIES = [
-  { name: "Emma T.",  job: "Fitted wardrobes · SW12", time: "2h ago",  dot: "bg-blue-400"   },
+  { name: "Emma T.",  job: "Fitted wardrobes · SW12", time: "2h ago",  dot: "bg-teal-400"   },
   { name: "James R.", job: "Kitchen refit · N1",       time: "4h ago",  dot: "bg-violet-400" },
   { name: "Sarah M.", job: "Media wall · E3",          time: "6h ago",  dot: "bg-emerald-400"},
 ];
 
 const WORKFLOW_STEPS = [
-  { Icon: Phone,        color: "bg-blue-500",    label: "Customer gets in touch",       desc: "Via your link, website, or QR code on the van. Anytime, day or night." },
+  { Icon: Phone,        color: "bg-teal-500",    label: "Customer gets in touch",       desc: "Via your link, website, or QR code on the van. Anytime, day or night." },
   { Icon: Bot,          color: "bg-violet-500",  label: "AI asks the right questions",  desc: "Dimensions, photos, budget, timescale — collected automatically." },
   { Icon: ClipboardList,color: "bg-amber-500",   label: "Brief lands in your dashboard",desc: "A full job card with everything you need to decide whether to quote." },
-  { Icon: FileText,     color: "bg-blue-600",    label: "Quote sent in minutes",        desc: "Use the collected data to send a professional quote — not an afternoon's work." },
+  { Icon: FileText,     color: "bg-teal-600",    label: "Quote sent in minutes",        desc: "Use the collected data to send a professional quote — not an afternoon's work." },
   { Icon: Receipt,      color: "bg-emerald-500", label: "Job won, invoice raised",      desc: "Track every job from deposit to final payment in one place." },
 ];
 
@@ -66,7 +66,7 @@ export default function LandingPage() {
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
         <section className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-[#1e3a8a]" />
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-[#134e4a]" />
           <div
             className="absolute inset-0 opacity-[0.04]"
             style={{
@@ -74,7 +74,7 @@ export default function LandingPage() {
               backgroundSize: "50px 50px",
             }}
           />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-blue-500/15 rounded-full blur-[120px]" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-teal-500/15 rounded-full blur-[120px]" />
 
           <div className="relative z-10 max-w-6xl mx-auto px-6 py-20 md:py-28">
             <div className="grid lg:grid-cols-[1fr_400px] gap-12 lg:gap-16 items-center">
@@ -90,7 +90,7 @@ export default function LandingPage() {
 
                 <h1 className="text-5xl md:text-6xl font-black tracking-tighter text-white mb-6 leading-[1.05]">
                   Never miss an enquiry.<br />
-                  <span className="text-[#60A5FA]">Never chase a quote.</span>
+                  <span className="text-[#2dd4bf]">Never chase a quote.</span>
                 </h1>
 
                 <p className="text-lg md:text-xl text-slate-300 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium">
@@ -101,7 +101,7 @@ export default function LandingPage() {
                 <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
                   <button
                     onClick={() => navigate("/sign-up")}
-                    className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-[0_8px_40px_rgba(37,99,235,0.5)] hover:shadow-[0_12px_50px_rgba(37,99,235,0.6)] transition-all hover:-translate-y-0.5 active:translate-y-0"
+                    className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#0d9488] hover:bg-[#0f766e] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-[0_8px_40px_rgba(13,148,136,0.5)] hover:shadow-[0_12px_50px_rgba(13,148,136,0.6)] transition-all hover:-translate-y-0.5 active:translate-y-0"
                   >
                     <LayoutDashboard className="w-5 h-5" />
                     Sign Up Here
@@ -111,7 +111,7 @@ export default function LandingPage() {
                     onClick={() => widgetRef.current?.open()}
                     className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-white/10 hover:bg-white/15 border border-white/25 hover:border-white/40 text-white text-lg font-black px-10 py-5 rounded-2xl backdrop-blur-sm transition-all hover:-translate-y-0.5 active:translate-y-0"
                   >
-                    <MessageCircle className="w-5 h-5 text-blue-300" />
+                    <MessageCircle className="w-5 h-5 text-teal-300" />
                     Try WorkRate AI
                   </button>
                 </div>
@@ -151,9 +151,9 @@ export default function LandingPage() {
 
                     {/* Stats row */}
                     <div className="grid grid-cols-3 gap-2 mb-4">
-                      <div className="bg-blue-50 rounded-xl p-3 text-center">
-                        <p className="text-2xl font-black text-blue-600 leading-none mb-1">3</p>
-                        <p className="text-[10px] text-blue-500 font-bold uppercase tracking-wide leading-tight">New<br/>enquiries</p>
+                      <div className="bg-teal-50 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-teal-600 leading-none mb-1">3</p>
+                        <p className="text-[10px] text-teal-500 font-bold uppercase tracking-wide leading-tight">New<br/>enquiries</p>
                       </div>
                       <div className="bg-amber-50 rounded-xl p-3 text-center">
                         <p className="text-2xl font-black text-amber-600 leading-none mb-1">2</p>
@@ -185,9 +185,9 @@ export default function LandingPage() {
                     </div>
 
                     {/* Card CTA */}
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-[#2563EB] rounded-xl">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-[#0d9488] rounded-xl">
                       <span className="text-xs font-bold text-white">Open Dashboard</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-blue-200" />
+                      <ChevronRight className="w-3.5 h-3.5 text-teal-200" />
                     </div>
                   </div>
                 </div>
@@ -247,7 +247,7 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-4">
               The admin you hate,{" "}
-              <span className="text-[#2563EB]">handled.</span>
+              <span className="text-[#0d9488]">handled.</span>
             </h2>
             <p className="text-lg text-slate-500 font-medium max-w-xl mx-auto">
               Three problems every trade business runs into. WorkRate fixes all of them.
@@ -259,8 +259,8 @@ export default function LandingPage() {
             {/* Problem 1: Late night enquiries */}
             <div className="grid md:grid-cols-2 gap-6 items-center bg-slate-50 rounded-3xl p-8 md:p-10">
               <div>
-                <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center mb-5">
-                  <Phone className="w-6 h-6 text-blue-600" />
+                <div className="w-12 h-12 bg-teal-100 rounded-2xl flex items-center justify-center mb-5">
+                  <Phone className="w-6 h-6 text-teal-600" />
                 </div>
                 <p className="text-xs font-black text-slate-400 tracking-widest uppercase mb-2">AI Enquiry Capture</p>
                 <h3 className="text-2xl font-black text-slate-900 mb-3 leading-tight">
@@ -272,7 +272,7 @@ export default function LandingPage() {
               </div>
               <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
                 <div className="flex items-center gap-3 mb-4 pb-4 border-b border-slate-50">
-                  <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center shrink-0">
                     <Bot className="w-4 h-4 text-white" />
                   </div>
                   <div>
@@ -324,8 +324,8 @@ export default function LandingPage() {
                   ))}
                 </div>
                 <div className="mt-3 flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-500" />
-                  <span className="text-[11px] font-bold text-blue-600">Collected by AI · 0 phone calls</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-teal-500" />
+                  <span className="text-[11px] font-bold text-teal-600">Collected by AI · 0 phone calls</span>
                 </div>
               </div>
             </div>
@@ -349,7 +349,7 @@ export default function LandingPage() {
                 <div className="space-y-0">
                   {[
                     { name: "Emma T. · Wardrobes",    status: "Quote ready",     tag: "bg-amber-100 text-amber-700"   },
-                    { name: "James R. · Kitchen",     status: "Photos needed",   tag: "bg-blue-100 text-blue-700"     },
+                    { name: "James R. · Kitchen",     status: "Photos needed",   tag: "bg-teal-100 text-teal-700"     },
                     { name: "Mark H. · Extension",    status: "Deposit paid ✓",  tag: "bg-emerald-100 text-emerald-700"},
                     { name: "Sarah M. · Media wall",  status: "New enquiry",     tag: "bg-violet-100 text-violet-700" },
                   ].map(({ name, status, tag }, i, arr) => (
@@ -427,7 +427,7 @@ export default function LandingPage() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <button
                 onClick={() => navigate("/sign-up")}
-                className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-0.5"
+                className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#0d9488] hover:bg-[#0f766e] text-white text-lg font-black px-10 py-5 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-0.5"
               >
                 <LayoutDashboard className="w-5 h-5" />
                 Sign Up Here
@@ -437,7 +437,7 @@ export default function LandingPage() {
                 onClick={() => widgetRef.current?.open()}
                 className="group w-full sm:w-auto inline-flex items-center justify-center gap-3 border-2 border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white text-lg font-black px-10 py-5 rounded-2xl transition-all hover:-translate-y-0.5"
               >
-                <MessageCircle className="w-5 h-5 text-blue-400" />
+                <MessageCircle className="w-5 h-5 text-teal-400" />
                 Try WorkRate AI
               </button>
             </div>
@@ -453,7 +453,7 @@ export default function LandingPage() {
       <footer className="border-t border-slate-100 py-8 bg-white">
         <div className="max-w-5xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-[#2563EB] rounded-md flex items-center justify-center">
+            <div className="w-6 h-6 bg-[#0d9488] rounded-md flex items-center justify-center">
               <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
                   d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />

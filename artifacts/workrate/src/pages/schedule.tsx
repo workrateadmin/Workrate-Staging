@@ -82,10 +82,10 @@ const EVENT_CONFIG: Record<
   survey: {
     label: "Site Survey",
     shortLabel: "Survey",
-    bg: "bg-blue-50",
-    text: "text-blue-700",
-    border: "border-blue-200",
-    dot: "bg-blue-500",
+    bg: "bg-teal-50",
+    text: "text-teal-700",
+    border: "border-teal-200",
+    dot: "bg-teal-500",
   },
   "install-start": {
     label: "Install Start",
@@ -586,7 +586,7 @@ function EventEditDialog({
           {/* Scheduling dates */}
           <div className="space-y-3 bg-secondary/30 rounded-xl p-4 border border-border/40">
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-2 h-2 rounded-full bg-blue-500" />
+              <div className="w-2 h-2 rounded-full bg-teal-500" />
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Site Survey</Label>
             </div>
             <Input
@@ -633,7 +633,7 @@ function EventEditDialog({
 
           {/* Legend */}
           <div className="flex items-center gap-4 text-[11px] font-semibold text-muted-foreground">
-            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" /> Survey</span>
+            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-teal-500" /> Survey</span>
             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" /> Install</span>
             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500" /> End</span>
           </div>

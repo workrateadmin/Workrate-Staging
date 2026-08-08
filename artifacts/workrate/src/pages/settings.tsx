@@ -471,7 +471,7 @@ function DocumentsBrandingCard() {
   const brandingSchema = z.object({
     documentMode: z.enum(["workrate", "custom"]),
     brandColourPrimary: z.string().optional().default("#1E293B"),
-    brandColourSecondary: z.string().optional().default("#2563EB"),
+    brandColourSecondary: z.string().optional().default("#0d9488"),
     website: z.string().optional().default(""),
     companyRegNumber: z.string().optional().default(""),
     vatNumber: z.string().optional().default(""),
@@ -488,7 +488,7 @@ function DocumentsBrandingCard() {
     defaultValues: {
       documentMode: "workrate",
       brandColourPrimary: "#1E293B",
-      brandColourSecondary: "#2563EB",
+      brandColourSecondary: "#0d9488",
       website: "",
       companyRegNumber: "",
       vatNumber: "",
@@ -507,7 +507,7 @@ function DocumentsBrandingCard() {
       form.reset({
         documentMode: ((company as any).documentMode as "workrate" | "custom") ?? "workrate",
         brandColourPrimary: (company as any).brandColourPrimary ?? "#1E293B",
-        brandColourSecondary: (company as any).brandColourSecondary ?? "#2563EB",
+        brandColourSecondary: (company as any).brandColourSecondary ?? "#0d9488",
         website: (company as any).website ?? "",
         companyRegNumber: (company as any).companyRegNumber ?? "",
         vatNumber: (company as any).vatNumber ?? "",
@@ -742,12 +742,12 @@ function DocumentsBrandingCard() {
                         <input
                           type="color"
                           className="w-10 h-10 rounded-lg cursor-pointer border border-border/60 p-0.5 bg-background"
-                          value={field.value ?? "#2563EB"}
+                          value={field.value ?? "#0d9488"}
                           onChange={(e) => field.onChange(e.target.value)}
                         />
                         <Input
                           className="field-input font-mono flex-1"
-                          placeholder="#2563EB"
+                          placeholder="#0d9488"
                           value={field.value ?? ""}
                           onChange={field.onChange}
                         />

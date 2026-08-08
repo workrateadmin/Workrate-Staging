@@ -8,7 +8,7 @@ interface SummaryCardProps {
 }
 
 const SECTIONS = [
-  { key: "measurements",          label: "Measurements",          icon: Ruler,          color: "text-blue-600",    bg: "bg-blue-50",    border: "border-blue-100" },
+  { key: "measurements",          label: "Measurements",          icon: Ruler,          color: "text-teal-600",    bg: "bg-teal-50",    border: "border-teal-100" },
   { key: "materials",             label: "Materials",             icon: Package,         color: "text-violet-600",  bg: "bg-violet-50",  border: "border-violet-100" },
   { key: "customerRequirements",  label: "Customer Requirements", icon: ListChecks,      color: "text-amber-600",   bg: "bg-amber-50",   border: "border-amber-100" },
   { key: "potentialChallenges",   label: "Potential Challenges",  icon: AlertTriangle,   color: "text-red-600",     bg: "bg-red-50",     border: "border-red-100" },

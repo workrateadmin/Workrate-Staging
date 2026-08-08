@@ -94,7 +94,7 @@ function CallStatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     completed:   "bg-green-50 text-green-700 border-green-200",
     missed:      "bg-red-50 text-red-700 border-red-200",
-    transferred: "bg-blue-50 text-blue-700 border-blue-200",
+    transferred: "bg-teal-50 text-teal-700 border-teal-200",
     dropped:     "bg-amber-50 text-amber-700 border-amber-200",
   };
   const icons: Record<string, React.ReactNode> = {

@@ -27,7 +27,7 @@ export type JobStatus = (typeof JOB_STATUSES)[number];
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   "Survey Required":        { bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200" },
-  "Survey Booked":          { bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-200" },
+  "Survey Booked":          { bg: "bg-teal-50",    text: "text-teal-700",    border: "border-teal-200" },
   "Installation Scheduled": { bg: "bg-cyan-50",    text: "text-cyan-700",    border: "border-cyan-200" },
   "In Progress":            { bg: "bg-indigo-50",  text: "text-indigo-700",  border: "border-indigo-200" },
   "Completed":              { bg: "bg-green-50",   text: "text-green-700",   border: "border-green-200" },

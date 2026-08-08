@@ -399,7 +399,7 @@ export default function JobDetail() {
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                      <div className="w-2 h-2 rounded-full bg-teal-500" />
                       <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Site Survey</Label>
                     </div>
                     <Input type="date" value={surveyDate} onChange={(e) => setSurveyDate(e.target.value)} className="field-input font-medium h-10" />
@@ -429,7 +429,7 @@ export default function JobDetail() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <ScheduleRow dot="bg-blue-500" label="Survey" value={job.siteSurveyDate} />
+                  <ScheduleRow dot="bg-teal-500" label="Survey" value={job.siteSurveyDate} />
                   <ScheduleRow dot="bg-green-500" label="Install Start" value={job.installationStartDate} />
                   <ScheduleRow dot="bg-amber-500" label="Install End" value={job.installationEndDate} />
                   {!job.siteSurveyDate && !job.installationStartDate && !job.installationEndDate && (

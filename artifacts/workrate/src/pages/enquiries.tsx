@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 
 // ── Status configuration ──────────────────────────────────────────────────────
 const PIPELINE_COLUMNS = [
-  { status: "new_enquiry",     label: "New Enquiry",     color: "bg-blue-500",   light: "bg-blue-50 border-blue-200",   text: "text-blue-700",   dot: "bg-blue-500" },
+  { status: "new_enquiry",     label: "New Enquiry",     color: "bg-teal-500",   light: "bg-teal-50 border-teal-200",   text: "text-teal-700",   dot: "bg-teal-500" },
   { status: "reviewing",       label: "Reviewing",       color: "bg-amber-500",  light: "bg-amber-50 border-amber-200", text: "text-amber-700",  dot: "bg-amber-500" },
   { status: "survey_required", label: "Survey Required", color: "bg-orange-500", light: "bg-orange-50 border-orange-200", text: "text-orange-700", dot: "bg-orange-500" },
   { status: "quote_sent",      label: "Quote Sent",      color: "bg-violet-500", light: "bg-violet-50 border-violet-200", text: "text-violet-700", dot: "bg-violet-500" },

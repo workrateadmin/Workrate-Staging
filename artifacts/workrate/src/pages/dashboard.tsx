@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 /* ── Status helpers ─────────────────────────────────────────────────────── */
 export function getStatusColorBarClass(status: string) {
   switch (status) {
-    case "new_enquiry":      return "bg-blue-500";
+    case "new_enquiry":      return "bg-teal-500";
     case "reviewing":
     case "survey_required":  return "bg-amber-500";
     case "quote_sent":       return "bg-violet-500";
@@ -33,7 +33,7 @@ export function getStatusColorBarClass(status: string) {
 
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; color: string }> = {
-    new_enquiry:     { label: "New",            color: "bg-blue-50 text-blue-700 border-blue-200" },
+    new_enquiry:     { label: "New",            color: "bg-teal-50 text-teal-700 border-teal-200" },
     reviewing:       { label: "Reviewing",      color: "bg-amber-50 text-amber-700 border-amber-200" },
     survey_required: { label: "Survey Required",color: "bg-amber-50 text-amber-700 border-amber-200" },
     quote_sent:      { label: "Quote Sent",     color: "bg-violet-50 text-violet-700 border-violet-200" },
@@ -49,7 +49,7 @@ export function StatusBadge({ status }: { status: string }) {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; bar: string; badge: string; text: string }> = {
-  new_enquiry:     { label: "New",          bar: "#3b82f6", badge: "#dbeafe", text: "#1e40af" },
+  new_enquiry:     { label: "New",          bar: "#14b8a6", badge: "#ccfbf1", text: "#0f766e" },
   reviewing:       { label: "Reviewing",    bar: "#f59e0b", badge: "#fef3c7", text: "#92400e" },
   survey_required: { label: "Survey Req.",  bar: "#f59e0b", badge: "#fef3c7", text: "#92400e" },
   quote_sent:      { label: "Quote Sent",   bar: "#8b5cf6", badge: "#ede9fe", text: "#5b21b6" },
@@ -330,7 +330,7 @@ export default function Dashboard() {
 
 /* ── Hex colour per event type ────────────────────────────────────────────── */
 const EVENT_HEX: Record<string, string> = {
-  survey:          "#3b82f6",
+  survey:          "#14b8a6",
   "install-start": "#10b981",
   "install-end":   "#f59e0b",
 };
@@ -647,7 +647,7 @@ function TodaysCallsWidget() {
   const statusIcons: Record<string, React.ReactNode> = {
     completed:   <CheckCircle2 className="w-4 h-4 text-green-600" />,
     missed:      <PhoneOff className="w-4 h-4 text-red-500" />,
-    transferred: <PhoneForwarded className="w-4 h-4 text-blue-600" />,
+    transferred: <PhoneForwarded className="w-4 h-4 text-teal-600" />,
     dropped:     <AlertCircle className="w-4 h-4 text-amber-600" />,
   };
 
