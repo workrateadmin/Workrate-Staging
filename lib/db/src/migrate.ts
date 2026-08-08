@@ -54,6 +54,18 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "0002_owner_user_id",
+    sql: `
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "owner_user_id" text;
+      ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "owner_user_id" text;
+      ALTER TABLE "ai_receptionist_settings" ADD COLUMN IF NOT EXISTS "owner_user_id" text;
+      ALTER TABLE "integrations" ADD COLUMN IF NOT EXISTS "owner_user_id" text;
+      -- Replace global unique constraint on provider with per-owner unique constraint
+      ALTER TABLE "integrations" DROP CONSTRAINT IF EXISTS "integrations_provider_unique";
+      CREATE UNIQUE INDEX IF NOT EXISTS "integrations_owner_provider_unique" ON "integrations"("owner_user_id", "provider");
+    `,
+  },
+  {
     name: "0000_add_scheduling_dates",
     sql: `
       -- Add scheduling date columns to jobs table

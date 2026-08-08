@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, enquiriesTable, quotesTable, jobsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -23,30 +23,72 @@ function parseJob(j: any) {
   };
 }
 
-// List all jobs
+/** Verify that a job's enquiry belongs to the logged-in user. */
+async function verifyJobOwnership(jobId: number, userId: string): Promise<{ job: typeof jobsTable.$inferSelect } | null> {
+  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, jobId));
+  if (!job) return null;
+
+  const [enquiry] = await db
+    .select({ ownerUserId: enquiriesTable.ownerUserId })
+    .from(enquiriesTable)
+    .where(and(eq(enquiriesTable.id, job.enquiryId), eq(enquiriesTable.ownerUserId, userId)));
+  if (!enquiry) return null;
+
+  return { job };
+}
+
+// List all jobs (scoped to enquiries owned by this user)
 router.get("/jobs", requireAuth, async (req, res): Promise<void> => {
-  const jobs = await db.select().from(jobsTable).orderBy(jobsTable.createdAt);
+  const { userId } = getAuth(req);
+
+  // Get this user's enquiry IDs
+  const ownedEnquiries = await db
+    .select({ id: enquiriesTable.id })
+    .from(enquiriesTable)
+    .where(eq(enquiriesTable.ownerUserId, userId!));
+
+  if (ownedEnquiries.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const enquiryIds = ownedEnquiries.map((e) => e.id);
+  const jobs = await db
+    .select()
+    .from(jobsTable)
+    .where(inArray(jobsTable.enquiryId, enquiryIds))
+    .orderBy(jobsTable.createdAt);
+
   res.json(jobs.map(parseJob));
 });
 
 // Get single job
 router.get("/jobs/:id", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, id));
-  if (!job) { res.status(404).json({ error: "Job not found" }); return; }
+  const owned = await verifyJobOwnership(id, userId!);
+  if (!owned) { res.status(404).json({ error: "Job not found" }); return; }
 
-  res.json(parseJob(job));
+  res.json(parseJob(owned.job));
 });
 
 // Create job
 router.post("/jobs", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const body = req.body;
   if (!body?.enquiryId || !body?.customerName) {
     res.status(400).json({ error: "enquiryId and customerName are required" });
     return;
   }
+
+  // Verify enquiry ownership
+  const [enquiry] = await db
+    .select({ id: enquiriesTable.id })
+    .from(enquiriesTable)
+    .where(and(eq(enquiriesTable.id, Number(body.enquiryId)), eq(enquiriesTable.ownerUserId, userId!)));
+  if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
 
   const [job] = await db
     .insert(jobsTable)
@@ -76,11 +118,12 @@ router.post("/jobs", requireAuth, async (req, res): Promise<void> => {
 
 // Update job
 router.patch("/jobs/:id", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [existing] = await db.select().from(jobsTable).where(eq(jobsTable.id, id));
-  if (!existing) { res.status(404).json({ error: "Job not found" }); return; }
+  const owned = await verifyJobOwnership(id, userId!);
+  if (!owned) { res.status(404).json({ error: "Job not found" }); return; }
 
   const body = req.body ?? {};
   const updates: Record<string, any> = {};
@@ -113,11 +156,12 @@ router.patch("/jobs/:id", requireAuth, async (req, res): Promise<void> => {
 
 // Schedule a job (survey / install dates)
 router.patch("/jobs/:id/schedule", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [existing] = await db.select().from(jobsTable).where(eq(jobsTable.id, id));
-  if (!existing) { res.status(404).json({ error: "Job not found" }); return; }
+  const owned = await verifyJobOwnership(id, userId!);
+  if (!owned) { res.status(404).json({ error: "Job not found" }); return; }
 
   const body = req.body ?? {};
   const updates: Record<string, any> = {};
@@ -139,14 +183,15 @@ router.patch("/jobs/:id/schedule", requireAuth, async (req, res): Promise<void> 
 
 // Convert enquiry → job
 router.post("/enquiries/:id/convert-to-job", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const enquiryId = Number(req.params.id);
   if (isNaN(enquiryId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  // Check enquiry exists
+  // Check enquiry exists and is owned
   const [enquiry] = await db
     .select()
     .from(enquiriesTable)
-    .where(eq(enquiriesTable.id, enquiryId));
+    .where(and(eq(enquiriesTable.id, enquiryId), eq(enquiriesTable.ownerUserId, userId!)));
   if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
 
   // Check if job already exists for this enquiry

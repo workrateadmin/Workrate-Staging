@@ -8,6 +8,7 @@ import { z } from "zod/v4";
  */
 export const aiReceptionistSettingsTable = pgTable("ai_receptionist_settings", {
   id: serial("id").primaryKey(),
+  ownerUserId: text("owner_user_id"),
   // Master switch
   enabled: boolean("enabled").notNull().default(false),
   // Welcome message: "generate" | "text" | "recorded"

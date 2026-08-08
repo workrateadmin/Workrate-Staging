@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, enquiriesTable, quotesTable, enquiryAttachmentsTable } from "@workspace/db";
-import { eq, sql, inArray } from "drizzle-orm";
+import { eq, sql, inArray, and } from "drizzle-orm";
 import { GetDashboardResponse } from "@workspace/api-zod";
 import { desc } from "drizzle-orm";
 
@@ -16,15 +16,27 @@ const requireAuth = (req: any, res: any, next: any) => {
   next();
 };
 
-router.get("/dashboard", requireAuth, async (_req, res): Promise<void> => {
+router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+
   const [allEnquiries, recentEnquiriesRaw, quotes] = await Promise.all([
-    db.select({ status: enquiriesTable.status }).from(enquiriesTable),
+    db
+      .select({ status: enquiriesTable.status })
+      .from(enquiriesTable)
+      .where(eq(enquiriesTable.ownerUserId, userId!)),
     db
       .select()
       .from(enquiriesTable)
+      .where(eq(enquiriesTable.ownerUserId, userId!))
       .orderBy(desc(enquiriesTable.createdAt))
       .limit(5),
-    db.select({ estimatedTotal: quotesTable.estimatedTotal }).from(quotesTable),
+    db
+      .select({ estimatedTotal: quotesTable.estimatedTotal, enquiryId: quotesTable.enquiryId })
+      .from(quotesTable)
+      .innerJoin(enquiriesTable, and(
+        eq(quotesTable.enquiryId, enquiriesTable.id),
+        eq(enquiriesTable.ownerUserId, userId!),
+      )),
   ]);
 
   // Batch-fetch attachment counts for recent enquiries

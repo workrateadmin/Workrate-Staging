@@ -116,11 +116,15 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
     async function startChat(type: string) {
       setIsStarting(true);
       setTradeType(type);
+      // Read business_id injected by widget.js into the iframe URL
+      const businessId = typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("business_id") ?? undefined
+        : undefined;
       try {
         const res = await fetch("/api/chat/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tradeType: type }),
+          body: JSON.stringify({ tradeType: type, ...(businessId ? { businessId } : {}) }),
         });
         if (!res.ok) throw new Error("Failed");
         const data = await res.json();

@@ -262,6 +262,7 @@ router.post("/chat/start", async (req, res): Promise<void> => {
       status: "new_enquiry",
       chatToken: token,
       projectType: parsed.data.tradeType,
+      ownerUserId: parsed.data.businessId ?? null,
     })
     .returning();
 

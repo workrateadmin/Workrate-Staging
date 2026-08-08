@@ -2,3 +2,4 @@
 - [WorkRate query hook pattern](workrate-query-hooks.md) — queryKey is required in query options or TS errors; always pass getGet*QueryKey()
 - [WorkRate API zod integer quirk](workrate-zod-int-quirk.md) — use type: number not integer in OpenAPI spec; zod.int() doesn't exist in this zod version
 - [WorkRate integrations architecture](workrate-integrations-arch.md) — provider registry pattern, DB schema, codegen quirks, comingSoon flag
+- [WorkRate ownership model](workrate-ownership-model.md) — owner_user_id on key tables, claim-on-first-login, widget businessId flow, migration 0002

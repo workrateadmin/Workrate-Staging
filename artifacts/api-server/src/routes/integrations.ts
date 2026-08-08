@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, integrationsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -12,8 +12,6 @@ const requireAuth = (req: any, res: any, next: any) => {
 };
 
 // ── Integration provider registry ─────────────────────────────────────────────
-// Add new providers here as integrations are built. The frontend reads this
-// list to render the catalog; the DB stores connection state per provider.
 export const INTEGRATION_PROVIDERS = [
   // ── Messaging ────────────────────────────────────────────────────────────
   {
@@ -74,11 +72,15 @@ export type ProviderCategory = typeof INTEGRATION_PROVIDERS[number]["category"];
 
 // ── GET /integrations ─────────────────────────────────────────────────────────
 router.get("/integrations", requireAuth, async (req, res): Promise<void> => {
-  // Load any existing DB records
-  const rows = await db.select().from(integrationsTable);
+  const { userId } = getAuth(req);
+
+  // Load DB records scoped to this user
+  const rows = await db
+    .select()
+    .from(integrationsTable)
+    .where(eq(integrationsTable.ownerUserId, userId!));
   const statusMap = new Map(rows.map((r) => [r.provider, r]));
 
-  // Merge registry with DB state — every provider is always visible
   const integrations = INTEGRATION_PROVIDERS.map((p) => {
     const row = statusMap.get(p.provider);
     return {
@@ -97,13 +99,17 @@ router.get("/integrations", requireAuth, async (req, res): Promise<void> => {
 
 // ── GET /integrations/:provider ───────────────────────────────────────────────
 router.get("/integrations/:provider", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const providerDef = INTEGRATION_PROVIDERS.find((p) => p.provider === req.params.provider);
   if (!providerDef) { res.status(404).json({ error: "Unknown provider" }); return; }
 
   const [row] = await db
     .select()
     .from(integrationsTable)
-    .where(eq(integrationsTable.provider, req.params.provider));
+    .where(and(
+      eq(integrationsTable.ownerUserId, userId!),
+      eq(integrationsTable.provider, req.params.provider),
+    ));
 
   res.json({
     provider: providerDef.provider,
@@ -117,7 +123,6 @@ router.get("/integrations/:provider", requireAuth, async (req, res): Promise<voi
 });
 
 // ── POST /integrations/:provider/connect ─────────────────────────────────────
-// Stub — returns 501 until each integration is built.
 router.post("/integrations/:provider/connect", requireAuth, async (req, res): Promise<void> => {
   const providerDef = INTEGRATION_PROVIDERS.find((p) => p.provider === req.params.provider);
   if (!providerDef) { res.status(404).json({ error: "Unknown provider" }); return; }
@@ -130,16 +135,24 @@ router.post("/integrations/:provider/connect", requireAuth, async (req, res): Pr
 
 // ── DELETE /integrations/:provider ───────────────────────────────────────────
 router.delete("/integrations/:provider", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+
   const [row] = await db
     .select()
     .from(integrationsTable)
-    .where(eq(integrationsTable.provider, req.params.provider));
+    .where(and(
+      eq(integrationsTable.ownerUserId, userId!),
+      eq(integrationsTable.provider, req.params.provider),
+    ));
 
   if (!row) { res.status(404).json({ error: "Integration not connected" }); return; }
 
   await db
     .delete(integrationsTable)
-    .where(eq(integrationsTable.provider, req.params.provider));
+    .where(and(
+      eq(integrationsTable.ownerUserId, userId!),
+      eq(integrationsTable.provider, req.params.provider),
+    ));
 
   res.status(204).end();
 });

@@ -15,7 +15,8 @@ import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
  */
 export const integrationsTable = pgTable("integrations", {
   id: serial("id").primaryKey(),
-  provider: text("provider").notNull().unique(), // e.g. "stripe", "xero"
+  ownerUserId: text("owner_user_id"),
+  provider: text("provider").notNull(), // e.g. "stripe", "xero"
   status: text("status").notNull().default("disconnected"), // connected | disconnected | error
   config: text("config"),    // JSON — keep encrypted in production
   metadata: text("metadata"), // JSON — safe for API responses

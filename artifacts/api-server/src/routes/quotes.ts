@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, enquiriesTable, quotesTable, companiesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import {
   GetQuoteParams,
   GetQuoteResponse,
@@ -43,11 +43,19 @@ function parseQuote(q: any) {
 
 // Get quote
 router.get("/enquiries/:id/quote", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const params = GetQuoteParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
+
+  // Verify enquiry ownership
+  const [enquiry] = await db
+    .select({ id: enquiriesTable.id })
+    .from(enquiriesTable)
+    .where(and(eq(enquiriesTable.id, params.data.id), eq(enquiriesTable.ownerUserId, userId!)));
+  if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
 
   const [quote] = await db
     .select()
@@ -64,6 +72,7 @@ router.get("/enquiries/:id/quote", requireAuth, async (req, res): Promise<void> 
 
 // Generate quote via AI
 router.post("/enquiries/:id/quote", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const params = GenerateQuoteParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -73,14 +82,18 @@ router.post("/enquiries/:id/quote", requireAuth, async (req, res): Promise<void>
   const [enquiry] = await db
     .select()
     .from(enquiriesTable)
-    .where(eq(enquiriesTable.id, params.data.id));
+    .where(and(eq(enquiriesTable.id, params.data.id), eq(enquiriesTable.ownerUserId, userId!)));
 
   if (!enquiry) {
     res.status(404).json({ error: "Enquiry not found" });
     return;
   }
 
-  const [company] = await db.select().from(companiesTable).limit(1);
+  const [company] = await db
+    .select()
+    .from(companiesTable)
+    .where(eq(companiesTable.ownerUserId, userId!))
+    .limit(1);
   const labourRate = Number(company?.labourRatePerHour ?? 35);
   const markup = Number(company?.materialMarkupPercent ?? 20);
 
@@ -170,6 +183,7 @@ Use the business settings to set labour rates. Apply the materials markup to you
 
 // Update quote
 router.patch("/enquiries/:id/quote", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const params = UpdateQuoteParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -181,6 +195,13 @@ router.patch("/enquiries/:id/quote", requireAuth, async (req, res): Promise<void
     res.status(400).json({ error: body.error.message });
     return;
   }
+
+  // Verify enquiry ownership
+  const [enquiry] = await db
+    .select({ id: enquiriesTable.id })
+    .from(enquiriesTable)
+    .where(and(eq(enquiriesTable.id, params.data.id), eq(enquiriesTable.ownerUserId, userId!)));
+  if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
 
   const [existing] = await db
     .select()

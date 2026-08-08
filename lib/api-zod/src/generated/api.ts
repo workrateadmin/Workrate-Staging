@@ -751,7 +751,8 @@ export const GetDashboardResponse = zod.object({
  * @summary Start a new customer chat session (public)
  */
 export const StartChatBody = zod.object({
-  "tradeType": zod.string()
+  "tradeType": zod.string(),
+  "businessId": zod.string().nullish()
 })
 
 export const StartChatResponse = zod.object({

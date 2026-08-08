@@ -15,6 +15,7 @@ export type EnquiryStatus = typeof ENQUIRY_STATUSES[number];
 
 export const enquiriesTable = pgTable("enquiries", {
   id: serial("id").primaryKey(),
+  ownerUserId: text("owner_user_id"),
   customerName: text("customer_name").notNull(),
   customerEmail: text("customer_email"),
   customerPhone: text("customer_phone"),

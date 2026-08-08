@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, aiCallsTable, aiReceptionistSettingsTable, enquiriesTable, companiesTable } from "@workspace/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, isNull, and } from "drizzle-orm";
 import OpenAI from "openai";
 
 const router: IRouter = Router();
@@ -25,11 +25,20 @@ function getOpenAI() {
 
 // GET /ai-receptionist/settings
 router.get("/ai-receptionist/settings", requireAuth, async (req, res): Promise<void> => {
-  let [settings] = await db.select().from(aiReceptionistSettingsTable).limit(1);
+  const { userId } = getAuth(req);
+
+  let [settings] = await db
+    .select()
+    .from(aiReceptionistSettingsTable)
+    .where(eq(aiReceptionistSettingsTable.ownerUserId, userId!))
+    .limit(1);
 
   if (!settings) {
-    // Seed default settings row
-    [settings] = await db.insert(aiReceptionistSettingsTable).values({}).returning();
+    // Seed default settings row for this user
+    [settings] = await db
+      .insert(aiReceptionistSettingsTable)
+      .values({ ownerUserId: userId! })
+      .returning();
   }
 
   res.json(settings);
@@ -37,11 +46,20 @@ router.get("/ai-receptionist/settings", requireAuth, async (req, res): Promise<v
 
 // PUT /ai-receptionist/settings
 router.put("/ai-receptionist/settings", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const body = req.body ?? {};
-  let [existing] = await db.select().from(aiReceptionistSettingsTable).limit(1);
+
+  let [existing] = await db
+    .select()
+    .from(aiReceptionistSettingsTable)
+    .where(eq(aiReceptionistSettingsTable.ownerUserId, userId!))
+    .limit(1);
 
   if (!existing) {
-    const [created] = await db.insert(aiReceptionistSettingsTable).values(body).returning();
+    const [created] = await db
+      .insert(aiReceptionistSettingsTable)
+      .values({ ...body, ownerUserId: userId! })
+      .returning();
     res.json(created);
     return;
   }
@@ -63,7 +81,10 @@ router.put("/ai-receptionist/settings", requireAuth, async (req, res): Promise<v
   const [updated] = await db
     .update(aiReceptionistSettingsTable)
     .set(updates)
-    .where(eq(aiReceptionistSettingsTable.id, existing.id))
+    .where(and(
+      eq(aiReceptionistSettingsTable.id, existing.id),
+      eq(aiReceptionistSettingsTable.ownerUserId, userId!),
+    ))
     .returning();
 
   res.json(updated);

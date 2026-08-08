@@ -63,13 +63,14 @@ router.get(
   "/enquiries/:id/attachments",
   requireAuth,
   async (req, res): Promise<void> => {
+    const { userId } = getAuth(req);
     const id = Number(req.params.id);
     if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
 
     const [enquiry] = await db
       .select({ id: enquiriesTable.id })
       .from(enquiriesTable)
-      .where(eq(enquiriesTable.id, id));
+      .where(and(eq(enquiriesTable.id, id), eq(enquiriesTable.ownerUserId, userId!)));
 
     if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
 
@@ -89,6 +90,7 @@ router.post(
   requireAuth,
   upload.single("file"),
   async (req: Request, res: Response): Promise<void> => {
+    const { userId } = getAuth(req);
     const id = Number(req.params.id);
     if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -98,7 +100,7 @@ router.post(
     const [enquiry] = await db
       .select({ id: enquiriesTable.id })
       .from(enquiriesTable)
-      .where(eq(enquiriesTable.id, id));
+      .where(and(eq(enquiriesTable.id, id), eq(enquiriesTable.ownerUserId, userId!)));
 
     if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
 
@@ -124,9 +126,17 @@ router.delete(
   "/enquiries/:id/attachments/:attachmentId",
   requireAuth,
   async (req, res): Promise<void> => {
+    const { userId } = getAuth(req);
     const id = Number(req.params.id);
     const attachmentId = Number(req.params.attachmentId);
     if (!id || !attachmentId) { res.status(400).json({ error: "Invalid id" }); return; }
+
+    // Verify enquiry ownership
+    const [enquiry] = await db
+      .select({ id: enquiriesTable.id })
+      .from(enquiriesTable)
+      .where(and(eq(enquiriesTable.id, id), eq(enquiriesTable.ownerUserId, userId!)));
+    if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
 
     const [attachment] = await db
       .select()

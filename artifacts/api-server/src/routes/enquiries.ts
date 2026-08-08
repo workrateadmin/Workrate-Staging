@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, enquiriesTable, enquiryMessagesTable, enquiryAttachmentsTable } from "@workspace/db";
-import { eq, count, sql } from "drizzle-orm";
+import { eq, count, and, inArray } from "drizzle-orm";
 import {
   ListEnquiriesQueryParams,
   ListEnquiriesResponse,
@@ -31,9 +31,9 @@ const requireAuth = (req: any, res: any, next: any) => {
   next();
 };
 
-
 // List enquiries
 router.get("/enquiries", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const params = ListEnquiriesQueryParams.safeParse(req.query);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -43,7 +43,7 @@ router.get("/enquiries", requireAuth, async (req, res): Promise<void> => {
   let rows = await db
     .select()
     .from(enquiriesTable)
-    .orderBy(eq(enquiriesTable.status, enquiriesTable.status));
+    .where(eq(enquiriesTable.ownerUserId, userId!));
 
   if (params.data.status) {
     rows = rows.filter((e) => e.status === params.data.status);
@@ -54,13 +54,17 @@ router.get("/enquiries", requireAuth, async (req, res): Promise<void> => {
   );
 
   // Fetch attachment counts in one query
-  const counts = await db
-    .select({
-      enquiryId: enquiryAttachmentsTable.enquiryId,
-      cnt: count(enquiryAttachmentsTable.id),
-    })
-    .from(enquiryAttachmentsTable)
-    .groupBy(enquiryAttachmentsTable.enquiryId);
+  const enquiryIds = rows.map((e) => e.id);
+  const counts = enquiryIds.length
+    ? await db
+        .select({
+          enquiryId: enquiryAttachmentsTable.enquiryId,
+          cnt: count(enquiryAttachmentsTable.id),
+        })
+        .from(enquiryAttachmentsTable)
+        .where(inArray(enquiryAttachmentsTable.enquiryId, enquiryIds))
+        .groupBy(enquiryAttachmentsTable.enquiryId)
+    : [];
   const countMap = new Map(counts.map((r) => [r.enquiryId, Number(r.cnt)]));
 
   res.json(
@@ -72,6 +76,7 @@ router.get("/enquiries", requireAuth, async (req, res): Promise<void> => {
 
 // Create enquiry
 router.post("/enquiries", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const parsed = CreateEnquiryBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -83,6 +88,7 @@ router.post("/enquiries", requireAuth, async (req, res): Promise<void> => {
     .values({
       ...parsed.data,
       status: parsed.data.status ?? "new_enquiry",
+      ownerUserId: userId!,
     })
     .returning();
 
@@ -91,6 +97,7 @@ router.post("/enquiries", requireAuth, async (req, res): Promise<void> => {
 
 // Get enquiry
 router.get("/enquiries/:id", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const params = GetEnquiryParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -100,7 +107,10 @@ router.get("/enquiries/:id", requireAuth, async (req, res): Promise<void> => {
   const [enquiry] = await db
     .select()
     .from(enquiriesTable)
-    .where(eq(enquiriesTable.id, params.data.id));
+    .where(and(
+      eq(enquiriesTable.id, params.data.id),
+      eq(enquiriesTable.ownerUserId, userId!),
+    ));
 
   if (!enquiry) {
     res.status(404).json({ error: "Enquiry not found" });
@@ -122,6 +132,7 @@ router.get("/enquiries/:id", requireAuth, async (req, res): Promise<void> => {
 
 // Update enquiry
 router.patch("/enquiries/:id", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const params = UpdateEnquiryParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -149,7 +160,10 @@ router.patch("/enquiries/:id", requireAuth, async (req, res): Promise<void> => {
   const [updated] = await db
     .update(enquiriesTable)
     .set(updates)
-    .where(eq(enquiriesTable.id, params.data.id))
+    .where(and(
+      eq(enquiriesTable.id, params.data.id),
+      eq(enquiriesTable.ownerUserId, userId!),
+    ))
     .returning();
 
   if (!updated) {
@@ -162,6 +176,7 @@ router.patch("/enquiries/:id", requireAuth, async (req, res): Promise<void> => {
 
 // Delete enquiry
 router.delete("/enquiries/:id", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const params = DeleteEnquiryParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -170,7 +185,10 @@ router.delete("/enquiries/:id", requireAuth, async (req, res): Promise<void> => 
 
   const [deleted] = await db
     .delete(enquiriesTable)
-    .where(eq(enquiriesTable.id, params.data.id))
+    .where(and(
+      eq(enquiriesTable.id, params.data.id),
+      eq(enquiriesTable.ownerUserId, userId!),
+    ))
     .returning();
 
   if (!deleted) {
@@ -186,11 +204,22 @@ router.get(
   "/enquiries/:id/messages",
   requireAuth,
   async (req, res): Promise<void> => {
+    const { userId } = getAuth(req);
     const params = ListEnquiryMessagesParams.safeParse(req.params);
     if (!params.success) {
       res.status(400).json({ error: params.error.message });
       return;
     }
+
+    // Verify ownership
+    const [enquiry] = await db
+      .select({ id: enquiriesTable.id })
+      .from(enquiriesTable)
+      .where(and(
+        eq(enquiriesTable.id, params.data.id),
+        eq(enquiriesTable.ownerUserId, userId!),
+      ));
+    if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
 
     const messages = await db
       .select()
@@ -207,18 +236,22 @@ router.post(
   "/enquiries/:id/generate-summary",
   requireAuth,
   async (req, res): Promise<void> => {
+    const { userId } = getAuth(req);
     const params = GenerateEnquirySummaryParams.safeParse(req.params);
     if (!params.success) {
       res.status(400).json({ error: params.error.message });
       return;
     }
 
-    const existing = await db
+    const [owned] = await db
       .select({ id: enquiriesTable.id })
       .from(enquiriesTable)
-      .where(eq(enquiriesTable.id, params.data.id));
+      .where(and(
+        eq(enquiriesTable.id, params.data.id),
+        eq(enquiriesTable.ownerUserId, userId!),
+      ));
 
-    if (!existing.length) {
+    if (!owned) {
       res.status(404).json({ error: "Enquiry not found" });
       return;
     }
