@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
-  MessageSquare, Mail, Smartphone, Save, Eye, X, CheckCircle2, AlertCircle,
+  MessageSquare, Mail, Smartphone, Save, Eye, X, CheckCircle2,
   Info,
 } from "lucide-react";
 import {
@@ -163,19 +163,6 @@ export function CustomerCommsCard() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
 
-            {/* ── Email provider status ── */}
-            {!process.env.RESEND_API_KEY && (
-              <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
-                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-bold text-amber-800">Email sending requires a Resend API key</p>
-                  <p className="text-xs text-amber-700 mt-1 font-medium">
-                    Add your <strong>RESEND_API_KEY</strong> in Workspace → Secrets to activate email sending.
-                    Get a free key at <a href="https://resend.com" target="_blank" rel="noreferrer" className="underline">resend.com</a>.
-                  </p>
-                </div>
-              </div>
-            )}
 
             {/* ── Enquiry Confirmation ── */}
             <div>
