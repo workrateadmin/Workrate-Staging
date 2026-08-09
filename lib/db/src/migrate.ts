@@ -106,6 +106,13 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         AND "installation_start_date" IS NULL;
     `,
   },
+  {
+    name: "0004_widget_token",
+    sql: `
+      ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "widget_token" text;
+      CREATE UNIQUE INDEX IF NOT EXISTS "companies_widget_token_unique" ON "companies"("widget_token") WHERE "widget_token" IS NOT NULL;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
