@@ -91,6 +91,8 @@ export interface Company {
   proposalEmailEnabled?: boolean | null;
   /** @nullable */
   widgetToken?: string | null;
+  /** @nullable */
+  onboardingDismissed?: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -131,6 +133,7 @@ export interface CompanyInput {
   enquirySmsEnabled?: boolean;
   enquiryConfirmationMessage?: string;
   proposalEmailEnabled?: boolean;
+  onboardingDismissed?: boolean;
 }
 
 export interface Enquiry {

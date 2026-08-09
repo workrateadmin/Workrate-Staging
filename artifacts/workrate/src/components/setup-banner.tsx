@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
-import { useGetCompany, useListEnquiries, getListEnquiriesQueryKey } from "@workspace/api-client-react";
+import { useState, useEffect, useRef } from "react";
+import { useGetCompany, useListEnquiries, getListEnquiriesQueryKey, useUpdateCompany } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { X, CheckCircle2, Circle, ArrowRight, Rocket } from "lucide-react";
+import { X, CheckCircle2, ArrowRight, Rocket } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const DISMISSED_KEY = "wr_onboarding_dismissed";
@@ -11,15 +11,23 @@ export const FIRST_ENQUIRY_SEEN_KEY = "wr_first_enquiry_seen";
 
 /**
  * One-time setup checklist shown to users who have just created / claimed their
- * company. Disappears permanently once dismissed (stored in localStorage).
+ * company. Disappears permanently once dismissed.
+ *
+ * Dismissal is persisted to the DB (via PUT /company) so it survives device
+ * switches and localStorage clears. localStorage is kept as a fast-path fallback
+ * so returning users on the same device never see a flicker.
  */
 export function SetupBanner() {
   const { data: company } = useGetCompany();
+  const { mutate: updateCompany } = useUpdateCompany();
+
   // Poll enquiries — used to auto-complete steps 2 & 3 on first widget hit.
   const { data: enquiries } = useListEnquiries(undefined, {
     query: { queryKey: getListEnquiriesQueryKey(), refetchInterval: 30_000 },
   });
 
+  // Initialise from localStorage so returning users on the same device see
+  // nothing immediately (no flicker). The DB value takes over once loaded.
   const [dismissed, setDismissed] = useState(() =>
     typeof window !== "undefined"
       ? localStorage.getItem(DISMISSED_KEY) === "1"
@@ -35,6 +43,19 @@ export function SetupBanner() {
       ? localStorage.getItem(STEP3_DONE_KEY) === "1"
       : false
   );
+
+  // Once the company record loads, honour the server-side dismissal flag.
+  // This covers other devices / incognito windows where localStorage is cold.
+  const serverDismissApplied = useRef(false);
+  useEffect(() => {
+    if (!company || serverDismissApplied.current) return;
+    serverDismissApplied.current = true;
+    if (company.onboardingDismissed) {
+      // Mirror to localStorage so subsequent loads are instant.
+      localStorage.setItem(DISMISSED_KEY, "1");
+      setDismissed(true);
+    }
+  }, [company]);
 
   // Auto-complete steps 2 & 3 when the first enquiry arrives (proves the
   // widget is embedded and working). Only fires once per device.
@@ -69,8 +90,11 @@ export function SetupBanner() {
   }, [allDone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function dismiss() {
+    // Write to localStorage for instant effect on this device.
     localStorage.setItem(DISMISSED_KEY, "1");
     setDismissed(true);
+    // Persist to DB so other devices / future sessions stay dismissed.
+    updateCompany({ data: { onboardingDismissed: true } });
   }
 
   function toggleStep2() {

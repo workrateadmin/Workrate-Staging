@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -39,15 +39,19 @@ export const companiesTable = pgTable("companies", {
 
   // ── Customer communications ─────────────────────────────────────────────
   notificationsFromEmail: text("notifications_from_email"),
-  enquiryConfirmationEnabled: integer("enquiry_confirmation_enabled", { mode: "boolean" }).notNull().default(true),
-  enquiryEmailEnabled: integer("enquiry_email_enabled", { mode: "boolean" }).notNull().default(true),
-  enquirySmsEnabled: integer("enquiry_sms_enabled", { mode: "boolean" }).notNull().default(false),
+  enquiryConfirmationEnabled: boolean("enquiry_confirmation_enabled").notNull().default(true),
+  enquiryEmailEnabled: boolean("enquiry_email_enabled").notNull().default(true),
+  enquirySmsEnabled: boolean("enquiry_sms_enabled").notNull().default(false),
   enquiryConfirmationMessage: text("enquiry_confirmation_message"),
-  proposalEmailEnabled: integer("proposal_email_enabled", { mode: "boolean" }).notNull().default(true),
+  proposalEmailEnabled: boolean("proposal_email_enabled").notNull().default(true),
 
   // ── Widget token — stable across Clerk environments (dev ↔ production) ─────
   // Use this as data-business-id in the embed snippet instead of the Clerk userId.
   widgetToken: text("widget_token").unique(),
+
+  // ── Onboarding ───────────────────────────────────────────────────────────
+  // Persisted so the setup checklist stays dismissed across devices / browsers.
+  onboardingDismissed: boolean("onboarding_dismissed").notNull().default(false),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

@@ -194,6 +194,7 @@ router.put("/company", requireAuth, async (req, res): Promise<void> => {
     ...(d.enquirySmsEnabled !== undefined && { enquirySmsEnabled: d.enquirySmsEnabled }),
     ...(d.enquiryConfirmationMessage !== undefined && { enquiryConfirmationMessage: d.enquiryConfirmationMessage }),
     ...(d.proposalEmailEnabled !== undefined && { proposalEmailEnabled: d.proposalEmailEnabled }),
+    ...(d.onboardingDismissed !== undefined && { onboardingDismissed: d.onboardingDismissed }),
   };
 
   if (!existing) {
