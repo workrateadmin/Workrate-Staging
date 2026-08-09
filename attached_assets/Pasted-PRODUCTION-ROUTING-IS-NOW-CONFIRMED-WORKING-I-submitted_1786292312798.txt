@@ -1,0 +1,68 @@
+PRODUCTION ROUTING IS NOW CONFIRMED WORKING.
+
+I submitted a new enquiry from the live Huntley Bespoke Wix website using the new production widget.
+
+RESULT:
+- Customer confirmation email arrived immediately from WorkRate/Resend.
+- Therefore the production widget and production API are working.
+- The enquiry still does NOT appear on the desktop WorkRate dashboard.
+
+DO NOT change:
+- Wix
+- widget.js
+- Resend
+- DNS
+- email code
+- polling
+
+Only diagnose the desktop enquiry retrieval/ownership issue.
+
+Find the EXACT latest enquiry that generated the successful confirmation email.
+
+Report:
+
+1. enquiry ID
+2. customer name/email
+3. created_at
+4. owner_user_id
+5. company/business ID
+6. widget/business token used
+7. confirmation_email_status
+
+Then inspect the DESKTOP authenticated request to GET /enquiries:
+
+8. Clerk user ID
+9. company/business ID
+10. exact SQL query
+11. exact API response
+12. number of rows returned
+
+CRITICAL:
+
+Compare the latest enquiry's owner_user_id directly with the desktop Clerk user ID.
+
+Also verify whether the previously implemented lazy-claim migration has actually run in PRODUCTION.
+
+If the enquiry has owner_user_id = NULL:
+- determine why new production widget enquiries are still being created unowned
+- fix creation so all future enquiries are assigned to the correct company/user immediately
+- safely claim the existing unowned production enquiries
+
+If the enquiry has the correct owner_user_id but GET /enquiries returns 0:
+- identify the exact desktop query/filter bug and fix it
+
+Do not use a frontend workaround.
+
+The backend must return the correct enquiries for the authenticated production user.
+
+After fixing:
+
+1. The latest EXISTING enquiry must appear on desktop.
+2. All previous correctly-owned enquiries must appear.
+3. Refresh desktop — they remain.
+4. Log out and back in — they remain.
+5. Submit ONE final test enquiry.
+6. Email confirmation arrives.
+7. Same enquiry appears on mobile and desktop.
+
+Do not mark fixed until the SAME existing database record appears on desktop.
