@@ -1,4 +1,4 @@
-import { useListEnquiries, useUpdateEnquiry } from "@workspace/api-client-react";
+import { useListEnquiries, useUpdateEnquiry, useDeleteEnquiry } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
 import { useState } from "react";
@@ -19,6 +19,7 @@ import {
   ImageIcon,
   ChevronRight,
   ArrowRight,
+  Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useQueryClient } from "@tanstack/react-query";
@@ -151,6 +152,18 @@ function PipelineView({
     },
   });
 
+  const deleteEnquiry = useDeleteEnquiry({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Enquiry deleted" });
+        queryClient.invalidateQueries({ queryKey: ["/api/enquiries"] });
+      },
+      onError: () => {
+        toast({ title: "Failed to delete enquiry", variant: "destructive" });
+      },
+    },
+  });
+
   const grouped = PIPELINE_COLUMNS.reduce(
     (acc, col) => {
       acc[col.status] = (enquiries ?? []).filter((e) => e.status === col.status);
@@ -227,6 +240,8 @@ function PipelineView({
                           updateEnquiry.mutate({ id: enq.id, data: { status: toStatus } })
                         }
                         isPending={updateEnquiry.isPending}
+                        onDelete={() => deleteEnquiry.mutate({ id: enq.id })}
+                        isDeleting={deleteEnquiry.isPending}
                       />
                     ))
                   )}
@@ -246,13 +261,18 @@ function PipelineCard({
   columns,
   onMove,
   isPending,
+  onDelete,
+  isDeleting,
 }: {
   enquiry: any;
   columns: typeof PIPELINE_COLUMNS;
   onMove: (status: string) => void;
   isPending: boolean;
+  onDelete?: () => void;
+  isDeleting?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const photoCount = enq.attachmentCount ?? 0;
 
@@ -352,7 +372,7 @@ function PipelineCard({
 
           {menuOpen && (
             <>
-              <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
+              <div className="fixed inset-0 z-20" onClick={() => { setMenuOpen(false); setConfirmDelete(false); }} />
               <div className="absolute top-full right-0 mt-1 z-30 bg-card border border-border/60 rounded-xl shadow-xl py-1 w-48 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-3 py-2 border-b border-border/40">
                   Move to
@@ -373,6 +393,53 @@ function PipelineCard({
                     <ArrowRight className="w-3 h-3 ml-auto text-muted-foreground/50" />
                   </button>
                 ))}
+                {onDelete && (
+                  <>
+                    <div className="border-t border-border/40 my-1" />
+                    {confirmDelete ? (
+                      <div className="px-3 py-2">
+                        <p className="text-xs font-bold text-destructive mb-2">Delete this lead?</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onDelete();
+                              setMenuOpen(false);
+                              setConfirmDelete(false);
+                            }}
+                            disabled={isDeleting}
+                            className="flex-1 bg-destructive text-destructive-foreground text-xs font-bold py-1 rounded-md hover:bg-destructive/90 transition-colors"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setConfirmDelete(false);
+                            }}
+                            className="flex-1 bg-secondary text-xs font-bold py-1 rounded-md hover:bg-secondary/80 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setConfirmDelete(true);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10 transition-colors text-left"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                        Delete
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             </>
           )}
@@ -390,6 +457,23 @@ function ListView({
   enquiries: any[] | undefined;
   isLoading: boolean;
 }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  const deleteEnquiry = useDeleteEnquiry({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Enquiry deleted" });
+        setConfirmDeleteId(null);
+        queryClient.invalidateQueries({ queryKey: ["/api/enquiries"] });
+      },
+      onError: () => {
+        toast({ title: "Failed to delete enquiry", variant: "destructive" });
+      },
+    },
+  });
+
   return (
     <div className="grid gap-3">
       {isLoading ? (
@@ -416,74 +500,120 @@ function ListView({
             }
           } catch {}
 
+          const isConfirming = confirmDeleteId === enq.id;
+
           return (
-            <Link key={enq.id} href={`/enquiries/${enq.id}`}>
-              <Card className="relative overflow-hidden group hover-elevate cursor-pointer border-border/60 transition-all bg-card rounded-xl shadow-sm hover:shadow-md">
-                <div
-                  className={`absolute left-0 top-0 bottom-0 w-[4px] transition-colors ${getStatusColorBarClass(enq.status)}`}
-                />
-                <CardContent className="p-5 pl-7">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
-                    <div>
-                      <h3 className="font-bold text-lg leading-tight text-foreground">{enq.customerName}</h3>
-                      {(enq.customerEmail || enq.customerPhone) && (
-                        <div className="flex items-center gap-4 mt-1">
-                          {enq.customerEmail && (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium">
-                              <Mail className="w-3 h-3" /> {enq.customerEmail}
-                            </span>
-                          )}
-                          {enq.customerPhone && (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium">
-                              <Phone className="w-3 h-3" /> {enq.customerPhone}
-                            </span>
-                          )}
+            <div key={enq.id} className="relative group">
+              <Link href={`/enquiries/${enq.id}`}>
+                <Card className="relative overflow-hidden hover-elevate cursor-pointer border-border/60 transition-all bg-card rounded-xl shadow-sm hover:shadow-md">
+                  <div
+                    className={`absolute left-0 top-0 bottom-0 w-[4px] transition-colors ${getStatusColorBarClass(enq.status)}`}
+                  />
+                  <CardContent className="p-5 pl-7 pr-14">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
+                      <div>
+                        <h3 className="font-bold text-lg leading-tight text-foreground">{enq.customerName}</h3>
+                        {(enq.customerEmail || enq.customerPhone) && (
+                          <div className="flex items-center gap-4 mt-1">
+                            {enq.customerEmail && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium">
+                                <Mail className="w-3 h-3" /> {enq.customerEmail}
+                              </span>
+                            )}
+                            {enq.customerPhone && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium">
+                                <Phone className="w-3 h-3" /> {enq.customerPhone}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-sm text-muted-foreground font-semibold hidden sm:block">
+                          {formatDate(enq.createdAt)}
+                        </span>
+                        <StatusBadge status={enq.status} />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold text-muted-foreground">
+                      <div className="flex items-center gap-1.5">
+                        <Hammer className="w-3.5 h-3.5" />
+                        <span className="text-foreground/80">{enq.projectType || "General Enquiry"}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5" />
+                        <span className="text-foreground/80">{enq.location || "No location"}</span>
+                      </div>
+                      {enq.budget && (
+                        <div className="flex items-center gap-1.5">
+                          <PoundSterling className="w-3.5 h-3.5" />
+                          <span className="text-foreground/80">{enq.budget}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span className="text-foreground/80 sm:hidden">{formatDate(enq.createdAt)}</span>
+                      </div>
+                      {photoCount > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <ImageIcon className="w-3.5 h-3.5" />
+                          <span className="text-foreground/80">{photoCount} photo{photoCount > 1 ? "s" : ""}</span>
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-sm text-muted-foreground font-semibold hidden sm:block">
-                        {formatDate(enq.createdAt)}
-                      </span>
-                      <StatusBadge status={enq.status} />
-                    </div>
-                  </div>
 
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <Hammer className="w-3.5 h-3.5" />
-                      <span className="text-foreground/80">{enq.projectType || "General Enquiry"}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5" />
-                      <span className="text-foreground/80">{enq.location || "No location"}</span>
-                    </div>
-                    {enq.budget && (
-                      <div className="flex items-center gap-1.5">
-                        <PoundSterling className="w-3.5 h-3.5" />
-                        <span className="text-foreground/80">{enq.budget}</span>
-                      </div>
+                    {enq.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-1 border-t border-border/40 pt-3 mt-3 font-medium">
+                        {enq.description}
+                      </p>
                     )}
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5" />
-                      <span className="text-foreground/80 sm:hidden">{formatDate(enq.createdAt)}</span>
-                    </div>
-                    {photoCount > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <ImageIcon className="w-3.5 h-3.5" />
-                        <span className="text-foreground/80">{photoCount} photo{photoCount > 1 ? "s" : ""}</span>
-                      </div>
-                    )}
-                  </div>
+                  </CardContent>
+                </Card>
+              </Link>
 
-                  {enq.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-1 border-t border-border/40 pt-3 mt-3 font-medium">
-                      {enq.description}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </Link>
+              {/* Delete button */}
+              <div className="absolute top-3 right-3 z-10">
+                {isConfirming ? (
+                  <div className="flex items-center gap-1 bg-card border border-destructive/40 rounded-lg shadow-md px-2 py-1.5 animate-in fade-in-0 zoom-in-95 duration-150">
+                    <span className="text-xs font-bold text-destructive whitespace-nowrap">Delete?</span>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        deleteEnquiry.mutate({ id: enq.id });
+                      }}
+                      disabled={deleteEnquiry.isPending}
+                      className="text-xs font-bold bg-destructive text-destructive-foreground px-2 py-0.5 rounded-md hover:bg-destructive/90 transition-colors"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setConfirmDeleteId(null);
+                      }}
+                      className="text-xs font-bold text-muted-foreground hover:text-foreground px-1 transition-colors"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setConfirmDeleteId(enq.id);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border/60 rounded-md p-1.5 text-muted-foreground hover:text-destructive hover:border-destructive/40 shadow-sm"
+                    title="Delete enquiry"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
           );
         })
       )}
