@@ -1193,17 +1193,19 @@ function EmbedCodeCard() {
         </div>
       </div>
       <CardContent className="p-8 space-y-6">
-        {/* Dev URL warning */}
+        {/* Dev URL warning — hard block */}
         {isDevUrl && (
-          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
-            <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-bold text-amber-800">You are viewing the development preview</p>
-              <p className="text-xs text-amber-700 mt-1 font-medium leading-relaxed">
-                The snippet below uses your <strong>development URL</strong>. Enquiries submitted through a widget installed with this snippet will only appear here in the development preview — not in your published app.
+          <div className="flex items-start gap-3 bg-amber-50 border-2 border-amber-400 rounded-xl px-5 py-4">
+            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-black text-amber-900 uppercase tracking-wide">
+                ⚠ Development preview — do not copy this snippet
               </p>
-              <p className="text-xs text-amber-700 mt-1.5 font-medium leading-relaxed">
-                To get the correct snippet for your live website, open <strong>Settings</strong> from your <strong>published WorkRate app</strong> and copy it from there.
+              <p className="text-xs text-amber-800 mt-1.5 font-medium leading-relaxed">
+                This snippet uses your <strong>development URL</strong>. If you embed it on your live website, the chat widget will <strong>not work</strong> in production and enquiries will be lost.
+              </p>
+              <p className="text-xs text-amber-800 mt-2 font-bold leading-relaxed">
+                👉 Open <strong>Settings</strong> from your <strong>published WorkRate app</strong> to get the correct production snippet.
               </p>
             </div>
           </div>
@@ -1247,13 +1249,29 @@ function EmbedCodeCard() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Embed snippet</p>
-            <button
-              onClick={copySnippet}
-              className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80 transition-colors px-3 py-1.5 rounded-lg hover:bg-primary/5"
-            >
-              {copied ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              {copied ? "Copied!" : "Copy snippet"}
-            </button>
+            {isDevUrl ? (
+              <div className="relative group/tip">
+                <button
+                  disabled
+                  className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground/50 px-3 py-1.5 rounded-lg bg-secondary/60 cursor-not-allowed border border-border/40"
+                  aria-disabled="true"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy snippet
+                </button>
+                <div className="pointer-events-none absolute bottom-full right-0 mb-2 w-64 rounded-xl bg-foreground text-background text-[11px] font-medium leading-relaxed px-3 py-2.5 shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity z-50">
+                  Open Settings from your <strong>published app</strong> to get the production snippet. Copying from the dev preview will break the widget on your live site.
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={copySnippet}
+                className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80 transition-colors px-3 py-1.5 rounded-lg hover:bg-primary/5"
+              >
+                {copied ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? "Copied!" : "Copy snippet"}
+              </button>
+            )}
           </div>
           <div className="relative bg-[#0F172A] rounded-xl overflow-hidden border border-border/40">
             <pre className="text-[11px] leading-relaxed text-slate-300 p-5 overflow-x-auto font-mono whitespace-pre">

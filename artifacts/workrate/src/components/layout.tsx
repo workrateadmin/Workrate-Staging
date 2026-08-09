@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SetupBanner } from "@/components/setup-banner";
 
 const pipelineNav = [
   { name: "Dashboard",       href: "/dashboard",       icon: LayoutDashboard },
@@ -212,6 +213,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         )}
         onClose={() => setDrawerOpen(false)}
       />
+
+      {/* First-time setup checklist */}
+      <SetupBanner />
 
       {/* Page content */}
       <main className="flex-1 py-8 px-4 sm:px-6 md:px-8 w-full">
