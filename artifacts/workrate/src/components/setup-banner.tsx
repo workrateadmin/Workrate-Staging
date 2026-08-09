@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useGetCompany } from "@workspace/api-client-react";
+import { useGetCompany, useListEnquiries, getListEnquiriesQueryKey } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { X, CheckCircle2, Circle, ArrowRight, Rocket } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const DISMISSED_KEY = "wr_onboarding_dismissed";
 const STEP2_DONE_KEY = "wr_onboarding_step2_done";
 const STEP3_DONE_KEY = "wr_onboarding_step3_done";
+export const FIRST_ENQUIRY_SEEN_KEY = "wr_first_enquiry_seen";
 
 /**
  * One-time setup checklist shown to users who have just created / claimed their
@@ -14,6 +15,10 @@ const STEP3_DONE_KEY = "wr_onboarding_step3_done";
  */
 export function SetupBanner() {
   const { data: company } = useGetCompany();
+  // Poll enquiries — used to auto-complete steps 2 & 3 on first widget hit.
+  const { data: enquiries } = useListEnquiries(undefined, {
+    query: { queryKey: getListEnquiriesQueryKey(), refetchInterval: 30_000 },
+  });
 
   const [dismissed, setDismissed] = useState(() =>
     typeof window !== "undefined"
@@ -30,6 +35,22 @@ export function SetupBanner() {
       ? localStorage.getItem(STEP3_DONE_KEY) === "1"
       : false
   );
+
+  // Auto-complete steps 2 & 3 when the first enquiry arrives (proves the
+  // widget is embedded and working). Only fires once per device.
+  useEffect(() => {
+    if (!enquiries || enquiries.length === 0) return;
+    if (localStorage.getItem(FIRST_ENQUIRY_SEEN_KEY) === "1") return;
+    localStorage.setItem(FIRST_ENQUIRY_SEEN_KEY, "1");
+    if (!step2Done) {
+      setStep2Done(true);
+      localStorage.setItem(STEP2_DONE_KEY, "1");
+    }
+    if (!step3Done) {
+      setStep3Done(true);
+      localStorage.setItem(STEP3_DONE_KEY, "1");
+    }
+  }, [enquiries]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Step 1 auto-detects: name must be set and not the default placeholder.
   const step1Done = !!(

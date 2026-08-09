@@ -1,9 +1,12 @@
-import { useGetDashboard, useListJobs, useListAiCalls } from "@workspace/api-client-react";
+import { useEffect } from "react";
+import { useGetDashboard, useListJobs, useListAiCalls, useListEnquiries, getListEnquiriesQueryKey } from "@workspace/api-client-react";
 import { useClerk, useUser } from "@clerk/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { FIRST_ENQUIRY_SEEN_KEY } from "@/components/setup-banner";
 import {
   Inbox, TrendingUp, ChevronRight, MessageSquare, Briefcase, Sparkles,
   Calendar, CalendarDays, Clock, MapPin, Phone, PhoneOff, PhoneForwarded,
@@ -60,6 +63,22 @@ const STATUS_CONFIG: Record<string, { label: string; bar: string; badge: string;
 /* ── Main dashboard ─────────────────────────────────────────────────────── */
 export default function Dashboard() {
   const { data: stats, isLoading, isError } = useGetDashboard();
+  const { toast } = useToast();
+  const { data: enquiries } = useListEnquiries(undefined, {
+    query: { queryKey: getListEnquiriesQueryKey(), refetchInterval: 30_000 },
+  });
+
+  // Show a one-time "widget is live" toast when the very first enquiry arrives.
+  useEffect(() => {
+    if (!enquiries || enquiries.length === 0) return;
+    if (localStorage.getItem(FIRST_ENQUIRY_SEEN_KEY) === "1") return;
+    // Mark seen — setup-banner will also pick this up on next render.
+    localStorage.setItem(FIRST_ENQUIRY_SEEN_KEY, "1");
+    toast({
+      title: "🎉 Your widget is live!",
+      description: "Your first enquiry just came in through your website.",
+    });
+  }, [enquiries]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) {
     return (
