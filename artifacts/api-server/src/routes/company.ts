@@ -97,8 +97,18 @@ router.get("/company", requireAuth, async (req, res): Promise<void> => {
       .limit(1);
 
     if (unowned) {
-      await claimUnownedRecords(userId!);
-      company = { ...unowned, ownerUserId: userId! };
+      const widgetToken = unowned.widgetToken ?? randomUUID();
+      await Promise.all([
+        claimUnownedRecords(userId!),
+        // Generate a widgetToken if the existing company doesn't have one
+        unowned.widgetToken
+          ? Promise.resolve()
+          : db.update(companiesTable).set({ widgetToken }).where(eq(companiesTable.id, unowned.id)),
+      ]);
+      // Claim enquiries owned by a different (e.g. dev-environment) userId —
+      // same logic as the auto-create path; previously missing from this branch.
+      await claimOrphanedEnquiries(userId!);
+      company = { ...unowned, ownerUserId: userId!, widgetToken };
     }
   }
 

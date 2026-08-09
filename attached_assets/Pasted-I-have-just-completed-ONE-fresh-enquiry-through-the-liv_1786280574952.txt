@@ -1,0 +1,98 @@
+I have just completed ONE fresh enquiry through the live website widget.
+
+RESULT:
+- The enquiry appears on mobile.
+- The same enquiry does NOT appear on desktop.
+- No customer enquiry confirmation email was received.
+- The new Resend production API key is already added.
+- work-rate.uk is verified in Resend.
+
+Do NOT add features.
+Do NOT change polling.
+Do NOT redesign anything.
+
+TRACE THIS EXACT ENQUIRY END TO END.
+
+PART A — DESKTOP SYNC
+
+Find the exact enquiry in the production database and report:
+
+- enquiry ID
+- created_at
+- business/company/workspace ID
+- owner/user ID
+- source
+
+Then compare mobile vs desktop:
+
+MOBILE:
+- authenticated user ID
+- company/business/workspace ID
+- exact API endpoint/query used to load enquiries
+- environment/database being used
+
+DESKTOP:
+- authenticated user ID
+- company/business/workspace ID
+- exact API endpoint/query used to load enquiries
+- environment/database being used
+
+Check:
+- localStorage/sessionStorage/cookies
+- stale business ID
+- stale frontend build
+- development vs production environment mismatch
+- filters/pagination
+- cached service worker/PWA
+- different API base URL
+
+Explain exactly why mobile returns this enquiry and desktop does not.
+
+PART B — ENQUIRY CONFIRMATION EMAIL
+
+For the SAME enquiry, trace:
+
+enquiry saved
+→ confirmation trigger
+→ email service
+→ Resend API call
+→ Resend response
+
+Report:
+- whether the confirmation handler fired
+- recipient email
+- sender
+- Resend API response
+- provider message ID
+- delivery status
+- any error
+
+IMPORTANT ARCHITECTURE RULE:
+
+The enquiry must be saved first.
+Email sending must happen afterwards.
+
+A failed email must NEVER stop or roll back the enquiry.
+
+Use:
+From: [Business Name] via WorkRate <notifications@work-rate.uk>
+
+Reply-To:
+the business's configured email where available.
+
+Do not expose RESEND_API_KEY.
+
+Before changing code, explain the exact root cause of BOTH failures.
+
+Then make the smallest safe fix.
+
+After fixing, verify:
+1. This SAME existing enquiry appears on desktop.
+2. The same enquiry remains on mobile.
+3. Send a test enquiry confirmation email successfully.
+4. Submit ONE new enquiry.
+5. It appears on mobile and desktop.
+6. The customer receives the confirmation email.
+7. No duplicate enquiry or duplicate email is created.
+
+Do not mark fixed until all seven checks pass.
