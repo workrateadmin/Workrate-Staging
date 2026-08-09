@@ -176,6 +176,7 @@ export const ListEnquiriesResponseItem = zod.object({
   "confirmationEmailSentAt": zod.coerce.date().nullish(),
   "confirmationSmsStatus": zod.string().optional(),
   "confirmationSmsSentAt": zod.coerce.date().nullish(),
+  "isTest": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -216,6 +217,7 @@ export const CreateEnquiryResponse = zod.object({
   "confirmationEmailSentAt": zod.coerce.date().nullish(),
   "confirmationSmsStatus": zod.string().optional(),
   "confirmationSmsSentAt": zod.coerce.date().nullish(),
+  "isTest": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -247,6 +249,7 @@ export const GetEnquiryResponse = zod.object({
   "confirmationEmailSentAt": zod.coerce.date().nullish(),
   "confirmationSmsStatus": zod.string().optional(),
   "confirmationSmsSentAt": zod.coerce.date().nullish(),
+  "isTest": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -291,6 +294,7 @@ export const UpdateEnquiryResponse = zod.object({
   "confirmationEmailSentAt": zod.coerce.date().nullish(),
   "confirmationSmsStatus": zod.string().optional(),
   "confirmationSmsSentAt": zod.coerce.date().nullish(),
+  "isTest": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -403,6 +407,7 @@ export const GenerateEnquirySummaryResponse = zod.object({
   "confirmationEmailSentAt": zod.coerce.date().nullish(),
   "confirmationSmsStatus": zod.string().optional(),
   "confirmationSmsSentAt": zod.coerce.date().nullish(),
+  "isTest": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

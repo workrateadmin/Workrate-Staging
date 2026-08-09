@@ -158,6 +158,11 @@ export default function EnquiryDetail() {
             <div className="bg-secondary/40 px-8 py-8 border-b border-border/60">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
                 <div>
+                  {(enquiry as any).isTest && (
+                    <span className="inline-flex items-center px-2 py-0.5 text-xs font-black tracking-widest uppercase rounded bg-orange-100 text-orange-700 border border-orange-200 mb-2">
+                      TEST DATA
+                    </span>
+                  )}
                   <h1 className="text-3xl font-black tracking-tight mb-3 text-foreground">{enquiry.customerName}</h1>
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm font-semibold text-muted-foreground">
                     <span className="flex items-center gap-2 text-foreground/80 bg-background/50 px-3 py-1.5 rounded-md border border-border/40"><Hammer className="w-4 h-4"/> {enquiry.projectType || "General"}</span>

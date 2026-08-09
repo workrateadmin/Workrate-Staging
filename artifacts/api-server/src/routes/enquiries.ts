@@ -193,6 +193,19 @@ router.patch("/enquiries/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(UpdateEnquiryResponse.parse(updated));
 });
 
+// Bulk-delete all test enquiries owned by the current user
+router.delete("/enquiries/test-data", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const deleted = await db
+    .delete(enquiriesTable)
+    .where(and(
+      eq(enquiriesTable.ownerUserId, userId!),
+      eq(enquiriesTable.isTest, true),
+    ))
+    .returning({ id: enquiriesTable.id });
+  res.json({ deleted: deleted.length, ids: deleted.map((e) => e.id) });
+});
+
 // Delete enquiry
 router.delete("/enquiries/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);

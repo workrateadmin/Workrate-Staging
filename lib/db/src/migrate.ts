@@ -186,6 +186,12 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       END $$;
     `,
   },
+  {
+    name: "0006_is_test_enquiry",
+    sql: `
+      ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "is_test" boolean NOT NULL DEFAULT false;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

@@ -286,6 +286,13 @@ function PipelineCard({
           {/* Status stripe */}
           <div className={`h-1 w-full ${col?.color ?? "bg-gray-300"}`} />
           <CardContent className="p-4 space-y-3">
+            {/* TEST badge */}
+            {enq.isTest && (
+              <span className="inline-flex w-fit items-center px-1.5 py-0.5 text-[9px] font-black tracking-widest uppercase rounded bg-orange-100 text-orange-700 border border-orange-200 mb-1">
+                TEST
+              </span>
+            )}
+
             {/* Name + date */}
             <div className="flex items-start justify-between gap-2">
               <h3 className="font-bold text-sm leading-tight text-foreground line-clamp-1">

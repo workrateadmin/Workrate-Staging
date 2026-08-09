@@ -127,7 +127,14 @@ function EnquiryRow({ colors, enquiry, onPress }: { colors: Colors; enquiry: any
         </Text>
       </View>
       <View style={{ flex: 1, gap: 3 }}>
-        <Text style={[rowSt.name, { color: colors.foreground }]} numberOfLines={1}>{enquiry.customerName}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={[rowSt.name, { color: colors.foreground, flex: 1 }]} numberOfLines={1}>{enquiry.customerName}</Text>
+          {enquiry.isTest && (
+            <Text style={{ fontSize: 9, fontWeight: '800', color: '#c2410c', backgroundColor: '#ffedd5', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3, overflow: 'hidden' }}>
+              TEST
+            </Text>
+          )}
+        </View>
         {enquiry.projectType ? (
           <Text style={[rowSt.sub, { color: colors.mutedForeground }]} numberOfLines={1}>{enquiry.projectType}</Text>
         ) : null}

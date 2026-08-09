@@ -246,6 +246,105 @@ function fileUrl(req: Request, filename: string): string {
   return `${protocol}://${host}/uploads/${filename}`;
 }
 
+// ── Shared enquiry completion helper ─────────────────────────────────────────
+// Called from both the normal AI flow and the TEST SHORTCUT below.
+// Handles: DB update, AI summary (fire-and-forget), confirmation email (fire-and-forget).
+async function handleEnquiryCompletion(
+  enquiry: {
+    id: number;
+    ownerUserId: string | null;
+    customerName: string;
+    customerEmail: string | null;
+    customerPhone: string | null;
+    projectType: string | null;
+    location: string | null;
+    description: string | null;
+    budget: string | null;
+    timescale: string | null;
+  },
+  extracted: {
+    customerName?: string | null;
+    customerEmail?: string | null;
+    customerPhone?: string | null;
+    postcode?: string | null;
+    projectType?: string | null;
+    measurements?: string | null;
+    materials?: string | null;
+    finish?: string | null;
+    budget?: string | null;
+    timescale?: string | null;
+    description?: string | null;
+  },
+  isTest = false,
+): Promise<void> {
+  const parts: string[] = [];
+  if (extracted.description) parts.push(extracted.description);
+  if (extracted.measurements) parts.push(`Measurements: ${extracted.measurements}`);
+  if (extracted.materials) parts.push(`Materials: ${extracted.materials}`);
+  if (extracted.finish) parts.push(`Finish: ${extracted.finish}`);
+
+  await db
+    .update(enquiriesTable)
+    .set({
+      customerName: extracted.customerName ?? enquiry.customerName,
+      customerEmail: extracted.customerEmail ?? enquiry.customerEmail,
+      customerPhone: extracted.customerPhone ?? enquiry.customerPhone,
+      projectType: extracted.projectType ?? enquiry.projectType,
+      location: extracted.postcode ?? enquiry.location,
+      description: parts.join("\n") || enquiry.description,
+      budget: extracted.budget ?? enquiry.budget,
+      timescale: extracted.timescale ?? enquiry.timescale,
+      isTest,
+    })
+    .where(eq(enquiriesTable.id, enquiry.id));
+
+  // Auto-generate structured AI summary (fire-and-forget)
+  generateAndSaveSummary(enquiry.id).catch((err) =>
+    console.error("[summary] auto-generate failed:", err)
+  );
+
+  // Send enquiry confirmation to customer (fire-and-forget — never fails the request)
+  const resolvedEmail = extracted.customerEmail ?? enquiry.customerEmail;
+  const resolvedPhone = extracted.customerPhone ?? enquiry.customerPhone;
+  if (resolvedEmail || resolvedPhone) {
+    const businessId = enquiry.ownerUserId;
+    Promise.resolve().then(async () => {
+      try {
+        let company: any = null;
+        if (businessId) {
+          [company] = await db
+            .select()
+            .from(companiesTable)
+            .where(eq(companiesTable.ownerUserId, businessId))
+            .limit(1);
+        }
+        if (!company) {
+          const { isNull } = await import("drizzle-orm");
+          [company] = await db
+            .select()
+            .from(companiesTable)
+            .where(isNull(companiesTable.ownerUserId))
+            .limit(1);
+        }
+        if (company) {
+          await sendEnquiryConfirmation(
+            enquiry.id,
+            {
+              customerName: extracted.customerName ?? enquiry.customerName,
+              customerEmail: resolvedEmail ?? null,
+              customerPhone: resolvedPhone ?? null,
+              projectType: extracted.projectType ?? enquiry.projectType ?? null,
+            },
+            company
+          );
+        }
+      } catch (err) {
+        console.error("[comms] enquiry confirmation failed:", err);
+      }
+    });
+  }
+}
+
 // ── POST /chat/start ─────────────────────────────────────────────────────────
 router.post("/chat/start", async (req, res): Promise<void> => {
   const parsed = StartChatBody.safeParse(req.body);
@@ -384,6 +483,51 @@ router.post("/chat/:token/message", async (req, res): Promise<void> => {
     content: body.data.content,
   });
 
+  // ── TEST SHORTCUT ──────────────────────────────────────────────────────────
+  // Trigger: type the exact phrase "WorkRateAppTesting" into the live widget.
+  // Bypasses the AI Q&A and submits a complete test enquiry through the real
+  // production pipeline (DB save, AI summary, confirmation email, dashboard).
+  // Exact-match only — never exposed in the chat UI or docs.
+  if (body.data.content.trim() === "WorkRateAppTesting") {
+    const testExtracted = {
+      customerName: "[TEST] WorkRate Test",
+      customerEmail: "orhuntley@gmail.com",
+      customerPhone: "07000000000",
+      postcode: "Test Address, London",
+      projectType: "Fitted Wardrobes",
+      measurements: "3 metres wide, full-height to ceiling",
+      materials: "MDF carcass",
+      finish: "Painted finish",
+      budget: "£5,000–£7,500",
+      timescale: "Within 4–6 weeks",
+      description:
+        "[TEST ENQUIRY — AUTO-GENERATED] Full-height fitted wardrobes, 3 metres wide, " +
+        "painted finish, MDF carcass. Location: Test Address, London. " +
+        "Budget: £5,000–£7,500. Timescale: Within 4–6 weeks.",
+    };
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const ackMessage =
+      "⚡ Test mode activated. Submitting a complete test enquiry through the live production pipeline…";
+    res.write(`data: ${JSON.stringify({ content: ackMessage })}\n\n`);
+
+    await db.insert(enquiryMessagesTable).values({
+      enquiryId: enquiry.id,
+      role: "assistant",
+      content: ackMessage,
+    });
+
+    await handleEnquiryCompletion(enquiry, testExtracted, true);
+
+    res.write(`data: ${JSON.stringify({ completed: true })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+    return;
+  }
+
   // Load full history
   const history = await db
     .select()
@@ -442,71 +586,7 @@ router.post("/chat/:token/message", async (req, res): Promise<void> => {
     res.write(`data: ${JSON.stringify({ completed: true })}\n\n`);
     try {
       const extracted = JSON.parse(completionMatch[1]);
-      // Build a structured description from all collected fields
-      const parts: string[] = [];
-      if (extracted.description) parts.push(extracted.description);
-      if (extracted.measurements) parts.push(`Measurements: ${extracted.measurements}`);
-      if (extracted.materials) parts.push(`Materials: ${extracted.materials}`);
-      if (extracted.finish) parts.push(`Finish: ${extracted.finish}`);
-
-      await db
-        .update(enquiriesTable)
-        .set({
-          customerName: extracted.customerName ?? enquiry.customerName,
-          customerEmail: extracted.customerEmail ?? enquiry.customerEmail,
-          customerPhone: extracted.customerPhone ?? enquiry.customerPhone,
-          projectType: extracted.projectType ?? enquiry.projectType,
-          location: extracted.postcode ?? enquiry.location,
-          description: parts.join("\n") || enquiry.description,
-          budget: extracted.budget ?? enquiry.budget,
-          timescale: extracted.timescale ?? enquiry.timescale,
-        })
-        .where(eq(enquiriesTable.id, enquiry.id));
-
-      // Auto-generate structured AI summary (fire-and-forget)
-      generateAndSaveSummary(enquiry.id).catch((err) =>
-        console.error("[summary] auto-generate failed:", err)
-      );
-
-      // Send enquiry confirmation to customer (fire-and-forget — never fails the request)
-      if (extracted.customerEmail || extracted.customerPhone) {
-        const businessId = enquiry.ownerUserId;
-        Promise.resolve().then(async () => {
-          try {
-            let company: any = null;
-            if (businessId) {
-              [company] = await db
-                .select()
-                .from(companiesTable)
-                .where(eq(companiesTable.ownerUserId, businessId))
-                .limit(1);
-            }
-            if (!company) {
-              // Try any unowned company (single-user deployment)
-              const { isNull } = await import("drizzle-orm");
-              [company] = await db
-                .select()
-                .from(companiesTable)
-                .where(isNull(companiesTable.ownerUserId))
-                .limit(1);
-            }
-            if (company) {
-              await sendEnquiryConfirmation(
-                enquiry.id,
-                {
-                  customerName: extracted.customerName ?? enquiry.customerName,
-                  customerEmail: extracted.customerEmail ?? null,
-                  customerPhone: extracted.customerPhone ?? null,
-                  projectType: extracted.projectType ?? enquiry.projectType ?? null,
-                },
-                company
-              );
-            }
-          } catch (err) {
-            console.error("[comms] enquiry confirmation failed:", err);
-          }
-        });
-      }
+      await handleEnquiryCompletion(enquiry, extracted, false);
     } catch {
       // ignore parse errors
     }

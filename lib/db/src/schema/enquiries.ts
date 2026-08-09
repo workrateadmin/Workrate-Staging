@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -34,6 +34,7 @@ export const enquiriesTable = pgTable("enquiries", {
   confirmationEmailSentAt: timestamp("confirmation_email_sent_at", { withTimezone: true }),
   confirmationSmsStatus: text("confirmation_sms_status").notNull().default("pending"),
   confirmationSmsSentAt: timestamp("confirmation_sms_sent_at", { withTimezone: true }),
+  isTest: boolean("is_test").notNull().default(false),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

@@ -177,6 +177,11 @@ export default function EnquiryDetailScreen() {
             </Text>
           </View>
           <View style={{ flex: 1 }}>
+            {enquiry.isTest && (
+              <Text style={{ fontSize: 9, fontWeight: '800', color: '#c2410c', backgroundColor: '#ffedd5', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 3, overflow: 'hidden', alignSelf: 'flex-start', marginBottom: 4, letterSpacing: 1 }}>
+                TEST DATA
+              </Text>
+            )}
             <Text style={[heroSt.name, { color: colors.sidebarForeground }]}>{enquiry.customerName}</Text>
             {enquiry.createdAt && (
               <Text style={[heroSt.date, { color: colors.sidebarForeground + '88' }]}>
