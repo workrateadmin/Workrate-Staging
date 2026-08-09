@@ -422,6 +422,8 @@ router.post("/chat/:token/message", async (req, res): Promise<void> => {
   // Extract structured data if enquiry is complete
   const completionMatch = fullResponse.match(/ENQUIRY_COMPLETE:(\{.*\})/s);
   if (completionMatch) {
+    // Signal the widget IMMEDIATELY so the success screen shows regardless of AI phrasing
+    res.write(`data: ${JSON.stringify({ completed: true })}\n\n`);
     try {
       const extracted = JSON.parse(completionMatch[1]);
       // Build a structured description from all collected fields

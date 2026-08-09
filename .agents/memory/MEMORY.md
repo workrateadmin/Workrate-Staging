@@ -4,3 +4,4 @@
 - [WorkRate integrations architecture](workrate-integrations-arch.md) — provider registry pattern, DB schema, codegen quirks, comingSoon flag
 - [WorkRate ownership model](workrate-ownership-model.md) — owner_user_id on key tables, claim-on-first-login, widget businessId flow, migration 0002
 - [WorkRate documents & branding](workrate-documents-branding.md) — template modes, branding snapshot on send, upload routes, QuoteDocument custom branding
+- [Chat widget completion detection](chat-widget-completion.md) — use server-sent completed:true SSE event, not text-matching; text-matching caused the widget regression

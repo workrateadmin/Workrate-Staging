@@ -1,0 +1,113 @@
+URGENT: Diagnose a regression in the WorkRate website enquiry/chat widget.
+
+DO NOT redesign anything and DO NOT make broad changes yet.
+
+The website widget was previously working correctly:
+
+Customer completed an enquiry on the Huntley Bespoke website
+→ widget showed an enquiry submitted/success confirmation
+→ enquiry was saved to the WorkRate database
+→ enquiry appeared in the WorkRate dashboard.
+
+After recent UI/layout changes, this flow appears to have stopped working.
+
+CURRENT SYMPTOMS:
+
+1. Customer can complete the enquiry through the website AI chat widget.
+2. The usual "enquiry submitted" confirmation no longer appears in the widget.
+3. The enquiry does NOT appear in the WorkRate dashboard.
+4. The widget itself still loads and the AI conversation works.
+
+This suggests the enquiry submission/finalisation process may no longer be firing or may be failing.
+
+IMPORTANT:
+This is NOT currently believed to be related to Resend/email.
+Do not change the new Resend configuration or DNS/email functionality while diagnosing this.
+
+FIRST, TRACE THE COMPLETE ENQUIRY SUBMISSION FLOW:
+
+Website widget
+→ AI conversation
+→ enquiry completion/finalisation trigger
+→ frontend submission handler
+→ API request
+→ server endpoint
+→ authentication/business ID resolution
+→ database insert
+→ success response
+→ widget success confirmation
+→ dashboard enquiry retrieval.
+
+Check browser/server logs and identify exactly where this chain is failing.
+
+SPECIFICALLY CHECK:
+
+- Whether the enquiry completion callback still fires
+- Whether recent layout/component changes disconnected an onClick/onSubmit handler
+- Whether form submission is being prevented
+- Whether the final AI conversation state still triggers enquiry creation
+- Whether the API request is actually sent
+- Request payload and required fields
+- HTTP response/error
+- businessId / tenant ID
+- widget business ID
+- customer details
+- enquiry/project details
+- database insert
+- database errors
+- whether enquiry is accidentally being created under another business/account
+- whether duplicate-prevention logic is incorrectly blocking it
+- whether dashboard filtering is hiding the enquiry
+- whether the success message now depends on a failed email/SMS operation
+
+CRITICAL ARCHITECTURE RULE:
+
+Saving the enquiry to the WorkRate database MUST happen BEFORE any customer confirmation email/SMS is attempted.
+
+Email, Resend or SMS failure must NEVER prevent an enquiry from being created.
+
+The correct flow must be:
+
+Customer submits
+→ validate enquiry
+→ save enquiry to database
+→ return successful enquiry creation
+→ show "Enquiry submitted" confirmation
+→ then attempt email/SMS confirmation asynchronously.
+
+If email/SMS fails:
+- enquiry must remain saved
+- dashboard must still show it
+- customer submission must still be considered successful
+- communication failure should be logged separately.
+
+DO NOT simply add another submission handler or create a duplicate enquiry system.
+
+Find the regression in the EXISTING working flow.
+
+Before changing code, report:
+1. Whether the frontend submission event fires
+2. Whether an API request is sent
+3. Which endpoint receives it
+4. What response/status it returns
+5. Whether a database insert is attempted
+6. Whether the business/account ID is correct
+7. The exact root cause
+
+Then make the smallest safe fix.
+
+AFTER FIXING, TEST:
+
+1. Submit a brand-new enquiry through the Huntley Bespoke live website widget.
+2. Confirm the widget shows the successful enquiry confirmation.
+3. Confirm exactly ONE enquiry is created in the database.
+4. Confirm it belongs to the correct Huntley Bespoke account.
+5. Confirm it appears on mobile.
+6. Confirm it appears on desktop.
+7. Refresh both and confirm it remains.
+8. Confirm the enquiry still saves if Resend/email is unavailable.
+9. Confirm no duplicate enquiry is created.
+
+Do not mark this fixed merely because the widget displays a success message.
+
+The database record AND WorkRate dashboard entry must be verified.

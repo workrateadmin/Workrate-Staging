@@ -177,6 +177,9 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
             const nl = buffer.lastIndexOf("\n");
             buffer = nl >= 0 ? buffer.slice(nl + 1) : buffer;
             for (const ev of events) {
+              if (ev.completed) {
+                setIsComplete(true);
+              }
               if (ev.content) {
                 setMessages((prev) => {
                   const updated = [...prev];
