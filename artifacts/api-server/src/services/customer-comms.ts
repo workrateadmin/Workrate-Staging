@@ -37,14 +37,17 @@ interface CompanyBranding {
 
 // ── Email provider ────────────────────────────────────────────────────────────
 
+// WorkRate sends all transactional email from a single verified domain.
+// Individual businesses are identified by display name and reply-to only.
+const WORKRATE_FROM_EMAIL = "notifications@work-rate.uk";
+
 async function sendViaResend(opts: {
   to: string;
   fromName: string;
-  fromEmail: string;
   replyTo?: string;
   subject: string;
   html: string;
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     return { ok: false, error: "RESEND_API_KEY not configured" };
@@ -54,7 +57,7 @@ async function sendViaResend(opts: {
     const { Resend } = await import("resend");
     const resend = new Resend(apiKey);
     const result = await resend.emails.send({
-      from: `${opts.fromName} <${opts.fromEmail}>`,
+      from: `${opts.fromName} <${WORKRATE_FROM_EMAIL}>`,
       to: [opts.to],
       replyTo: opts.replyTo || undefined,
       subject: opts.subject,
@@ -63,7 +66,7 @@ async function sendViaResend(opts: {
     if (result.error) {
       return { ok: false, error: result.error.message ?? "Unknown Resend error" };
     }
-    return { ok: true };
+    return { ok: true, messageId: result.data?.id };
   } catch (err: any) {
     return { ok: false, error: err?.message ?? String(err) };
   }
@@ -254,7 +257,6 @@ export async function sendEnquiryConfirmation(
   } else if (!process.env.RESEND_API_KEY) {
     result.emailStatus = "not_configured";
   } else {
-    const fromEmail = company.notificationsFromEmail || "noreply@workrate.app";
     const firstName = params.customerName?.split(" ")[0] ?? params.customerName;
 
     const html = buildEnquiryConfirmationHtml({
@@ -265,8 +267,7 @@ export async function sendEnquiryConfirmation(
 
     const sent = await sendViaResend({
       to: params.customerEmail,
-      fromName: company.name,
-      fromEmail,
+      fromName: `${company.name} via WorkRate`,
       replyTo: company.email ?? undefined,
       subject: `We've received your enquiry – ${company.name}`,
       html,
@@ -335,7 +336,6 @@ export async function sendProposalEmail(
   } else if (!process.env.RESEND_API_KEY) {
     emailStatus = "not_configured";
   } else {
-    const fromEmail = company.notificationsFromEmail || "noreply@workrate.app";
     const firstName = params.customerName?.split(" ")[0] ?? params.customerName ?? "there";
 
     const html = buildProposalEmailHtml({
@@ -349,8 +349,7 @@ export async function sendProposalEmail(
 
     const sent = await sendViaResend({
       to: params.customerEmail,
-      fromName: company.name,
-      fromEmail,
+      fromName: `${company.name} via WorkRate`,
       replyTo: company.email ?? undefined,
       subject: `Your proposal from ${company.name} is ready`,
       html,
