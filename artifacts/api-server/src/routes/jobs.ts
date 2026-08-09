@@ -194,13 +194,15 @@ router.post("/enquiries/:id/convert-to-job", requireAuth, async (req, res): Prom
     .where(and(eq(enquiriesTable.id, enquiryId), eq(enquiriesTable.ownerUserId, userId!)));
   if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
 
-  // Check if job already exists for this enquiry
+  // Idempotency: if a job already exists for this enquiry, return it as success (200).
+  // This ensures that retry attempts (e.g. after a lost response) are safe and the
+  // mobile client never gets stuck in an error loop for an already-completed conversion.
   const [existingJob] = await db
     .select()
     .from(jobsTable)
     .where(eq(jobsTable.enquiryId, enquiryId));
   if (existingJob) {
-    res.status(409).json({ error: "A job already exists for this enquiry", jobId: existingJob.id });
+    res.status(200).json(parseJob(existingJob));
     return;
   }
 
@@ -210,7 +212,10 @@ router.post("/enquiries/:id/convert-to-job", requireAuth, async (req, res): Prom
     .from(quotesTable)
     .where(eq(quotesTable.enquiryId, enquiryId));
 
-  const [job] = await db
+  // Atomic insert — ON CONFLICT ensures concurrent requests don't create duplicate jobs.
+  // If another request races to the same insert, DO NOTHING returns an empty array and
+  // we fall back to fetching the winner's row below.
+  const [inserted] = await db
     .insert(jobsTable)
     .values({
       enquiryId,
@@ -229,15 +234,23 @@ router.post("/enquiries/:id/convert-to-job", requireAuth, async (req, res): Prom
       aiSummary: enquiry.aiSummary ?? null,
       attachmentUrls: enquiry.attachmentUrls ?? null,
     })
+    .onConflictDoNothing({ target: jobsTable.enquiryId })
     .returning();
 
-  // Mark enquiry as won
+  // Whether we inserted or hit the conflict, return the canonical job row.
+  const job = inserted ?? (await db
+    .select()
+    .from(jobsTable)
+    .where(eq(jobsTable.enquiryId, enquiryId))
+    .then(rows => rows[0]));
+
+  // Mark enquiry as won (idempotent update)
   await db
     .update(enquiriesTable)
     .set({ status: "won" })
     .where(eq(enquiriesTable.id, enquiryId));
 
-  res.status(201).json(parseJob(job));
+  res.status(200).json(parseJob(job));
 });
 
 export default router;

@@ -7,9 +7,33 @@
     ".": "./src/generated/tokens.tsx",
     "./tokens": "./src/generated/tokens.tsx",
     "./styles.css": "./src/index.css",
-    "./components/*": "./src/components/*.tsx",
+    "./hooks/use-colors": {
+      "types": "./src/hooks/use-colors.d.ts",
+      "default": "./native/hooks/use-colors.tsx"
+    },
+    "./hooks/use-fonts": {
+      "types": "./src/hooks/use-fonts.d.ts",
+      "default": "./native/hooks/use-fonts.tsx"
+    },
+    "./hooks/*": "./src/hooks/*.tsx",
+    "./lib/native-theme": {
+      "types": "./src/lib/native-theme.d.ts",
+      "default": "./native/lib/native-theme.tsx"
+    },
     "./lib/*": "./src/lib/*.tsx",
-    "./hooks/*": "./src/hooks/*.tsx"
+    "./components/native/badge": {
+      "types": "./src/components/native/badge.d.ts",
+      "default": "./native/components/badge.tsx"
+    },
+    "./components/native/button": {
+      "types": "./src/components/native/button.d.ts",
+      "default": "./native/components/button.tsx"
+    },
+    "./components/native/card": {
+      "types": "./src/components/native/card.d.ts",
+      "default": "./native/components/card.tsx"
+    },
+    "./components/*": "./src/components/*.tsx"
   },
   "imports": {
     "#components/*": "./src/components/*.tsx",

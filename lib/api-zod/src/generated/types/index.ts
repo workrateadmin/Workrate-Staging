@@ -18,7 +18,7 @@ export * from './chatSessionWithMessages';
 export * from './chatStartInput';
 export * from './company';
 export * from './companyInput';
-export * from './connectIntegrationBody';
+// ConnectIntegrationBody is exported from generated/api.ts as a Zod schema; skip here to avoid duplicate export
 export * from './dashboardStats';
 export * from './demoCompleteRequest';
 export * from './demoCompleteRequestMessagesItem';
@@ -37,11 +37,11 @@ export * from './jobScheduleUpdate';
 export * from './jobUpdate';
 export * from './listAiCallsParams';
 export * from './listEnquiriesParams';
-export * from './markDepositPaidBody';
+// MarkDepositPaidBody is exported from generated/api.ts as a Zod schema; skip here to avoid duplicate export
 export * from './proposal';
 export * from './proposalCompany';
 export * from './proposalResponse';
 export * from './quote';
 export * from './quoteUpdate';
 export * from './recordProposalView200';
-export * from './uploadEnquiryAttachmentBody';
+// UploadEnquiryAttachmentBody is exported from generated/api.ts as a Zod schema; skip here to avoid duplicate export

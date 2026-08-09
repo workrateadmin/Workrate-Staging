@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, numeric, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, numeric, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -14,7 +14,7 @@ export type JobStatus = (typeof JOB_STATUSES)[number];
 
 export const jobsTable = pgTable("jobs", {
   id: serial("id").primaryKey(),
-  enquiryId: integer("enquiry_id").notNull(),
+  enquiryId: integer("enquiry_id").notNull().unique(),
   quoteId: integer("quote_id"),
   // Customer snapshot
   customerName: text("customer_name").notNull(),

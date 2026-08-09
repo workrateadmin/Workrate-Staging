@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/workrate-mobile/"
+title = "WorkRate Mobile"
+description = "A native mobile companion app for WorkRate tradespeople. Lets workers check new enquiries, review job details, approve quotes, and see today's schedule from their phone using the same Clerk account as the web app."
+version = "1.0.0"
+id = "artifacts/workrate-mobile"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/workrate-mobile/" ]
+localPort = 18516
+
+[services.development]
+run = "pnpm --filter @workspace/workrate-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/workrate-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/workrate-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "18516"
+BASE_PATH = "/workrate-mobile/"
