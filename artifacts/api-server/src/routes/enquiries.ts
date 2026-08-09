@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
-import { db, enquiriesTable, enquiryMessagesTable, enquiryAttachmentsTable } from "@workspace/db";
-import { eq, count, and, inArray } from "drizzle-orm";
+import { db, enquiriesTable, enquiryMessagesTable, enquiryAttachmentsTable, companiesTable } from "@workspace/db";
+import { eq, count, and, inArray, isNull } from "drizzle-orm";
 import {
   ListEnquiriesQueryParams,
   ListEnquiriesResponse,
@@ -44,6 +44,25 @@ router.get("/enquiries", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(enquiriesTable)
     .where(eq(enquiriesTable.ownerUserId, userId!));
+
+  // Lazy-claim: if no owned enquiries exist yet, check whether there are unowned
+  // enquiries to transfer to this user. This handles the common case where the
+  // production user logs in for the first time without having visited GET /company
+  // first. Single-tenant guard: only claim when at most one company exists, so
+  // we never touch another tenant's data.
+  if (rows.length === 0) {
+    const [{ cnt }] = await db.select({ cnt: count() }).from(companiesTable);
+    if (Number(cnt) <= 1) {
+      const claimed = await db
+        .update(enquiriesTable)
+        .set({ ownerUserId: userId! })
+        .where(isNull(enquiriesTable.ownerUserId))
+        .returning();
+      if (claimed.length > 0) {
+        rows = claimed;
+      }
+    }
+  }
 
   if (params.data.status) {
     rows = rows.filter((e) => e.status === params.data.status);
