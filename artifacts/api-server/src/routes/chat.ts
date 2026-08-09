@@ -256,6 +256,22 @@ router.post("/chat/start", async (req, res): Promise<void> => {
 
   const token = randomBytes(24).toString("hex");
 
+  // Resolve businessId: try widgetToken → company → ownerUserId first.
+  // Falls back to treating businessId as a literal Clerk userId for backward
+  // compatibility with any widget installs that still use the old user?.id value.
+  const rawBusinessId = parsed.data.businessId ?? null;
+  let ownerUserId: string | null = rawBusinessId;
+  if (rawBusinessId) {
+    const [company] = await db
+      .select({ ownerUserId: companiesTable.ownerUserId })
+      .from(companiesTable)
+      .where(eq(companiesTable.widgetToken, rawBusinessId))
+      .limit(1);
+    if (company?.ownerUserId) {
+      ownerUserId = company.ownerUserId;
+    }
+  }
+
   const [enquiry] = await db
     .insert(enquiriesTable)
     .values({
@@ -263,7 +279,7 @@ router.post("/chat/start", async (req, res): Promise<void> => {
       status: "new_enquiry",
       chatToken: token,
       projectType: parsed.data.tradeType,
-      ownerUserId: parsed.data.businessId ?? null,
+      ownerUserId,
     })
     .returning();
 

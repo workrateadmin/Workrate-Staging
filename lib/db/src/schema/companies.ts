@@ -45,6 +45,10 @@ export const companiesTable = pgTable("companies", {
   enquiryConfirmationMessage: text("enquiry_confirmation_message"),
   proposalEmailEnabled: integer("proposal_email_enabled", { mode: "boolean" }).notNull().default(true),
 
+  // ── Widget token — stable across Clerk environments (dev ↔ production) ─────
+  // Use this as data-business-id in the embed snippet instead of the Clerk userId.
+  widgetToken: text("widget_token").unique(),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

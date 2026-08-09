@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
+import { randomUUID } from "crypto";
 import { db, companiesTable, enquiriesTable, aiReceptionistSettingsTable, integrationsTable } from "@workspace/db";
-import { eq, isNull } from "drizzle-orm";
+import { eq, isNull, and, ne, isNotNull, count } from "drizzle-orm";
 import {
   GetCompanyResponse,
   UpdateCompanyBody,
@@ -33,7 +34,7 @@ function parseCompany(c: any) {
 }
 
 /**
- * Claim all unowned (legacy) records for the given userId.
+ * Claim all unowned (legacy / NULL ownerUserId) records for the given userId.
  * Called once when the first authenticated user encounters data with no owner —
  * this transparently migrates existing single-user deployments.
  */
@@ -43,6 +44,37 @@ async function claimUnownedRecords(userId: string): Promise<void> {
     db.update(enquiriesTable).set({ ownerUserId: userId }).where(isNull(enquiriesTable.ownerUserId)),
     db.update(aiReceptionistSettingsTable).set({ ownerUserId: userId }).where(isNull(aiReceptionistSettingsTable.ownerUserId)),
     db.update(integrationsTable).set({ ownerUserId: userId }).where(isNull(integrationsTable.ownerUserId)),
+  ]);
+}
+
+/**
+ * Claim enquiries owned by a *different* non-null userId — handles the
+ * Clerk dev-vs-production user-ID split in single-tenant deployments.
+ *
+ * Clerk dev and production environments use separate user stores, so the same
+ * person has a different userId in each environment. When the production user
+ * logs in for the first time (their company was just auto-created), any
+ * enquiries that were created via the widget using the dev-environment userId
+ * as the businessId will have a foreign ownerUserId.  We auto-claim them here.
+ *
+ * Safety guard: we only do this when there is exactly ONE company in the
+ * database (this user's freshly created one), which guarantees this is a
+ * single-tenant deployment and no other tenant's data is at risk.
+ */
+async function claimOrphanedEnquiries(userId: string): Promise<void> {
+  const [{ cnt }] = await db.select({ cnt: count() }).from(companiesTable);
+  if (Number(cnt) !== 1) return; // multi-tenant guard — never touch other people's data
+
+  await Promise.all([
+    db.update(enquiriesTable)
+      .set({ ownerUserId: userId })
+      .where(and(isNotNull(enquiriesTable.ownerUserId), ne(enquiriesTable.ownerUserId, userId))),
+    db.update(aiReceptionistSettingsTable)
+      .set({ ownerUserId: userId })
+      .where(and(isNotNull(aiReceptionistSettingsTable.ownerUserId), ne(aiReceptionistSettingsTable.ownerUserId, userId))),
+    db.update(integrationsTable)
+      .set({ ownerUserId: userId })
+      .where(and(isNotNull(integrationsTable.ownerUserId), ne(integrationsTable.ownerUserId, userId))),
   ]);
 }
 
@@ -70,9 +102,16 @@ router.get("/company", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
+  // 3. If still no company, auto-create one (first login on this Clerk environment).
+  //    This covers the case where the production user has never logged in before —
+  //    they get a fresh company with a stable widgetToken, then we claim any
+  //    enquiries that exist under a different (e.g., dev-environment) userId.
   if (!company) {
-    res.status(404).json({ error: "Company not found" });
-    return;
+    [company] = await db
+      .insert(companiesTable)
+      .values({ ownerUserId: userId!, widgetToken: randomUUID() })
+      .returning();
+    await claimOrphanedEnquiries(userId!);
   }
 
   res.json(GetCompanyResponse.parse(parseCompany(company)));
@@ -148,7 +187,10 @@ router.put("/company", requireAuth, async (req, res): Promise<void> => {
   };
 
   if (!existing) {
-    const [created] = await db.insert(companiesTable).values(values).returning();
+    const [created] = await db
+      .insert(companiesTable)
+      .values({ ...values, widgetToken: randomUUID() })
+      .returning();
     res.json(UpdateCompanyResponse.parse(parseCompany(created)));
     return;
   }

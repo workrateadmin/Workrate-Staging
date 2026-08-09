@@ -1148,16 +1148,20 @@ function DocumentsBrandingCard() {
 // ── Embed Code Card ───────────────────────────────────────────────────────────
 function EmbedCodeCard() {
   const [copied, setCopied] = useLocalState(false);
-  const { user } = useUser();
+  const { data: company } = useGetCompany();
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const basePath = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
   const widgetJsUrl = `${origin}${basePath}/widget.js`;
   const widgetPreviewUrl = `${origin}${basePath}/widget`;
-  const businessId = user?.id ?? "YOUR_BUSINESS_ID";
 
-  // Detect whether we're on the Replit development preview (*.replit.dev).
-  // If so, the snippet below uses the dev URL — warn the user to copy from
-  // their PUBLISHED app instead so their website widget hits the live database.
+  // widgetToken is a stable UUID stored in the database — it does NOT change
+  // between Clerk environments (dev vs production). Always use this as the
+  // data-business-id, never user?.id which is environment-specific.
+  const businessId = company?.widgetToken ?? "loading...";
+
+  // The snippet URL itself still points to this app's origin. If the user is
+  // on the dev preview, the widget.js URL will be a dev URL which won't load
+  // reliably on their live website — they should copy from the published app.
   const isDevUrl =
     typeof window !== "undefined" &&
     window.location.hostname.endsWith(".replit.dev");

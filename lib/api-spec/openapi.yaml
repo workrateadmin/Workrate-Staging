@@ -1206,6 +1206,8 @@ components:
           type: ["string", "null"]
         proposalEmailEnabled:
           type: ["boolean", "null"]
+        widgetToken:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time

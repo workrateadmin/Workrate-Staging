@@ -70,6 +70,8 @@ export interface Company {
   enquiryConfirmationMessage?: string | null;
   /** @nullable */
   proposalEmailEnabled?: boolean | null;
+  /** @nullable */
+  widgetToken?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

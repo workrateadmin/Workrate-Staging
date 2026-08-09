@@ -57,6 +57,7 @@ export const GetCompanyResponse = zod.object({
   "enquirySmsEnabled": zod.boolean().nullish(),
   "enquiryConfirmationMessage": zod.string().nullish(),
   "proposalEmailEnabled": zod.boolean().nullish(),
+  "widgetToken": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -140,6 +141,7 @@ export const UpdateCompanyResponse = zod.object({
   "enquirySmsEnabled": zod.boolean().nullish(),
   "enquiryConfirmationMessage": zod.string().nullish(),
   "proposalEmailEnabled": zod.boolean().nullish(),
+  "widgetToken": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
