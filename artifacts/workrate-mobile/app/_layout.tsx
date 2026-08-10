@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { View, Text } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -11,13 +12,21 @@ import { ClerkProvider, ClerkLoaded } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
 import { setBaseUrl } from '@workspace/api-client-react';
 
-// Set API base URL at module level so every generated hook hits the right origin.
-// EXPO_PUBLIC_API_BASE_URL should be the full origin of the shared Replit dev/prod domain
-// (e.g. https://abc123.replit.dev). The generated hooks append /api/... paths.
+// ── API base URL ──────────────────────────────────────────────────────────────
+// PRODUCTION builds: EXPO_PUBLIC_API_BASE_URL = https://work-rate-manager.replit.app
+// DEV / Expo Go:     falls back to EXPO_PUBLIC_DOMAIN (Replit dev tunnel), which points
+//                    at the DEV API server. Never hardcode the dev URL here.
 const apiBaseUrl =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
   (process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : null);
 if (apiBaseUrl) setBaseUrl(apiBaseUrl);
+
+// ── ENV guard ─────────────────────────────────────────────────────────────────
+// In dev builds (Expo Go) log which API the app is using so env crossover is
+// immediately visible in the Metro console.
+if (__DEV__) {
+  console.log(`[WorkRate] 🔧 DEV BUILD — API: ${apiBaseUrl ?? "(relative)"}`);
+}
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
 const proxyUrl = process.env.EXPO_PUBLIC_CLERK_PROXY_URL || undefined;
@@ -74,6 +83,26 @@ export default function RootLayout() {
               <QueryClientProvider client={queryClient}>
                 <KeyboardProvider>
                   <RootLayoutNav />
+                  {/* DEV MODE banner — only visible in Expo Go / development builds */}
+                  {__DEV__ && (
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        backgroundColor: '#ea580c',
+                        paddingVertical: 4,
+                        alignItems: 'center',
+                        zIndex: 9999,
+                      }}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 1.5 }}>
+                        ⚠ DEV MODE — Not production
+                      </Text>
+                    </View>
+                  )}
                 </KeyboardProvider>
               </QueryClientProvider>
             </ClerkLoaded>

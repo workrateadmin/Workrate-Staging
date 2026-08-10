@@ -11,6 +11,7 @@ import integrationsRouter from "./integrations";
 import jobsRouter from "./jobs";
 import aiReceptionistRouter from "./ai-receptionist";
 import uploadsRouter from "./uploads";
+import diagnosticsRouter from "./diagnostics";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(integrationsRouter);
 router.use(jobsRouter);
 router.use(aiReceptionistRouter);
 router.use(uploadsRouter);
+router.use(diagnosticsRouter);
 
 export default router;

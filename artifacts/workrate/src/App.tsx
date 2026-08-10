@@ -21,6 +21,8 @@ import WidgetPage from "./pages/widget";
 import IntegrationsPage from "./pages/integrations";
 import ProposalPage from "./pages/proposal";
 import NotFound from "./pages/not-found";
+import DiagnosticsPage from "./pages/diagnostics";
+import { DevBanner } from "@/components/dev-banner";
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -247,6 +249,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/ai-receptionist"><ProtectedRoute component={AiReceptionist} /></Route>
           <Route path="/integrations"><ProtectedRoute component={IntegrationsPage} /></Route>
           <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
+          <Route path="/diagnostics"><ProtectedRoute component={DiagnosticsPage} /></Route>
 
           <Route><NotFound /></Route>
         </Switch>
@@ -257,9 +260,12 @@ function ClerkProviderWithRoutes() {
 
 export default function App() {
   return (
-    <WouterRouter base={basePath}>
-      <ClerkProviderWithRoutes />
-      <Toaster />
-    </WouterRouter>
+    <>
+      <DevBanner />
+      <WouterRouter base={basePath}>
+        <ClerkProviderWithRoutes />
+        <Toaster />
+      </WouterRouter>
+    </>
   );
 }

@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Settings, LogOut, Menu, Bell, Hammer,
   Plug, Briefcase, CalendarDays, PhoneCall, Search, Plus,
-  ChevronDown, Inbox, Users,
+  ChevronDown, Inbox, Users, Activity,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -19,8 +19,9 @@ const pipelineNav = [
 ];
 
 const businessNav = [
-  { name: "Integrations", href: "/integrations", icon: Plug },
-  { name: "Settings",     href: "/settings",     icon: Settings },
+  { name: "Integrations",  href: "/integrations",  icon: Plug },
+  { name: "Settings",      href: "/settings",       icon: Settings },
+  { name: "Diagnostics",   href: "/diagnostics",    icon: Activity },
 ];
 
 /* ── Mobile drawer sidebar (unchanged design) ─────────────────────────────── */
