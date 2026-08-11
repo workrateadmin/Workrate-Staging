@@ -64,7 +64,7 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
     const [unread, setUnread] = useState(false);
     // ── Concept visual state ───────────────────────────────────────────────────
     const [conceptState, setConceptState] = useState<
-      "idle" | "offered" | "generating" | "generated" | "awaiting_revision" | "done"
+      "idle" | "offered" | "generating" | "generated" | "awaiting_revision" | "done" | "failed"
     >("idle");
     const [conceptImageUrl, setConceptImageUrl] = useState<string | null>(null);
     const [conceptId, setConceptId] = useState<number | null>(null);
@@ -246,11 +246,16 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
     async function handleCreateConcept() {
       if (!token) return;
       setConceptState("generating");
+      // 90 s client-side abort — matches server's 85 s AbortSignal so the server
+      // always finishes first and can mark the record before we give up.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90_000);
       try {
         const res = await fetch(`/api/chat/${token}/concept-visual/generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({}),
+          signal: controller.signal,
         });
         const data = await res.json();
         if (!res.ok || data.status === "failed") throw new Error(data.error ?? "Generation failed");
@@ -259,7 +264,10 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
         setConceptGenCount(1);
         setConceptState("generated");
       } catch {
-        setConceptState("done"); // fall back gracefully
+        // Enquiry is already safely saved. Generation failure is non-fatal.
+        setConceptState("failed");
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
@@ -271,7 +279,7 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ feedback, isPreferred: feedback === "selected" }),
           });
-        } catch { /* ignore */ }
+        } catch { /* ignore — non-critical */ }
       }
       setConceptState("done");
     }
@@ -290,11 +298,14 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
           });
         } catch { /* ignore */ }
       }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90_000);
       try {
         const res = await fetch(`/api/chat/${token}/concept-visual/generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ revisionNotes: notes }),
+          signal: controller.signal,
         });
         const data = await res.json();
         if (!res.ok || data.status === "failed") throw new Error(data.error ?? "Generation failed");
@@ -303,7 +314,9 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
         setConceptGenCount((c) => c + 1);
         setConceptState("generated");
       } catch {
-        setConceptState("done");
+        setConceptState("failed");
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
@@ -539,26 +552,24 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
                   </div>
                 ))}
 
-                {isComplete && (
-                  <div className="flex justify-center">
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4 text-center max-w-[280px]">
-                      <CheckCircle2 className="w-7 h-7 text-emerald-500 mx-auto mb-2" />
-                      <p className="font-bold text-emerald-800 text-sm">Enquiry submitted!</p>
-                      <p className="text-emerald-700 text-xs mt-1 font-medium">We'll be in touch to discuss your quote.</p>
-                    </div>
-                  </div>
-                )}
+                {/* ── AI Concept Visual flow ────────────────────────────────
+                    The concept offer is shown as part of the completion flow.
+                    The green "Enquiry submitted" card is held back while the
+                    concept offer is active; it appears only after the customer
+                    accepts, declines, or the flow resolves. This way the offer
+                    feels like a natural next step, not an afterthought.
+                ─────────────────────────────────────────────────────────── */}
 
-                {/* ── AI Concept Visual flow ─────────────────────────────── */}
+                {/* Offer: before the customer has made a choice */}
                 {isComplete && conceptState === "offered" && (
                   <div className="flex justify-center">
                     <div className="bg-violet-50 border border-violet-200 rounded-2xl px-5 py-5 text-center max-w-[290px] shadow-sm">
                       <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center mx-auto mb-3">
                         <ImageIcon className="w-5 h-5 text-violet-600" />
                       </div>
-                      <p className="font-bold text-violet-900 text-sm mb-1">Early Concept Visual</p>
+                      <p className="font-bold text-violet-900 text-sm mb-1">One more thing…</p>
                       <p className="text-violet-700 text-xs mb-4 font-medium leading-relaxed">
-                        Would you like me to create an AI concept image showing roughly how this could look in your space?
+                        Would you like me to create an AI concept image showing roughly how this could look in your space? It only takes about 30 seconds.
                       </p>
                       <div className="flex flex-col gap-2">
                         <button
@@ -578,16 +589,20 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
                   </div>
                 )}
 
+                {/* Generating */}
                 {isComplete && conceptState === "generating" && (
                   <div className="flex justify-center">
-                    <div className="bg-violet-50 border border-violet-200 rounded-2xl px-5 py-6 text-center max-w-[280px]">
+                    <div className="bg-violet-50 border border-violet-200 rounded-2xl px-5 py-6 text-center max-w-[290px]">
                       <Loader2 className="w-7 h-7 text-violet-500 mx-auto mb-3 animate-spin" />
-                      <p className="font-bold text-violet-800 text-sm">Creating your concept visual…</p>
-                      <p className="text-violet-600 text-xs mt-1 font-medium">This usually takes 20–40 seconds</p>
+                      <p className="font-bold text-violet-800 text-sm">Creating your AI concept visual</p>
+                      <p className="text-violet-600 text-xs mt-1.5 font-medium leading-relaxed">
+                        This usually takes around a minute — your enquiry is already safely saved.
+                      </p>
                     </div>
                   </div>
                 )}
 
+                {/* Generated: show image + feedback */}
                 {isComplete && conceptState === "generated" && conceptImageUrl && (
                   <div className="flex justify-center">
                     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden max-w-[290px] shadow-sm">
@@ -604,7 +619,7 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
                       </div>
                       <div className="px-4 py-4">
                         <p className="text-slate-800 text-sm font-semibold leading-relaxed mb-1">
-                          Here's an early concept based on what you've told me. Is this roughly the look you had in mind?
+                          Here's an early concept based on what you've described. Is this roughly the look you had in mind?
                         </p>
                         <p className="text-[10px] text-slate-400 font-medium mb-4 leading-relaxed">
                           Concept image for visualisation only. Final design, dimensions and specification are subject to site survey and approval.
@@ -636,12 +651,13 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
                   </div>
                 )}
 
+                {/* Revision input */}
                 {isComplete && conceptState === "awaiting_revision" && (
                   <div className="flex justify-center">
                     <div className="bg-white border border-slate-200 rounded-2xl px-4 py-4 max-w-[290px] shadow-sm">
                       <p className="text-slate-800 text-sm font-bold mb-1">What would you change?</p>
                       <p className="text-slate-500 text-xs mb-3 font-medium leading-relaxed">
-                        One short instruction — e.g. "Make it darker" or "Open shelving on the left"
+                        One short instruction — e.g. "Make it darker" or "Add open shelving on the left"
                       </p>
                       <input
                         value={revisionInput}
@@ -670,10 +686,35 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
                   </div>
                 )}
 
+                {/* Generation failed — friendly non-fatal message */}
+                {isComplete && conceptState === "failed" && (
+                  <div className="flex justify-center">
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-center max-w-[290px]">
+                      <p className="text-slate-600 text-xs font-medium leading-relaxed">
+                        I couldn't create the concept visual this time, but your enquiry has been submitted successfully and we'll be in touch soon.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Concept saved confirmation (after customer interacted) */}
                 {isComplete && conceptState === "done" && conceptImageUrl && (
                   <div className="flex justify-center">
                     <div className="bg-violet-50 border border-violet-200 rounded-2xl px-5 py-3 text-center max-w-[280px]">
                       <p className="text-violet-700 text-xs font-medium">Your concept visual has been saved with your enquiry.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Green confirmation card — shown only once the concept offer is
+                    resolved (idle = no offer made; done/failed = offer completed).
+                    This prevents it appearing before the customer has seen the offer. */}
+                {isComplete && (conceptState === "idle" || conceptState === "done" || conceptState === "failed") && (
+                  <div className="flex justify-center">
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4 text-center max-w-[280px]">
+                      <CheckCircle2 className="w-7 h-7 text-emerald-500 mx-auto mb-2" />
+                      <p className="font-bold text-emerald-800 text-sm">Enquiry submitted!</p>
+                      <p className="text-emerald-700 text-xs mt-1 font-medium">We'll be in touch to discuss your quote.</p>
                     </div>
                   </div>
                 )}
