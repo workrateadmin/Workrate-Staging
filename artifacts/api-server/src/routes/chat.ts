@@ -647,49 +647,141 @@ router.post(
       return;
     }
 
-    // Images: run GPT-4o vision analysis
+    // ── Images: vision → completion-aware main AI response ─────────────────
+    // Step 1: Run vision to extract information from the photo (context only —
+    //         no follow-up question; the main AI decides what to say next).
     const tradeTypeForVision = enquiry.projectType ?? "general";
     const isJoinery = tradeTypeForVision.toLowerCase() === "joinery";
     const visionPromptText = isJoinery
-      ? `You are WorkRate Assistant, the AI enquiry assistant for a professional joinery business. A customer has uploaded this photo as part of their joinery project enquiry. Analyse the image with a joiner's eye — in 2–3 sentences comment on what you can see that is relevant to preparing a quote: note the wall/alcove dimensions if visible, any existing architectural features (chimney breast, coving, skirting profile, ceiling height), the current condition, and any scribing or access challenges a joiner should be aware of. Use correct joinery terminology naturally (e.g. carcass, scribe, shaker, alcove depth, back panel). Then ask one intelligent follow-up question to gather the next most useful piece of information for the quote.`
-      : `You are WorkRate Assistant, an AI enquiry assistant for a trades business. A customer has uploaded this photo as part of their project enquiry. In 1–2 sentences, describe what you can see that is relevant to a tradesperson preparing a quote (e.g. room size, existing fixtures, condition, style). Then ask a relevant follow-up question about the project. Be warm and conversational.`;
+      ? `You are a joinery estimator reviewing a site photo. In 2–3 sentences, describe what you can observe that would be relevant to preparing a joinery quote: dimensions or proportions visible, existing architectural features (chimney breast, coving, skirting, ceiling height), current condition, and any scribing or access challenges. Use correct joinery terminology (carcass, scribe, alcove, back panel, etc.). Do NOT ask any questions — purely describe what you see.`
+      : `You are a trades estimator reviewing a site photo. In 1–2 sentences, describe what is visible that would be relevant to a tradesperson preparing a quote (room size, existing fixtures, condition, style). Do NOT ask any questions — purely describe what you see.`;
 
-    let aiDescription = "Thank you for sharing that photo — it will help the joiner understand your project better.";
+    let visionContext = "A photo of the customer's project space.";
+    const openai = getOpenAI();
     try {
-      const openai = getOpenAI();
       const vision = await openai.chat.completions.create({
         model: "gpt-4o-mini",
-        max_tokens: 250,
+        max_tokens: 200,
         messages: [
           {
             role: "user",
             content: [
-              {
-                type: "text",
-                text: visionPromptText,
-              },
-              {
-                type: "image_url",
-                image_url: { url: publicUrl, detail: "low" },
-              },
+              { type: "text", text: visionPromptText },
+              { type: "image_url", image_url: { url: publicUrl, detail: "low" } },
             ],
           },
         ],
       });
-      aiDescription =
-        vision.choices[0]?.message?.content ?? aiDescription;
+      visionContext = vision.choices[0]?.message?.content ?? visionContext;
     } catch (err) {
       console.error("Vision analysis failed", err);
     }
 
-    // Save AI response as assistant message
+    // Step 2: Record a customer turn for the photo upload so history is coherent.
+    await db.insert(enquiryMessagesTable).values({
+      enquiryId: enquiry.id,
+      role: "customer",
+      content: "[Customer uploaded a photo of their project]",
+    });
+
+    // Step 3: Load full history (now includes the photo customer turn).
+    const uploadHistory = await db
+      .select()
+      .from(enquiryMessagesTable)
+      .where(eq(enquiryMessagesTable.enquiryId, enquiry.id))
+      .orderBy(enquiryMessagesTable.createdAt);
+
+    // Step 4: Run main chat AI with vision context injected as a system note.
+    // The AI will either ask the next missing question OR produce ENQUIRY_COMPLETE
+    // if all required fields are now satisfied — same logic as a text message.
+    const tradeType = enquiry.projectType ?? "General";
+    const basePrompt = getSystemPrompt(tradeType);
+
+    // Look up company name so the AI can personalise the completion message
+    let companyName = "the team";
+    try {
+      if (enquiry.ownerUserId) {
+        const [co] = await db
+          .select({ name: companiesTable.name })
+          .from(companiesTable)
+          .where(eq(companiesTable.ownerUserId, enquiry.ownerUserId))
+          .limit(1);
+        if (co?.name) companyName = co.name;
+      }
+    } catch {
+      // fall back to "the team"
+    }
+
+    const systemWithVision =
+      basePrompt +
+      `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` +
+      `\nPHOTO JUST UPLOADED — ACT NOW` +
+      `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` +
+      `\nThe customer has uploaded a photo. Vision analysis of the image: "${visionContext}"` +
+      `\n\nScan the conversation history above and assess each required field:` +
+      `\n  Field 1  — Full name` +
+      `\n  Field 2  — Phone AND email` +
+      `\n  Field 3  — Postcode / area` +
+      `\n  Field 4  — Key measurements / dimensions` +
+      `\n  Field 5  — Material, finish, style preferences` +
+      `\n  Field 6  — Budget range` +
+      `\n  Field 7  — Timescale` +
+      `\n  Field 8  — Photos ✅ SATISFIED by this upload` +
+      `\n\n► If fields 1–7 are ALL present in the conversation: you MUST complete the enquiry right now.` +
+      `\n  Do NOT say "is there anything else?". Do NOT ask for confirmation. Complete immediately.` +
+      `\n  Use this wording (substituting names): "Thanks, [first name] — that photo is really helpful. I've got everything I need and I've sent your enquiry to ${companyName}. They'll review the details and get back to you shortly."` +
+      `\n  Then output the ENQUIRY_COMPLETE JSON marker on its own line as described above.` +
+      `\n\n► If any of fields 1–7 is genuinely still missing: acknowledge the photo in one sentence, then immediately ask the single most important missing question.`;
+
+    const uploadChatMessages: OpenAI.ChatCompletionMessageParam[] = [
+      { role: "system", content: systemWithVision },
+      ...uploadHistory.map((m) => ({
+        role: (m.role === "customer" ? "user" : "assistant") as "user" | "assistant",
+        content: m.content,
+      })),
+    ];
+
+    let fullUploadResponse = "Thank you for that photo — it's really helpful. Let me pick up where we left off.";
+    try {
+      const mainCompletion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        max_tokens: 500,
+        messages: uploadChatMessages,
+      });
+      fullUploadResponse = mainCompletion.choices[0]?.message?.content ?? fullUploadResponse;
+    } catch (err) {
+      console.error("Post-upload AI completion failed", err);
+    }
+
+    const displayUploadResponse = fullUploadResponse
+      .replace(/\nENQUIRY_COMPLETE:.*$/s, "")
+      .trim();
+
+    // Step 5: Save the AI response to the conversation.
     await db.insert(enquiryMessagesTable).values({
       enquiryId: enquiry.id,
       role: "assistant",
-      content: aiDescription,
+      content: displayUploadResponse,
     });
 
-    res.json({ url: publicUrl, aiMessage: aiDescription });
+    // Step 6: Check for completion and run the pipeline if triggered.
+    let uploadCompleted = false;
+    const uploadCompletionMatch = fullUploadResponse.match(/ENQUIRY_COMPLETE:(\{.*\})/s);
+    if (uploadCompletionMatch) {
+      uploadCompleted = true;
+      try {
+        const extracted = JSON.parse(uploadCompletionMatch[1]);
+        await handleEnquiryCompletion(enquiry, extracted, false);
+      } catch {
+        // ignore parse errors — enquiry still marked complete on the widget
+      }
+    }
+
+    res.json({
+      url: publicUrl,
+      aiMessage: displayUploadResponse,
+      ...(uploadCompleted ? { completed: true } : {}),
+    });
   },
 );
 

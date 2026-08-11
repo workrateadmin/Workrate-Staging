@@ -260,6 +260,9 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
           }
           return updated;
         });
+        if (data.completed) {
+          setIsComplete(true);
+        }
       } catch {
         setMessages((prev) => {
           const updated = [...prev];
