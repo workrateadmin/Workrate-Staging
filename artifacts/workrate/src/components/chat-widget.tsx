@@ -10,7 +10,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import {
   Send, X, Loader2, Camera, MessageCircle,
-  CheckCircle2, ChevronDown,
+  CheckCircle2, ChevronDown, ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +62,14 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
     const [pendingPhotoPreview, setPendingPhotoPreview] = useState<string | null>(null);
     const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
     const [unread, setUnread] = useState(false);
+    // ── Concept visual state ───────────────────────────────────────────────────
+    const [conceptState, setConceptState] = useState<
+      "idle" | "offered" | "generating" | "generated" | "awaiting_revision" | "done"
+    >("idle");
+    const [conceptImageUrl, setConceptImageUrl] = useState<string | null>(null);
+    const [conceptId, setConceptId] = useState<number | null>(null);
+    const [conceptGenCount, setConceptGenCount] = useState(0);
+    const [revisionInput, setRevisionInput] = useState("");
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -234,6 +242,71 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
       setPendingPhotoPreview(null);
     }
 
+    // ── Concept visual handlers ────────────────────────────────────────────────
+    async function handleCreateConcept() {
+      if (!token) return;
+      setConceptState("generating");
+      try {
+        const res = await fetch(`/api/chat/${token}/concept-visual/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        const data = await res.json();
+        if (!res.ok || data.status === "failed") throw new Error(data.error ?? "Generation failed");
+        setConceptImageUrl(data.imageUrl);
+        setConceptId(data.conceptId);
+        setConceptGenCount(1);
+        setConceptState("generated");
+      } catch {
+        setConceptState("done"); // fall back gracefully
+      }
+    }
+
+    async function handleConceptFeedback(feedback: "selected" | "skipped") {
+      if (token && conceptId !== null) {
+        try {
+          await fetch(`/api/chat/${token}/concept-visual/${conceptId}/feedback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ feedback, isPreferred: feedback === "selected" }),
+          });
+        } catch { /* ignore */ }
+      }
+      setConceptState("done");
+    }
+
+    async function submitRevision() {
+      if (!token || !revisionInput.trim()) return;
+      const notes = revisionInput.trim();
+      setRevisionInput("");
+      setConceptState("generating");
+      if (conceptId !== null) {
+        try {
+          await fetch(`/api/chat/${token}/concept-visual/${conceptId}/feedback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ feedback: "revision_requested", revisionText: notes }),
+          });
+        } catch { /* ignore */ }
+      }
+      try {
+        const res = await fetch(`/api/chat/${token}/concept-visual/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revisionNotes: notes }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.status === "failed") throw new Error(data.error ?? "Generation failed");
+        setConceptImageUrl(data.imageUrl);
+        setConceptId(data.conceptId);
+        setConceptGenCount((c) => c + 1);
+        setConceptState("generated");
+      } catch {
+        setConceptState("done");
+      }
+    }
+
     async function uploadPhoto() {
       if (!pendingPhoto || !token) return;
       setIsUploadingPhoto(true);
@@ -262,6 +335,9 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
         });
         if (data.completed) {
           setIsComplete(true);
+        }
+        if (data.conceptVisualOffer) {
+          setConceptState("offered");
         }
       } catch {
         setMessages((prev) => {
@@ -469,6 +545,135 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
                       <CheckCircle2 className="w-7 h-7 text-emerald-500 mx-auto mb-2" />
                       <p className="font-bold text-emerald-800 text-sm">Enquiry submitted!</p>
                       <p className="text-emerald-700 text-xs mt-1 font-medium">We'll be in touch to discuss your quote.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── AI Concept Visual flow ─────────────────────────────── */}
+                {isComplete && conceptState === "offered" && (
+                  <div className="flex justify-center">
+                    <div className="bg-violet-50 border border-violet-200 rounded-2xl px-5 py-5 text-center max-w-[290px] shadow-sm">
+                      <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <ImageIcon className="w-5 h-5 text-violet-600" />
+                      </div>
+                      <p className="font-bold text-violet-900 text-sm mb-1">Early Concept Visual</p>
+                      <p className="text-violet-700 text-xs mb-4 font-medium leading-relaxed">
+                        Would you like me to create an AI concept image showing roughly how this could look in your space?
+                      </p>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={handleCreateConcept}
+                          className="w-full bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold rounded-xl py-2.5 transition-colors"
+                        >
+                          ✨ Create concept
+                        </button>
+                        <button
+                          onClick={() => setConceptState("done")}
+                          className="w-full bg-white hover:bg-violet-50 text-violet-600 border border-violet-200 text-sm font-semibold rounded-xl py-2 transition-colors"
+                        >
+                          No thanks
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isComplete && conceptState === "generating" && (
+                  <div className="flex justify-center">
+                    <div className="bg-violet-50 border border-violet-200 rounded-2xl px-5 py-6 text-center max-w-[280px]">
+                      <Loader2 className="w-7 h-7 text-violet-500 mx-auto mb-3 animate-spin" />
+                      <p className="font-bold text-violet-800 text-sm">Creating your concept visual…</p>
+                      <p className="text-violet-600 text-xs mt-1 font-medium">This usually takes 20–40 seconds</p>
+                    </div>
+                  </div>
+                )}
+
+                {isComplete && conceptState === "generated" && conceptImageUrl && (
+                  <div className="flex justify-center">
+                    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden max-w-[290px] shadow-sm">
+                      <div className="relative">
+                        <img
+                          src={conceptImageUrl}
+                          alt="AI Concept Visual"
+                          className="w-full object-cover"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                        />
+                        <div className="absolute top-2 left-2 bg-violet-600 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
+                          AI Concept Visual
+                        </div>
+                      </div>
+                      <div className="px-4 py-4">
+                        <p className="text-slate-800 text-sm font-semibold leading-relaxed mb-1">
+                          Here's an early concept based on what you've told me. Is this roughly the look you had in mind?
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-medium mb-4 leading-relaxed">
+                          Concept image for visualisation only. Final design, dimensions and specification are subject to site survey and approval.
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => handleConceptFeedback("selected")}
+                            className="w-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl py-2.5 transition-colors"
+                          >
+                            ✓ Yes, I like this
+                          </button>
+                          {conceptGenCount < 2 && (
+                            <button
+                              onClick={() => setConceptState("awaiting_revision")}
+                              className="w-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-sm font-semibold rounded-xl py-2 transition-colors"
+                            >
+                              I'd change something
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleConceptFeedback("skipped")}
+                            className="w-full text-slate-400 hover:text-slate-600 text-xs font-medium py-1 transition-colors"
+                          >
+                            Skip visual
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isComplete && conceptState === "awaiting_revision" && (
+                  <div className="flex justify-center">
+                    <div className="bg-white border border-slate-200 rounded-2xl px-4 py-4 max-w-[290px] shadow-sm">
+                      <p className="text-slate-800 text-sm font-bold mb-1">What would you change?</p>
+                      <p className="text-slate-500 text-xs mb-3 font-medium leading-relaxed">
+                        One short instruction — e.g. "Make it darker" or "Open shelving on the left"
+                      </p>
+                      <input
+                        value={revisionInput}
+                        onChange={(e) => setRevisionInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" && revisionInput.trim()) submitRevision(); }}
+                        placeholder="Describe your change…"
+                        maxLength={200}
+                        className="w-full px-3 py-2.5 text-sm rounded-xl bg-slate-100 border-none outline-none focus:ring-2 focus:ring-violet-300 mb-3"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={submitRevision}
+                          disabled={!revisionInput.trim()}
+                          className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:bg-slate-200 text-white disabled:text-slate-400 text-sm font-bold rounded-xl py-2.5 transition-colors"
+                        >
+                          Update concept
+                        </button>
+                        <button
+                          onClick={() => { setConceptState("generated"); setRevisionInput(""); }}
+                          className="px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 text-sm rounded-xl transition-colors"
+                        >
+                          Back
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isComplete && conceptState === "done" && conceptImageUrl && (
+                  <div className="flex justify-center">
+                    <div className="bg-violet-50 border border-violet-200 rounded-2xl px-5 py-3 text-center max-w-[280px]">
+                      <p className="text-violet-700 text-xs font-medium">Your concept visual has been saved with your enquiry.</p>
                     </div>
                   </div>
                 )}

@@ -1,0 +1,191 @@
+Build Phase 1 of WorkRate AI Concept Visuals for joinery enquiries.
+
+GOAL:
+When a customer uploads a room/photo during a joinery enquiry, WorkRate should be able to generate a concept image showing roughly how the proposed joinery could look in that space.
+
+IMPORTANT:
+This is a CONCEPT VISUAL feature, not a technical drawing system.
+
+The output must be clearly labelled:
+"AI Concept Visual"
+
+And include this disclaimer:
+"Concept image for visualisation only. Final design, dimensions and specification are subject to site survey and approval."
+
+PHASE 1 SCOPE:
+Only enable this for supported joinery project types:
+- Fitted wardrobes
+- Freestanding wardrobes
+- Media units
+- Alcove units
+- Home office / study joinery
+- Built-in storage
+
+Do not enable it for every trade yet.
+
+WORKFLOW:
+
+1. Customer uploads a photo during the enquiry.
+2. WorkRate continues collecting the project information normally:
+   - project type
+   - approximate dimensions
+   - style
+   - finish
+   - door style
+   - internal layout
+   - colour/material preferences
+   - other relevant joinery details
+
+3. Once enough information is available AND at least one suitable photo exists, show:
+
+"Would you like me to create an early concept visual of how this could look?"
+
+Buttons:
+- Create concept
+- No thanks
+
+4. If customer chooses Create concept:
+
+Generate a concept image using:
+- the customer's uploaded room/photo as the base image
+- the information already collected in the enquiry
+- the relevant WorkRate Brain / business preferences where appropriate
+
+The visual should preserve the customer's actual room as much as possible and add the proposed joinery realistically into the space.
+
+Example:
+Customer uploads an empty alcove and asks for:
+- shaker fitted wardrobes
+- painted warm white
+- 2m wide
+- full height
+
+The returned image should show an approximate warm-white shaker wardrobe installation in that actual room.
+
+5. After generation, display the resulting image inside the chat with:
+
+"Here's an early concept based on what you've told me. Is this roughly the look you had in mind?"
+
+Buttons:
+- Yes, I like this
+- I'd change something
+- Skip visual
+
+6. If customer selects "Yes, I like this":
+Save that response to the enquiry.
+
+7. If customer selects "I'd change something":
+Allow one short text response such as:
+"Make it green"
+"Less traditional"
+"Open shelving on the left"
+"Three doors instead of four"
+
+Then allow WorkRate to generate one revised concept image.
+
+For Phase 1:
+Limit to a maximum of 2 generated concept images per enquiry to control cost.
+
+8. Save to the enquiry:
+- original customer photo(s)
+- generated concept image URL(s)
+- generation prompt/structured brief
+- customer feedback
+- selected/preferred concept
+- generation timestamp
+- visual status
+
+Suggested statuses:
+- not_offered
+- offered
+- generating
+- generated
+- revision_requested
+- selected
+- skipped
+- failed
+
+9. Show the concept images in the business Enquiry Detail page under:
+
+"Concept Visuals"
+
+The tradesperson should be able to see:
+- original room image
+- AI concept
+- customer feedback
+- which visual the customer preferred
+
+10. IMPORTANT CUSTOMER EXPECTATIONS:
+
+Never describe the image as:
+- technical drawing
+- construction drawing
+- fabrication drawing
+- measured drawing
+- final design
+
+Always call it:
+"AI Concept Visual"
+or
+"Early Concept"
+
+The visual must never imply that dimensions or construction details are guaranteed.
+
+11. ERROR HANDLING:
+
+If image generation fails:
+- do not fail the enquiry
+- show:
+  "I couldn't create the visual this time, but your enquiry has still been submitted successfully."
+- log the error for WorkRate
+- allow the rest of the enquiry pipeline to continue normally
+
+12. SECURITY / TENANCY:
+
+Generated images must belong to the correct enquiry/company.
+Do not expose another company's files or generated images.
+Use the same company/workspace isolation rules as enquiries and attachments.
+
+13. COST / ABUSE PROTECTION:
+
+- Maximum 2 generated concept images per enquiry in Phase 1
+- Require a valid uploaded customer image
+- Require a valid business/widget token
+- Rate limit visual generation
+- Do not expose raw provider API keys to browser/client
+
+14. DO NOT fake image generation.
+
+If no real image-generation provider/integration is currently connected:
+- build the complete UI, data model, state machine and service abstraction
+- clearly mark generation as provider_not_configured
+- tell me exactly what provider/API integration is required next
+
+Do not return placeholder AI images pretending they were generated.
+
+15. Do not disturb the working production enquiry flow:
+Wix widget
+→ production API
+→ production DB
+→ desktop/mobile
+→ email
+
+The enquiry must still complete successfully whether the customer generates a visual or not.
+
+16. Also fix the photo-upload completion UX:
+
+If the uploaded photo is the FINAL missing piece of enquiry information:
+- do not wait for the customer to type "ok"
+- automatically complete the enquiry using the existing completion pipeline
+
+If more information is still required:
+- acknowledge the photo briefly
+- immediately ask the next missing question.
+
+Before implementing, report:
+- which image-generation provider/integration is currently available in this project
+- whether the customer photo can be passed as an image input/reference
+- expected storage approach for generated images
+- any production environment changes/secrets required
+
+Then implement the safest Phase 1 version.

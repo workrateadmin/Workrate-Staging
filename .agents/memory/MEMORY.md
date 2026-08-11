@@ -5,4 +5,5 @@
 - [WorkRate ownership model](workrate-ownership-model.md) — owner_user_id on key tables, claim-on-first-login, widget businessId flow, migration 0002
 - [WorkRate documents & branding](workrate-documents-branding.md) — template modes, branding snapshot on send, upload routes, QuoteDocument custom branding
 - [Chat widget completion detection](chat-widget-completion.md) — use server-sent completed:true SSE event, not text-matching; text-matching caused the widget regression
+- [WorkRate concept visuals](workrate-concept-visuals.md) — Phase 1 AI concept image feature; gpt-image-1 edit, concept_visuals table, widget offer flow, dashboard panel
 - [Clerk dev/prod user ID split](workrate-clerk-env-split.md) — dev and prod have separate Clerk user stores; use widgetToken UUID (not userId) as the widget businessId

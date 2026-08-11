@@ -18,7 +18,7 @@ import {
   Upload, Trash2, ExternalLink, Paperclip, Briefcase, CheckCircle2, Copy,
 } from "lucide-react";
 import { SummaryCard, SummaryCardSkeleton } from "@/components/summary-card";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { useState, useRef, useCallback } from "react";
 import {
@@ -215,6 +215,8 @@ export default function EnquiryDetail() {
 
               {/* Uploaded Photos */}
               <AttachmentsPanel enquiryId={id} />
+              {/* AI Concept Visuals */}
+              <ConceptVisualsPanel enquiryId={id} />
             </CardContent>
           </Card>
 
@@ -743,6 +745,145 @@ function AttachmentsPanel({ enquiryId }: { enquiryId: number }) {
             <img
               src={lightbox}
               alt="Full size"
+              className="w-full h-full object-contain rounded-2xl shadow-2xl max-h-[85vh]"
+            />
+            <button
+              onClick={() => setLightbox(null)}
+              className="absolute top-3 right-3 w-10 h-10 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Concept Visuals Panel ──────────────────────────────────────────────────────
+function ConceptVisualsPanel({ enquiryId }: { enquiryId: number }) {
+  const [lightbox, setLightbox] = useState<string | null>(null);
+
+  const { data: visuals = [], isLoading } = useQuery<any[]>({
+    queryKey: [`/api/enquiries/${enquiryId}/concept-visuals`],
+    queryFn: async () => {
+      const res = await fetch(`/api/enquiries/${enquiryId}/concept-visuals`);
+      if (!res.ok) throw new Error("Failed to load concept visuals");
+      return res.json();
+    },
+    staleTime: 30_000,
+  });
+
+  const generated = visuals.filter((v) => ["generated", "selected", "skipped"].includes(v.status));
+  if (!isLoading && generated.length === 0) return null;
+
+  const STATUS_LABELS: Record<string, { label: string; colour: string }> = {
+    offered:            { label: "Offered",            colour: "text-violet-600 bg-violet-50 border-violet-200" },
+    generating:         { label: "Generating…",        colour: "text-amber-600 bg-amber-50 border-amber-200" },
+    generated:          { label: "Generated",          colour: "text-blue-600 bg-blue-50 border-blue-200" },
+    revision_requested: { label: "Revision requested", colour: "text-orange-600 bg-orange-50 border-orange-200" },
+    selected:           { label: "Customer approved",  colour: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+    skipped:            { label: "Skipped",            colour: "text-slate-500 bg-slate-50 border-slate-200" },
+    failed:             { label: "Failed",             colour: "text-red-600 bg-red-50 border-red-200" },
+  };
+
+  return (
+    <div className="pt-6 border-t border-border/60">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+          <ImageIcon className="w-4 h-4" />
+          Concept Visuals
+          {generated.length > 0 && (
+            <span className="text-xs font-bold bg-secondary px-2 py-0.5 rounded-full text-muted-foreground border border-border/40">
+              {generated.length}
+            </span>
+          )}
+        </h3>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[1, 2].map((i) => <Skeleton key={i} className="aspect-square rounded-2xl" />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {generated.map((v, i) => {
+            const badge = STATUS_LABELS[v.status] ?? { label: v.status, colour: "text-slate-500 bg-slate-50 border-slate-200" };
+            return (
+              <div key={v.id} className="rounded-2xl border border-border/60 overflow-hidden bg-background shadow-sm">
+                {/* Generated image */}
+                {v.generatedImageUrl && (
+                  <div className="relative group">
+                    <button onClick={() => setLightbox(v.generatedImageUrl)} className="absolute inset-0 w-full h-full" />
+                    <img
+                      src={v.generatedImageUrl}
+                      alt={`AI Concept Visual ${i + 1}`}
+                      className="w-full object-cover max-h-52 group-hover:brightness-95 transition"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                    <div className="absolute top-2 left-2 bg-violet-600 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
+                      AI Concept Visual
+                    </div>
+                    {v.isPreferred && (
+                      <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
+                        ★ Customer's choice
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="px-4 py-3 space-y-2">
+                  {/* Status + original photo row */}
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badge.colour}`}>
+                      {badge.label}
+                    </span>
+                    {v.originalPhotoUrl && (
+                      <a
+                        href={v.originalPhotoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-semibold text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+                        title="Original customer photo"
+                      >
+                        <ImageIcon className="w-3 h-3" /> Original photo
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Customer feedback */}
+                  {v.customerFeedback && (
+                    <p className="text-xs text-muted-foreground italic">"{v.customerFeedback}"</p>
+                  )}
+
+                  {/* Generation timestamp */}
+                  {v.generatedAt && (
+                    <p className="text-[10px] text-muted-foreground/60 font-medium">
+                      Generated {formatDate(v.generatedAt)}
+                    </p>
+                  )}
+
+                  {/* Disclaimer */}
+                  <p className="text-[9px] text-muted-foreground/50 leading-relaxed">
+                    Concept image for visualisation only. Final design, dimensions and specification are subject to site survey and approval.
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={lightbox}
+              alt="AI Concept Visual"
               className="w-full h-full object-contain rounded-2xl shadow-2xl max-h-[85vh]"
             />
             <button

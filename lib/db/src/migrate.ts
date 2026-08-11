@@ -192,6 +192,24 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "is_test" boolean NOT NULL DEFAULT false;
     `,
   },
+  {
+    name: "0007_concept_visuals",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "concept_visuals" (
+        "id"                  serial PRIMARY KEY NOT NULL,
+        "enquiry_id"          integer NOT NULL REFERENCES "enquiries"("id") ON DELETE CASCADE,
+        "status"              text NOT NULL DEFAULT 'offered',
+        "original_photo_url"  text,
+        "prompt_brief"        text,
+        "generated_image_url" text,
+        "customer_feedback"   text,
+        "is_preferred"        boolean NOT NULL DEFAULT false,
+        "revision_count"      integer NOT NULL DEFAULT 0,
+        "generated_at"        timestamp with time zone,
+        "created_at"          timestamp with time zone NOT NULL DEFAULT now()
+      );
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

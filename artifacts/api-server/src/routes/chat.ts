@@ -777,10 +777,20 @@ router.post(
       }
     }
 
+    // Offer a concept visual for supported joinery enquiries when the enquiry just completed
+    const CONCEPT_JOINERY_TYPES = new Set([
+      "joinery", "fitted wardrobes", "freestanding wardrobes", "media wall", "media units",
+      "alcove units", "home office", "bespoke joinery", "kitchen installation", "built-in storage",
+    ]);
+    const offerConceptVisual =
+      uploadCompleted &&
+      CONCEPT_JOINERY_TYPES.has((enquiry.projectType ?? "").toLowerCase());
+
     res.json({
       url: publicUrl,
       aiMessage: displayUploadResponse,
       ...(uploadCompleted ? { completed: true } : {}),
+      ...(offerConceptVisual ? { conceptVisualOffer: true } : {}),
     });
   },
 );
