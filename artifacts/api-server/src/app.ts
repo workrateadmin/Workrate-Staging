@@ -19,6 +19,9 @@ mkdirSync(uploadsDir, { recursive: true });
 
 const app = express();
 
+// Trust Replit's reverse proxy so req.protocol returns "https" in production
+app.set("trust proxy", true);
+
 app.use(
   pinoHttp({
     logger,

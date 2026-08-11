@@ -1,0 +1,62 @@
+The AI Concept Visual failed in the LIVE production widget.
+
+The customer saw:
+
+"I couldn't create the concept visual this time, but your enquiry has been submitted successfully..."
+
+That fallback behaviour is correct.
+
+DO NOT change the UX or enquiry submission pipeline yet.
+
+Trace THIS EXACT failed concept generation in PRODUCTION.
+
+I need:
+
+1. Exact enquiry ID
+2. Exact concept_visuals row ID
+3. Status stored for the concept visual
+4. Exact production timestamp
+5. Whether the uploaded customer image was found successfully
+6. Exact uploaded image file path / URL used as the source
+7. Image format and MIME type
+8. Whether OPENAI_API_KEY was available in production
+9. Whether images.edit() was actually called
+10. Exact OpenAI API response/error
+11. HTTP status code
+12. Whether the generated image was returned but failed during file saving
+13. Whether the output directory exists and is writable in production
+14. Whether the generated file URL would be publicly accessible after saving
+15. Confirm whether production and dev use the same uploads/storage approach
+
+IMPORTANT:
+Do not just say "generation failed".
+
+Show the actual provider/storage error that caused THIS request to fail.
+
+Check especially for:
+- HEIC / iPhone image incompatibility
+- unsupported MIME type
+- temporary upload file missing
+- production filesystem differences
+- file permissions
+- image size/dimensions
+- image edit API input format
+- timeout
+- OpenAI API error
+- generated file not persisting on autoscale/redeploy
+
+If the customer uploaded HEIC/HEIF:
+convert it server-side to PNG or JPEG before sending it to the image model.
+
+If the problem is production filesystem persistence:
+do not patch around it with temporary local storage.
+Recommend the correct persistent object-storage approach.
+
+After fixing, rerun ONE real production concept visual using the same enquiry/photo if possible.
+
+Do not mark fixed until:
+- production generates the real concept image
+- image displays inside the live Wix chat
+- image is saved against the enquiry
+- concept appears on the dashboard
+- enquiry remains unaffected if generation fails

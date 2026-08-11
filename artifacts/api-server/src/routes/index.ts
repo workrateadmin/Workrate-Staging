@@ -13,6 +13,7 @@ import aiReceptionistRouter from "./ai-receptionist";
 import uploadsRouter from "./uploads";
 import diagnosticsRouter from "./diagnostics";
 import conceptVisualsRouter from "./concept-visuals";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(aiReceptionistRouter);
 router.use(uploadsRouter);
 router.use(diagnosticsRouter);
 router.use(conceptVisualsRouter);
+router.use(storageRouter);
 
 export default router;

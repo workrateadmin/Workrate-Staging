@@ -1,8 +1,11 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { randomBytes } from "crypto";
 import path from "path";
-import { mkdirSync } from "fs";
+import fs, { mkdirSync } from "fs";
+import { execSync } from "child_process";
+import { tmpdir } from "os";
 import multer from "multer";
+import { uploadBufferToStorage, storageServingUrl } from "../lib/storageUpload";
 import { db, enquiriesTable, enquiryMessagesTable, enquiryAttachmentsTable, companiesTable } from "@workspace/db";
 import { sendEnquiryConfirmation } from "../services/customer-comms";
 import { eq, sql } from "drizzle-orm";
@@ -623,7 +626,18 @@ router.post(
       return;
     }
 
-    const publicUrl = fileUrl(req, file.filename);
+    // Upload to persistent object storage so the URL is stable across container
+    // restarts and autoscale instances. Fall back to the local disk URL only if
+    // the GCS upload fails (e.g. storage not yet configured in dev).
+    let publicUrl = fileUrl(req, file.filename);
+    try {
+      const fileBuf = fs.readFileSync(path.join(uploadsDir, file.filename));
+      const { objectPath } = await uploadBufferToStorage(fileBuf, file.mimetype);
+      publicUrl = storageServingUrl(req, objectPath);
+    } catch (gcsErr) {
+      console.error("[upload] GCS upload failed, falling back to local URL:", gcsErr);
+    }
+
     const isPdf = file.mimetype === "application/pdf";
 
     // Record in enquiry_attachments table
@@ -659,6 +673,47 @@ router.post(
     let visionContext = "A photo of the customer's project space.";
     const openai = getOpenAI();
     try {
+      // Build the image data URL inline (base64) so OpenAI can read the image
+      // regardless of network routing, HTTP/HTTPS differences, or which container
+      // instance handles the request. Using a public URL was unreliable on autoscale
+      // (the file exists on one container; OpenAI's fetch may hit a different one).
+      const filePath = path.join(uploadsDir, file.filename);
+
+      // Detect whether the file is actually HEIC despite having a JPEG extension.
+      // iPhones sometimes send HEIC bytes with mimetype "image/jpeg". Read the first
+      // 12 bytes — ISO Base Media format (HEIC/HEIF) has "ftyp" at bytes 4–7.
+      let visionDataUrl: string;
+      let visionTempFile: string | null = null;
+      try {
+        const header = Buffer.alloc(12);
+        const fd = fs.openSync(filePath, "r");
+        fs.readSync(fd, header, 0, 12, 0);
+        fs.closeSync(fd);
+        const isActuallyHeic = header.slice(4, 8).toString("ascii") === "ftyp";
+
+        if (isActuallyHeic) {
+          // Convert HEIC → JPEG using ImageMagick (libheif is available on this platform)
+          visionTempFile = path.join(tmpdir(), `vis-${randomBytes(6).toString("hex")}.jpg`);
+          execSync(`magick "${filePath}" -colorspace sRGB "${visionTempFile}"`, {
+            timeout: 15_000, stdio: "pipe",
+          });
+          const b64 = fs.readFileSync(visionTempFile).toString("base64");
+          visionDataUrl = `data:image/jpeg;base64,${b64}`;
+        } else {
+          const b64 = fs.readFileSync(filePath).toString("base64");
+          visionDataUrl = `data:${file.mimetype};base64,${b64}`;
+        }
+      } catch (readErr) {
+        // Fallback: read the file as-is and hope it's a supported format
+        console.error("[vision] Image prep failed, falling back to raw base64:", readErr);
+        const b64 = fs.readFileSync(filePath).toString("base64");
+        visionDataUrl = `data:${file.mimetype};base64,${b64}`;
+      } finally {
+        if (visionTempFile) {
+          try { fs.unlinkSync(visionTempFile); } catch { /* already gone */ }
+        }
+      }
+
       const vision = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         max_tokens: 200,
@@ -667,7 +722,7 @@ router.post(
             role: "user",
             content: [
               { type: "text", text: visionPromptText },
-              { type: "image_url", image_url: { url: publicUrl, detail: "low" } },
+              { type: "image_url", image_url: { url: visionDataUrl, detail: "low" } },
             ],
           },
         ],

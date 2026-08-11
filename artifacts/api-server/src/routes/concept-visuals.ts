@@ -16,10 +16,17 @@ import OpenAI from "openai";
 import { toFile } from "openai/uploads";
 import fs from "node:fs";
 import path from "node:path";
-import { mkdirSync, writeFileSync, copyFileSync, unlinkSync } from "node:fs";
+import { mkdirSync, unlinkSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { execSync } from "node:child_process";
 import { tmpdir } from "node:os";
+import {
+  uploadBufferToStorage,
+  downloadBufferFromStorage,
+  storageServingUrl,
+  isStorageUrl,
+  parseObjectPath,
+} from "../lib/storageUpload";
 
 const router: IRouter = Router();
 
@@ -200,15 +207,29 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
     return;
   }
 
-  // Derive local file path from the stored URL
-  const photoFilename = path.basename(new URL(imageAttachment.url).pathname);
-  const photoPath = path.join(uploadsDir, photoFilename);
-
-  if (!fs.existsSync(photoPath)) {
-    res.status(500).json({
-      error: "Original photo not accessible on this server. Try re-uploading the photo.",
-      status: "failed",
-    });
+  // Download the photo — supports both new GCS storage URLs and legacy local disk URLs.
+  let photoBuffer: Buffer;
+  try {
+    if (isStorageUrl(imageAttachment.url)) {
+      // New format: download from GCS
+      const objectPath = parseObjectPath(imageAttachment.url);
+      photoBuffer = await downloadBufferFromStorage(objectPath);
+    } else {
+      // Legacy format: read from local disk (may fail if container restarted)
+      const photoFilename = path.basename(new URL(imageAttachment.url).pathname);
+      const photoPath = path.join(uploadsDir, photoFilename);
+      if (!fs.existsSync(photoPath)) {
+        res.status(500).json({
+          error: "Original photo is no longer accessible. Re-uploading the photo will resolve this.",
+          status: "failed",
+        });
+        return;
+      }
+      photoBuffer = fs.readFileSync(photoPath);
+    }
+  } catch (photoErr: any) {
+    console.error("[concept-visual] Failed to load photo:", photoErr?.message ?? photoErr);
+    res.status(500).json({ error: "Could not load the original photo.", status: "failed" });
     return;
   }
 
@@ -227,9 +248,13 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
 
   // ── Generate concept image via gpt-image-1 ───────────────────────────────────
   // gpt-image-1 images.edit() requires a PNG file (PNG32 / RGBA).
-  // Convert the source image to PNG32 using ImageMagick before sending.
-  // Temp file is cleaned up in the finally block regardless of outcome.
+  // Write the photo buffer to a temp file for ImageMagick, then convert to PNG32.
+  // Both temp files are cleaned up in the finally block regardless of outcome.
+  const tempInput = path.join(tmpdir(), `cv-in-${randomBytes(6).toString("hex")}`);
   const tempPng = path.join(tmpdir(), `cv-${randomBytes(6).toString("hex")}.png`);
+
+  // Write the downloaded photo buffer to a temp file for ImageMagick to read
+  fs.writeFileSync(tempInput, photoBuffer);
 
   const startedAt = Date.now();
   try {
@@ -239,14 +264,14 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
     // * HEIC requires libheif support in the ImageMagick build; if unavailable it
     //   will throw and we surface a 400 "no suitable image" before reaching here.
     try {
-      execSync(`magick "${photoPath}" -colorspace sRGB -alpha set "PNG32:${tempPng}"`, {
+      execSync(`magick "${tempInput}" -colorspace sRGB -alpha set "PNG32:${tempPng}"`, {
         timeout: 15_000,
         stdio: "pipe",
       });
     } catch (convertErr: any) {
       console.error("[concept-visual] ImageMagick conversion failed:", convertErr?.message);
-      // Fall back to a direct copy in case it's already a valid PNG
-      copyFileSync(photoPath, tempPng);
+      // Fall back to a direct copy of the buffer in case it's already a valid PNG
+      fs.writeFileSync(tempPng, photoBuffer);
     }
 
     const photoFile = await toFile(
@@ -274,19 +299,17 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
     const b64 = response.data[0]?.b64_json;
     if (!b64) throw new Error("No image data in OpenAI response");
 
-    // Save the generated image to disk
-    const conceptFilename = `concept-${Date.now()}-${randomBytes(6).toString("hex")}.png`;
-    const conceptPath = path.join(uploadsDir, conceptFilename);
-    writeFileSync(conceptPath, Buffer.from(b64, "base64"));
-
-    const fileSizeKb = Math.round((b64.length * 3) / 4 / 1024);
+    const pngBuffer = Buffer.from(b64, "base64");
+    const fileSizeKb = Math.round(pngBuffer.length / 1024);
     const elapsedMs = Date.now() - startedAt;
-    console.log(
-      `[concept-visual] Generated in ${elapsedMs}ms | size: ${fileSizeKb}KB | enquiry: ${enquiry.id} | record: ${conceptRecord.id}`,
-    );
 
-    const host = req.get("host") ?? "localhost";
-    const conceptUrl = `${req.protocol}://${host}/uploads/${conceptFilename}`;
+    // Upload the generated PNG to persistent object storage
+    const { objectPath: conceptObjectPath } = await uploadBufferToStorage(pngBuffer, "image/png");
+    const conceptUrl = storageServingUrl(req, conceptObjectPath);
+
+    console.log(
+      `[concept-visual] Generated in ${elapsedMs}ms | size: ${fileSizeKb}KB | enquiry: ${enquiry.id} | record: ${conceptRecord.id} | url: ${conceptObjectPath}`,
+    );
 
     await db
       .update(conceptVisualsTable)
@@ -316,7 +339,8 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
       conceptId: conceptRecord.id,
     });
   } finally {
-    // Always clean up the temp PNG whether generation succeeded or failed
+    // Always clean up temp files whether generation succeeded or failed
+    try { unlinkSync(tempInput); } catch { /* already gone or never created */ }
     try { unlinkSync(tempPng); } catch { /* already gone or never created */ }
   }
 });
