@@ -1,0 +1,76 @@
+I have found a second production symptom:
+
+Customer enquiry photos are NOT viewable from the published WorkRate dashboard.
+
+This may be the same root cause as the AI Concept Visual failure.
+
+DO NOT work on image-generation prompts yet.
+
+First audit the complete production attachment storage system.
+
+For the latest enquiry containing a customer photo, report:
+
+1. enquiry ID
+2. attachment database value / URL
+3. original filename
+4. MIME type
+5. where the file was physically stored when uploaded
+6. whether that exact file still exists now
+7. whether the published dashboard can GET that file URL
+8. exact HTTP status returned when loading the photo
+9. whether the URL points to:
+   - local uploads/
+   - dev server
+   - production server
+   - persistent object storage
+
+10. Check whether Replit production autoscale uses an ephemeral/local filesystem such that:
+    - upload request may be handled by one instance
+    - dashboard/image-generation request may be handled by another instance
+    - uploaded file is therefore unavailable
+
+11. Check whether uploaded image URLs contain any .replit.dev origin or dev-only path.
+
+12. Confirm whether customer attachments survive:
+    - server restart
+    - redeploy
+    - autoscale instance change
+
+IMPORTANT:
+
+If uploads are currently stored only in local filesystem storage, replace this for production with persistent object storage.
+
+The production architecture should be:
+
+customer upload
+→ persistent object storage
+→ database stores stable file URL/key
+→ dashboard reads same stored image
+→ AI Concept Visual service reads same stored image
+→ generated concept visual is also stored persistently
+
+Do NOT store production customer photos or generated AI visuals only in an ephemeral local uploads/ directory.
+
+Requirements:
+
+- tenant/company isolation
+- unique unpredictable filenames/keys
+- validate image MIME/type and file size
+- support JPG/JPEG/PNG/WebP
+- convert HEIC/HEIF server-side where necessary
+- no public directory listing
+- secure access strategy
+- generated concept images stored using the same persistent system
+- old enquiry flow must still succeed even if image processing fails
+
+After fixing, verify in PRODUCTION:
+
+1. Submit ONE enquiry with a photo.
+2. Photo appears in the published desktop enquiry dashboard.
+3. Photo appears when dashboard is refreshed.
+4. Photo still appears after production server restart/redeploy.
+5. AI Concept Visual can read that same exact source image.
+6. Generated concept image is stored persistently.
+7. Generated concept appears in the chat and dashboard.
+
+Before making changes, tell me the exact root cause of the broken dashboard image.

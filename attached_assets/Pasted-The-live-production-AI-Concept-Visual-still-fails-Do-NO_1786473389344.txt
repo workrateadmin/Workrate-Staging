@@ -1,0 +1,73 @@
+The live production AI Concept Visual still fails.
+
+Do NOT change the customer-facing UX again.
+Do NOT change the enquiry pipeline.
+Do NOT guess.
+
+Trace ONE failed production concept generation end-to-end and show the exact failure.
+
+For the latest failed concept visual, report:
+
+1. enquiry ID
+2. concept_visual ID
+3. source attachment URL
+4. source attachment local/storage path
+5. original filename
+6. MIME type
+7. file size
+8. image width/height if known
+9. whether the source file exists at generation time
+10. whether the server can actually read the bytes
+11. whether any conversion is performed before OpenAI
+12. exact OpenAI method being called
+13. exact model name
+14. exact request parameters except secrets
+15. exact OpenAI HTTP status/error body
+16. whether OpenAI returned image data
+17. if image data returned, whether base64 decode succeeded
+18. whether generated output saved successfully
+19. final generated image path
+20. whether that generated URL is publicly reachable from production
+
+IMPORTANT:
+The OpenAI API supports editing/generating from reference images.
+So do not report "image generation unsupported".
+
+Check these likely failure points specifically:
+
+A. IPHONE FORMAT
+If source is HEIC/HEIF, convert server-side to JPEG or PNG before the OpenAI call.
+
+B. MIME/EXTENSION MISMATCH
+Do not trust the filename extension alone.
+Detect/validate actual image format.
+
+C. REMOTE FILE VS LOCAL FILE
+If production attachments are URLs, do not assume the file exists on local disk.
+Fetch/read the actual image bytes reliably before sending to OpenAI.
+
+D. EPHEMERAL REPLIT FILESYSTEM
+Check whether uploads/ files from customer enquiries are actually available to the production autoscale instance handling the concept request.
+If they are not guaranteed to persist/share across instances, move customer uploads and generated concept visuals to persistent object storage.
+
+E. API REQUEST
+Verify the image-edit request is being constructed in the exact format expected by the installed OpenAI SDK.
+
+F. TIMEOUT
+Do not use a short generic API/server timeout for image generation.
+Log generation duration separately.
+
+G. OUTPUT STORAGE
+Do not claim success unless the generated image can be loaded from the live Wix chat and dashboard.
+
+Then make the smallest correct fix.
+
+After fixing:
+- reuse the latest existing customer photo if possible
+- generate one production concept visual
+- prove OpenAI accepted the request
+- prove the generated image displays in the live Wix widget
+- prove it displays in the enquiry dashboard
+- prove the row status becomes generated/selected correctly
+
+Do not mark complete based on a dev-only test.
