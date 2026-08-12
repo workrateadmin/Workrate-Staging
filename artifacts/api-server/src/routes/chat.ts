@@ -531,6 +531,56 @@ router.post("/chat/:token/message", async (req, res): Promise<void> => {
     return;
   }
 
+  // ── VISUAL TEST SHORTCUT ────────────────────────────────────────────────────
+  // Trigger: type the exact phrase "WorkRateVisualTesting" into the live widget.
+  // Pre-fills a complete fitted-wardrobes enquiry, marks it as a test, then waits
+  // for a real photo upload — which uses the full production storage pipeline.
+  // After upload the enquiry auto-completes and the concept visual is offered.
+  // Never advertised to customers. Exact-match only.
+  if (body.data.content.trim() === "WorkRateVisualTesting") {
+    const VISUAL_TEST_DESCRIPTION =
+      "[TEST ENQUIRY — VISUAL TEST] Wall-to-wall fitted wardrobes, " +
+      "3000mm wide x 2400mm high x 600mm deep. Shaker style doors, painted warm white, " +
+      "long pull handles. Internal layout: hanging sections, drawers and shelving, " +
+      "LED lighting. Location: Test Address, London. Budget: £5,000–£7,500. " +
+      "Timescale: 4–6 weeks.";
+
+    await db
+      .update(enquiriesTable)
+      .set({
+        customerName: "[TEST] Visual Test",
+        customerEmail: "orhuntley@gmail.com",
+        customerPhone: "07000000000",
+        projectType: "fitted wardrobes",
+        location: "Test Address, London",
+        description: VISUAL_TEST_DESCRIPTION,
+        budget: "£5,000–£7,500",
+        timescale: "4–6 weeks",
+        isTest: true,
+      })
+      .where(eq(enquiriesTable.id, enquiry.id));
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const promptMessage =
+      "⚡ Visual test mode activated — enquiry pre-filled with fitted wardrobes spec. " +
+      "Please upload ONE real photo of the room to test the full production pipeline.";
+    res.write(`data: ${JSON.stringify({ content: promptMessage })}\n\n`);
+
+    await db.insert(enquiryMessagesTable).values({
+      enquiryId: enquiry.id,
+      role: "assistant",
+      content: promptMessage,
+    });
+
+    // NOT sending completed:true — waiting for the photo upload to complete the enquiry
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+    return;
+  }
+
   // Load full history
   const history = await db
     .select()
@@ -751,6 +801,54 @@ router.post(
     // if all required fields are now satisfied — same logic as a text message.
     const tradeType = enquiry.projectType ?? "General";
     const basePrompt = getSystemPrompt(tradeType);
+
+    // ── VisualTest auto-completion ──────────────────────────────────────────
+    // If this upload comes from a WorkRateVisualTesting session, skip the AI
+    // chat steps and complete the enquiry immediately using the pre-filled data.
+    // Vision analysis above still ran — ensuring the same storage pipeline.
+    const isVisualTest =
+      enquiry.isTest === true &&
+      (enquiry.customerName ?? "").startsWith("[TEST] Visual Test");
+
+    if (isVisualTest) {
+      const completionMsg =
+        "📸 Photo saved. Enquiry completed through the live production pipeline — " +
+        "concept visual generating now.";
+
+      await db.insert(enquiryMessagesTable).values({
+        enquiryId: enquiry.id,
+        role: "assistant",
+        content: completionMsg,
+      });
+
+      // Complete the enquiry using the data pre-filled by the visual-test shortcut
+      await handleEnquiryCompletion(
+        enquiry,
+        {
+          customerName: enquiry.customerName,
+          customerEmail: enquiry.customerEmail,
+          customerPhone: enquiry.customerPhone,
+          postcode: enquiry.location,
+          projectType: enquiry.projectType,
+          budget: enquiry.budget,
+          timescale: enquiry.timescale,
+          description: enquiry.description,
+        },
+        true, // isTest
+      );
+
+      console.log(
+        `[visual-test] Enquiry ${enquiry.id} auto-completed. Photo: ${publicUrl}`,
+      );
+
+      res.json({
+        url: publicUrl,
+        aiMessage: completionMsg,
+        completed: true,
+        conceptVisualOffer: true,
+      });
+      return;
+    }
 
     // Look up company name so the AI can personalise the completion message
     let companyName = "the team";

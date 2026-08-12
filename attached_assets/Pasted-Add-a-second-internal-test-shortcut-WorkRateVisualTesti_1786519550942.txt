@@ -1,0 +1,81 @@
+Add a second internal test shortcut:
+
+WorkRateVisualTesting
+
+Purpose:
+Allow me to test customer photo uploads, dashboard attachment viewing, persistent storage, and AI Concept Visual generation without completing the entire enquiry conversation every time.
+
+When the LIVE widget receives the exact phrase:
+
+WorkRateVisualTesting
+
+automatically populate a test enquiry with:
+
+* Name: [TEST] Visual Test
+* Email: orhuntley@gmail.com
+* Phone: 07000000000
+* Project: Fitted Wardrobes
+* Location: Test Address, London
+* Approx dimensions: 3000mm wide x 2400mm high x 600mm deep
+* Style: Shaker
+* Finish: Painted
+* Colour: Warm white
+* Internal layout: Hanging sections, drawers and shelving
+* Budget: £5,000–£7,500
+* Timescale: 4–6 weeks
+* is_test: true
+
+DO NOT immediately complete the enquiry.
+
+Instead skip directly to:
+
+“Great — for this test, please upload a photo of the room.”
+
+I then upload ONE real photo from my phone.
+
+That photo upload must use the EXACT SAME production attachment pipeline as a normal customer enquiry.
+
+After upload:
+
+1. Save the image using the real production storage system.
+2. Attach it to the test enquiry.
+3. Automatically complete/save the enquiry.
+4. Trigger the normal confirmation email.
+5. Make the image viewable from the production enquiry dashboard.
+6. Automatically offer/start the AI Concept Visual test.
+7. Generate the concept using the uploaded image as the reference.
+8. Store the generated image using the real production storage system.
+9. Display the concept in the live widget.
+10. Display the original photo and concept image on the production enquiry dashboard.
+
+IMPORTANT:
+
+This must NOT use:
+
+* placeholder images
+* fake upload records
+* dev database
+* separate test storage
+* direct database inserts that bypass the normal attachment pipeline
+
+The purpose is specifically to test:
+
+LIVE WIX WIDGET
+→ production image upload
+→ persistent storage
+→ production enquiry
+→ dashboard photo retrieval
+→ OpenAI reference-image generation
+→ persistent generated-image storage
+→ customer visual
+→ dashboard visual
+
+If any stage fails, return/log exactly which stage failed.
+
+Keep WorkRateAppTesting unchanged.
+
+WorkRateVisualTesting must trigger only on the exact phrase and must never be advertised to customers.
+
+Also make all enquiries created this way removable using the existing test-data cleanup system.
+
+Do not mark the feature working until the test succeeds from the live Wix website in production.
