@@ -122,6 +122,110 @@ router.get("/integrations/:provider", requireAuth, async (req, res): Promise<voi
   });
 });
 
+// ── POST /integrations/whatsapp_business/connect ─────────────────────────────
+// Saves a business's Meta WhatsApp Cloud API credentials.
+// Body: { phoneNumberId, accessToken, displayNumber? }
+// The global app secret is configured as WHATSAPP_APP_SECRET env var (not per-user).
+router.post("/integrations/whatsapp_business/connect", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const { phoneNumberId, accessToken, displayNumber } = req.body as {
+    phoneNumberId?: string;
+    accessToken?: string;
+    displayNumber?: string;
+  };
+
+  if (!phoneNumberId || !accessToken) {
+    res.status(400).json({ error: "phoneNumberId and accessToken are required" });
+    return;
+  }
+
+  const config   = JSON.stringify({ phoneNumberId, accessToken });
+  const metadata = JSON.stringify({
+    displayNumber:       displayNumber ?? null,
+    phoneNumberId,
+    greeting:            "Hi! I'm the WorkRate Assistant. I'll help collect your project details — what's your name?",
+    outOfHoursMessage:   "Thanks for getting in touch! We're currently outside business hours but will respond as soon as possible.",
+    aiEnabled:           true,
+    humanHandoffEnabled: false,
+  });
+
+  // Upsert the integration row for this user
+  const [existing] = await db
+    .select({ id: integrationsTable.id })
+    .from(integrationsTable)
+    .where(and(
+      eq(integrationsTable.ownerUserId, userId!),
+      eq(integrationsTable.provider, "whatsapp_business"),
+    ));
+
+  if (existing) {
+    await db
+      .update(integrationsTable)
+      .set({ config, metadata, status: "connected", connectedAt: new Date() })
+      .where(eq(integrationsTable.id, existing.id));
+  } else {
+    await db.insert(integrationsTable).values({
+      ownerUserId: userId!,
+      provider:    "whatsapp_business",
+      status:      "connected",
+      config,
+      metadata,
+      connectedAt: new Date(),
+    });
+  }
+
+  res.json({
+    status:        "connected",
+    phoneNumberId,
+    displayNumber: displayNumber ?? null,
+    webhookUrl:    `https://work-rate-manager.replit.app/api/webhooks/whatsapp`,
+    message:       "WhatsApp Business connected. Register the webhook URL in your Meta App dashboard.",
+  });
+});
+
+// ── PUT /integrations/whatsapp_business/settings ─────────────────────────────
+// Updates per-business WhatsApp settings (greeting, hours, AI toggle, etc.)
+// Body: { greeting?, outOfHoursMessage?, aiEnabled?, humanHandoffEnabled? }
+router.put("/integrations/whatsapp_business/settings", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+
+  const [row] = await db
+    .select()
+    .from(integrationsTable)
+    .where(and(
+      eq(integrationsTable.ownerUserId, userId!),
+      eq(integrationsTable.provider, "whatsapp_business"),
+    ));
+
+  if (!row) {
+    res.status(404).json({ error: "WhatsApp Business not connected" });
+    return;
+  }
+
+  const current = row.metadata ? JSON.parse(row.metadata) : {};
+  const { greeting, outOfHoursMessage, aiEnabled, humanHandoffEnabled } = req.body as {
+    greeting?: string;
+    outOfHoursMessage?: string;
+    aiEnabled?: boolean;
+    humanHandoffEnabled?: boolean;
+  };
+
+  const updated = {
+    ...current,
+    ...(greeting            !== undefined && { greeting }),
+    ...(outOfHoursMessage   !== undefined && { outOfHoursMessage }),
+    ...(aiEnabled           !== undefined && { aiEnabled }),
+    ...(humanHandoffEnabled !== undefined && { humanHandoffEnabled }),
+  };
+
+  await db
+    .update(integrationsTable)
+    .set({ metadata: JSON.stringify(updated) })
+    .where(eq(integrationsTable.id, row.id));
+
+  res.json({ success: true, settings: updated });
+});
+
 // ── POST /integrations/:provider/connect ─────────────────────────────────────
 router.post("/integrations/:provider/connect", requireAuth, async (req, res): Promise<void> => {
   const providerDef = INTEGRATION_PROVIDERS.find((p) => p.provider === req.params.provider);

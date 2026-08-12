@@ -45,7 +45,12 @@ app.use(
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
 app.use(cors({ credentials: true, origin: true }));
-app.use(express.json({ limit: "10mb" }));
+// Capture the raw request body before JSON parsing so webhook routes can
+// verify HMAC-SHA256 signatures (e.g. Meta WhatsApp, Stripe, etc.).
+app.use(express.json({
+  limit: "10mb",
+  verify: (req: any, _res, buf) => { req.rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(

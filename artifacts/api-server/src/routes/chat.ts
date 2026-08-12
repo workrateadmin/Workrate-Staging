@@ -236,7 +236,7 @@ Introduce yourself, ask for the customer's name, and then gather the details of 
 ${BASE_INSTRUCTIONS}`,
 };
 
-function getSystemPrompt(tradeType: string): string {
+export function getSystemPrompt(tradeType: string): string {
   const key = tradeType.toLowerCase();
   return TRADE_SYSTEM_PROMPTS[key] ?? TRADE_SYSTEM_PROMPTS["default"];
 }
@@ -249,9 +249,9 @@ function fileUrl(req: Request, filename: string): string {
 }
 
 // ── Shared enquiry completion helper ─────────────────────────────────────────
-// Called from both the normal AI flow and the TEST SHORTCUT below.
+// Called from the widget AI flow, the test shortcut, AND the WhatsApp webhook.
 // Handles: DB update, AI summary (fire-and-forget), confirmation email (fire-and-forget).
-async function handleEnquiryCompletion(
+export async function handleEnquiryCompletion(
   enquiry: {
     id: number;
     ownerUserId: string | null;

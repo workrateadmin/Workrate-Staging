@@ -36,6 +36,13 @@ export const enquiriesTable = pgTable("enquiries", {
   confirmationSmsSentAt: timestamp("confirmation_sms_sent_at", { withTimezone: true }),
   isTest: boolean("is_test").notNull().default(false),
 
+  // ── Channel tracking ─────────────────────────────────────────────────────
+  // Identifies how this enquiry arrived. Future values: 'facebook', 'instagram'.
+  channel: text("channel").notNull().default("widget"), // 'widget' | 'whatsapp'
+  // The customer's WhatsApp phone number in E.164 format without '+'.
+  // Used to look up existing enquiries and route inbound messages to the right record.
+  whatsappPhone: text("whatsapp_phone"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
