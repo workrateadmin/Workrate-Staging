@@ -1,0 +1,84 @@
+Build Phase 1 WhatsApp integration for WorkRate.
+
+GOAL:
+Allow customers to contact a trade business through WhatsApp and have those conversations flow into the same WorkRate enquiry/CRM system as the website widget.
+
+IMPORTANT:
+Do not create a separate WhatsApp-only CRM.
+WhatsApp must feed the SAME customer timeline, enquiry record, AI summary and business workspace.
+
+PHASE 1 FLOW:
+
+Customer sends WhatsApp message
+→ WorkRate receives webhook
+→ identifies the correct business
+→ AI responds using that business’s WorkRate Brain
+→ collects the same key enquiry information as the website assistant
+→ saves messages/transcript
+→ creates or updates the enquiry
+→ appears in dashboard/mobile
+
+Capture:
+
+* customer name where available
+* WhatsApp number
+* message history
+* project type
+* location/postcode
+* measurements
+* budget
+* timescale
+* photos/files
+* AI summary
+
+PHOTO HANDLING:
+Customers must be able to send photos through WhatsApp.
+Store them using the same production attachment/storage system as website enquiry photos.
+
+For supported joinery enquiries, allow those photos to use the existing AI Concept Visual pipeline where appropriate.
+
+BUSINESS SETTINGS:
+Add WorkRate Brain / Integrations → WhatsApp with:
+
+* Enable WhatsApp
+* connection status
+* connected WhatsApp number
+* greeting
+* opening hours
+* out-of-hours response
+* AI enabled/disabled
+* human handoff option
+
+AI RULE:
+AI prepares and responds within configured business rules.
+Do not invent prices or make binding commitments unless the business has explicitly enabled deterministic pricing rules.
+
+CUSTOMER RECORD:
+If the WhatsApp number already belongs to an existing customer/enquiry:
+
+* append to the existing timeline where appropriate
+* do not create unnecessary duplicate customers
+
+Store channel on every message:
+channel = whatsapp
+
+SECURITY:
+
+* verify incoming webhook signatures
+* tenant/business isolation
+* no provider credentials exposed client-side
+* log webhook failures safely
+* duplicate webhook events must be idempotent
+
+PROVIDER:
+Before implementation, report which WhatsApp provider/integration is best supported by the current WorkRate architecture.
+
+If using Meta WhatsApp Business Cloud API:
+report the exact credentials, webhook URL, app setup and phone-number requirements.
+
+If using Twilio WhatsApp:
+do not proceed without telling me whether this would couple WhatsApp to the Twilio account we have currently put on hold.
+
+Do not fake successful WhatsApp delivery.
+
+Build the reusable channel architecture so future channels such as Instagram/Facebook can use the same messaging/customer timeline service.
