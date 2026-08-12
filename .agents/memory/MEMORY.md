@@ -9,3 +9,4 @@
 - [WorkRate object storage migration](workrate-object-storage.md) — GCS migration for uploads; ephemeral local disk = silent 200 HTML on prod; trust proxy required; path/objectPath conventions
 - [WorkRateVisualTesting shortcut](workrate-visual-test-shortcut.md) — two-phase test shortcut; Phase 1 pre-fills enquiry, Phase 2 upload auto-completes + conceptVisualOffer
 - [Clerk dev/prod user ID split](workrate-clerk-env-split.md) — dev and prod have separate Clerk user stores; use widgetToken UUID (not userId) as the widget businessId
+- [WhatsApp Business integration](whatsapp-integration.md) — Meta Cloud API webhook, rawBody capture, schema via raw SQL (drizzle-kit push needs TTY for UNIQUE), WAConnectModal, @clerk/react import

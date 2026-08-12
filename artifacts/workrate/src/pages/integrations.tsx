@@ -7,21 +7,24 @@ import {
   type IntegrationStatus,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@clerk/react";
 import { cn } from "@/lib/utils";
 import {
   CheckCircle2, Circle, AlertCircle, Loader2,
-  ExternalLink, Zap, ChevronRight, Lock,
+  ExternalLink, Zap, ChevronRight, Lock, X, Copy,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
 // ── Provider metadata (visual / copy layer — separate from API data) ──────────
 const PROVIDER_META: Record<string, {
   color: string;
   bgColor: string;
-  mark: string;       // short letter mark for the icon
-  logo?: string;      // future: SVG path or URL
+  mark: string;
+  logo?: string;
   docsUrl?: string;
   comingSoon: boolean;
 }> = {
@@ -41,7 +44,7 @@ const PROVIDER_META: Record<string, {
     color: "#25D366",
     bgColor: "#EDFAF3",
     mark: "wa",
-    comingSoon: true,
+    comingSoon: false,
   },
   email: {
     color: "#EA4335",
@@ -80,14 +83,25 @@ const CATEGORY_LABELS: Record<string, string> = {
   payments: "Payments",
 };
 
+const WA_ICON = (
+  <svg viewBox="0 0 24 24" className="w-5 h-5 fill-[#128C7E]">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+  </svg>
+);
+
 export default function IntegrationsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
+  const [waModalOpen, setWaModalOpen] = useState(false);
   const { data: rawIntegrations = [], isLoading } = useListIntegrations({
     query: { queryKey: getListIntegrationsQueryKey() },
   });
   const integrations = rawIntegrations as IntegrationStatus[];
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { getToken } = useAuth();
+
+  const waIntegration = integrations.find((i) => i.provider === "whatsapp_business");
+  const refresh = () => qc.invalidateQueries({ queryKey: getListIntegrationsQueryKey() });
 
   const categories: string[] = ["all", ...Array.from(new Set(integrations.map((i) => i.category)))];
 
@@ -95,7 +109,6 @@ export default function IntegrationsPage() {
     ? integrations
     : integrations.filter((i) => i.category === activeCategory);
 
-  // Group by category for "all" view
   const grouped: Record<string, IntegrationStatus[]> = {};
   if (activeCategory === "all") {
     for (const item of integrations) {
@@ -124,18 +137,32 @@ export default function IntegrationsPage() {
         )}
       </div>
 
-      {/* ── Coming-soon banner ────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-primary/5 px-6 py-5 flex items-start gap-4">
-        <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
-          <Zap className="w-5 h-5 text-primary" />
+      {/* ── Status banner ─────────────────────────────────────────────────── */}
+      {waIntegration?.status === "connected" ? (
+        <div className="relative overflow-hidden rounded-2xl border border-[#25D366]/30 bg-[#25D366]/5 px-6 py-5 flex items-start gap-4">
+          <div className="w-10 h-10 bg-[#25D366]/15 rounded-xl flex items-center justify-center shrink-0">
+            {WA_ICON}
+          </div>
+          <div>
+            <p className="font-bold text-foreground">WhatsApp Business is live</p>
+            <p className="text-sm text-muted-foreground mt-0.5 font-medium max-w-xl">
+              Inbound WhatsApp messages are received and handled by the AI. New enquiries appear in your pipeline automatically.
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="font-bold text-foreground">Integrations are coming soon</p>
-          <p className="text-sm text-muted-foreground mt-0.5 font-medium max-w-xl">
-            The architecture is in place and these connections are being built. Each integration will appear here once it's ready to configure — no setup required on your part.
-          </p>
+      ) : (
+        <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-primary/5 px-6 py-5 flex items-start gap-4">
+          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+            <Zap className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <p className="font-bold text-foreground">WhatsApp Business is ready to connect</p>
+            <p className="text-sm text-muted-foreground mt-0.5 font-medium max-w-xl">
+              Connect your Meta WhatsApp Business account so enquiries from WhatsApp flow straight into your pipeline. Other integrations are being built and will appear here once ready.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Category tabs ────────────────────────────────────────────────── */}
       <div className="flex gap-1.5 flex-wrap">
@@ -183,7 +210,6 @@ export default function IntegrationsPage() {
           ))}
         </div>
       ) : activeCategory === "all" ? (
-        // Grouped view
         <div className="space-y-10">
           {Object.entries(grouped).map(([category, items]) => (
             <div key={category}>
@@ -196,17 +222,26 @@ export default function IntegrationsPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {items.map((item) => (
-                  <IntegrationCard key={item.provider} item={item} onRefresh={() => qc.invalidateQueries({ queryKey: getListIntegrationsQueryKey() })} />
+                  <IntegrationCard
+                    key={item.provider}
+                    item={item}
+                    onRefresh={refresh}
+                    onConnectOverride={item.provider === "whatsapp_business" ? () => setWaModalOpen(true) : undefined}
+                  />
                 ))}
               </div>
             </div>
           ))}
         </div>
       ) : (
-        // Flat filtered view
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((item) => (
-            <IntegrationCard key={item.provider} item={item} onRefresh={() => qc.invalidateQueries({ queryKey: getListIntegrationsQueryKey() })} />
+            <IntegrationCard
+              key={item.provider}
+              item={item}
+              onRefresh={refresh}
+              onConnectOverride={item.provider === "whatsapp_business" ? () => setWaModalOpen(true) : undefined}
+            />
           ))}
         </div>
       )}
@@ -223,6 +258,15 @@ export default function IntegrationsPage() {
           </p>
         </div>
       </div>
+
+      {/* ── WhatsApp connect modal ───────────────────────────────────────── */}
+      {waModalOpen && (
+        <WAConnectModal
+          onClose={() => setWaModalOpen(false)}
+          onSuccess={() => { setWaModalOpen(false); refresh(); }}
+          getToken={getToken}
+        />
+      )}
     </div>
   );
 }
@@ -231,9 +275,11 @@ export default function IntegrationsPage() {
 function IntegrationCard({
   item,
   onRefresh,
+  onConnectOverride,
 }: {
   item: IntegrationStatus;
   onRefresh: () => void;
+  onConnectOverride?: () => void;
 }) {
   const meta = PROVIDER_META[item.provider];
   const isConnected = item.status === "connected";
@@ -401,7 +447,7 @@ function IntegrationCard({
           <Button
             size="sm"
             className="flex-1 font-bold rounded-xl h-9 text-xs"
-            onClick={() => connectMutation.mutate({ provider: item.provider })}
+            onClick={() => onConnectOverride ? onConnectOverride() : connectMutation.mutate({ provider: item.provider })}
             disabled={isPending}
           >
             {connectMutation.isPending ? (
@@ -422,6 +468,179 @@ function IntegrationCard({
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── WhatsApp connect modal ─────────────────────────────────────────────────────
+const WEBHOOK_URL = "https://work-rate-manager.replit.app/api/webhooks/whatsapp";
+
+function WAConnectModal({
+  onClose,
+  onSuccess,
+  getToken,
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+  getToken: () => Promise<string | null>;
+}) {
+  const [phoneNumberId, setPhoneNumberId] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const [displayNumber, setDisplayNumber] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const { toast } = useToast();
+
+  const submit = async () => {
+    if (!phoneNumberId.trim() || !accessToken.trim()) {
+      toast({ title: "Phone Number ID and Access Token are required", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch("/api/integrations/whatsapp_business/connect", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          phoneNumberId: phoneNumberId.trim(),
+          accessToken: accessToken.trim(),
+          displayNumber: displayNumber.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error ?? `HTTP ${res.status}`);
+      }
+      setDone(true);
+    } catch (err: any) {
+      toast({ title: "Connection failed", description: err?.message ?? "Unknown error", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in-0 duration-200">
+      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#25D366] flex items-center justify-center shadow-sm">
+              <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className="font-black text-base text-foreground">Connect WhatsApp Business</h2>
+              <p className="text-xs text-muted-foreground font-medium">Meta Cloud API</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {done ? (
+          /* ── Success state ─────────────────────────────────────────────── */
+          <div className="px-6 py-6 space-y-5">
+            <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-emerald-800 text-sm">Connected successfully</p>
+                <p className="text-xs text-emerald-700 mt-0.5 font-medium">
+                  Your credentials have been saved. Now register the webhook below in your Meta App dashboard.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Webhook URL to register in Meta</p>
+              <div className="flex items-center gap-2 bg-secondary/60 border border-border rounded-xl px-3 py-2.5">
+                <code className="text-xs font-mono text-foreground flex-1 truncate">{WEBHOOK_URL}</code>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(WEBHOOK_URL); toast({ title: "Copied!" }); }}
+                  className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                  title="Copy"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <ol className="space-y-2 text-sm text-muted-foreground font-medium">
+              <li className="flex gap-2"><span className="font-black text-foreground shrink-0">1.</span>In your Meta App → WhatsApp → Configuration → Webhook, click <strong>Edit</strong>.</li>
+              <li className="flex gap-2"><span className="font-black text-foreground shrink-0">2.</span>Paste the URL above and enter your <strong>Verify Token</strong> (the one you added as <code className="text-xs bg-secondary px-1 rounded">WHATSAPP_WEBHOOK_VERIFY_TOKEN</code>).</li>
+              <li className="flex gap-2"><span className="font-black text-foreground shrink-0">3.</span>Click <strong>Verify and Save</strong>, then subscribe to the <strong>messages</strong> field.</li>
+            </ol>
+
+            <Button className="w-full font-bold rounded-xl" onClick={onSuccess}>Done</Button>
+          </div>
+        ) : (
+          /* ── Connect form ──────────────────────────────────────────────── */
+          <div className="px-6 py-6 space-y-5">
+            <p className="text-sm text-muted-foreground font-medium leading-relaxed">
+              You'll find these values in your{" "}
+              <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+                Meta App dashboard
+              </a>{" "}
+              under WhatsApp → API Setup.
+            </p>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="wa-phone-id" className="text-xs font-bold">Phone Number ID <span className="text-destructive">*</span></Label>
+              <Input
+                id="wa-phone-id"
+                placeholder="e.g. 123456789012345"
+                value={phoneNumberId}
+                onChange={(e) => setPhoneNumberId(e.target.value)}
+                className="font-mono text-sm"
+                autoComplete="off"
+              />
+              <p className="text-[11px] text-muted-foreground font-medium">The numeric ID shown next to your phone number in Meta → WhatsApp → API Setup.</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="wa-token" className="text-xs font-bold">Permanent Access Token <span className="text-destructive">*</span></Label>
+              <Input
+                id="wa-token"
+                type="password"
+                placeholder="EAAxxxxxxxxxxxxxxx…"
+                value={accessToken}
+                onChange={(e) => setAccessToken(e.target.value)}
+                className="font-mono text-sm"
+                autoComplete="off"
+              />
+              <p className="text-[11px] text-muted-foreground font-medium">Generate a permanent token from System Users in Meta Business Settings (not the temporary test token).</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="wa-display" className="text-xs font-bold">Display Number <span className="text-muted-foreground font-medium">(optional)</span></Label>
+              <Input
+                id="wa-display"
+                placeholder="+44 7700 900000"
+                value={displayNumber}
+                onChange={(e) => setDisplayNumber(e.target.value)}
+                className="text-sm"
+              />
+              <p className="text-[11px] text-muted-foreground font-medium">Shown in the WorkRate dashboard for reference only.</p>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <Button variant="outline" className="flex-1 font-semibold rounded-xl" onClick={onClose} disabled={loading}>
+                Cancel
+              </Button>
+              <Button className="flex-1 font-bold rounded-xl bg-[#25D366] hover:bg-[#20ba58] text-white" onClick={submit} disabled={loading}>
+                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                {loading ? "Connecting…" : "Connect"}
+              </Button>
+            </div>
+          </div>
         )}
       </div>
     </div>
