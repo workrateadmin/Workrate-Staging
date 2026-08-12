@@ -16,10 +16,8 @@ import OpenAI from "openai";
 import { toFile } from "openai/uploads";
 import fs from "node:fs";
 import path from "node:path";
-import { mkdirSync, unlinkSync } from "node:fs";
-import { randomBytes } from "node:crypto";
-import { execSync } from "node:child_process";
-import { tmpdir } from "node:os";
+import { mkdirSync } from "node:fs";
+import sharp from "sharp";
 import {
   uploadBufferToStorage,
   downloadBufferFromStorage,
@@ -248,37 +246,27 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
 
   // ── Generate concept image via gpt-image-1 ───────────────────────────────────
   // gpt-image-1 images.edit() requires a PNG file (PNG32 / RGBA).
-  // Write the photo buffer to a temp file for ImageMagick, then convert to PNG32.
-  // Both temp files are cleaned up in the finally block regardless of outcome.
-  const tempInput = path.join(tmpdir(), `cv-in-${randomBytes(6).toString("hex")}`);
-  const tempPng = path.join(tmpdir(), `cv-${randomBytes(6).toString("hex")}.png`);
-
-  // Write the downloaded photo buffer to a temp file for ImageMagick to read
-  fs.writeFileSync(tempInput, photoBuffer);
-
+  // Convert in-memory using sharp — pure Node/libvips, no system PATH dependency.
+  // This fixes the production "magick: not found" error on autoscale containers.
   const startedAt = Date.now();
   try {
     const openai = getOpenAI();
 
-    // Convert to PNG32 (RGBA) — works for JPEG, WebP, HEIC*, and all PNG variants.
-    // * HEIC requires libheif support in the ImageMagick build; if unavailable it
-    //   will throw and we surface a 400 "no suitable image" before reaching here.
+    // Convert JPEG / WEBP / HEIC / PNG → PNG (RGBA) via sharp.
+    // Flatten transparent backgrounds to white so the model sees a solid canvas.
+    let pngBuffer: Buffer;
     try {
-      execSync(`magick "${tempInput}" -colorspace sRGB -alpha set "PNG32:${tempPng}"`, {
-        timeout: 15_000,
-        stdio: "pipe",
-      });
+      pngBuffer = await sharp(photoBuffer)
+        .flatten({ background: { r: 255, g: 255, b: 255 } })
+        .toFormat("png")
+        .toBuffer();
+      console.log(`[concept-visual] Converted photo to PNG via sharp (${pngBuffer.length} bytes)`);
     } catch (convertErr: any) {
-      console.error("[concept-visual] ImageMagick conversion failed:", convertErr?.message);
-      // Fall back to a direct copy of the buffer in case it's already a valid PNG
-      fs.writeFileSync(tempPng, photoBuffer);
+      console.error("[concept-visual] sharp conversion failed, using raw buffer:", convertErr?.message);
+      pngBuffer = photoBuffer;
     }
 
-    const photoFile = await toFile(
-      fs.createReadStream(tempPng),
-      "room.png",
-      { type: "image/png" },
-    );
+    const photoFile = await toFile(pngBuffer, "room.png", { type: "image/png" });
 
     // 85 s server timeout — slightly shorter than the client's 90 s so the server
     // can mark the record as failed and return a structured error before the client
@@ -299,12 +287,12 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
     const b64 = response.data[0]?.b64_json;
     if (!b64) throw new Error("No image data in OpenAI response");
 
-    const pngBuffer = Buffer.from(b64, "base64");
-    const fileSizeKb = Math.round(pngBuffer.length / 1024);
+    const outputBuffer = Buffer.from(b64, "base64");
+    const fileSizeKb = Math.round(outputBuffer.length / 1024);
     const elapsedMs = Date.now() - startedAt;
 
     // Upload the generated PNG to persistent object storage
-    const { objectPath: conceptObjectPath } = await uploadBufferToStorage(pngBuffer, "image/png");
+    const { objectPath: conceptObjectPath } = await uploadBufferToStorage(outputBuffer, "image/png");
     const conceptUrl = storageServingUrl(req, conceptObjectPath);
 
     console.log(
@@ -338,10 +326,6 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
       status: "failed",
       conceptId: conceptRecord.id,
     });
-  } finally {
-    // Always clean up temp files whether generation succeeded or failed
-    try { unlinkSync(tempInput); } catch { /* already gone or never created */ }
-    try { unlinkSync(tempPng); } catch { /* already gone or never created */ }
   }
 });
 

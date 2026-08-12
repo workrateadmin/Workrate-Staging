@@ -2,8 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { randomBytes } from "crypto";
 import path from "path";
 import fs, { mkdirSync } from "fs";
-import { execSync } from "child_process";
-import { tmpdir } from "os";
+import sharp from "sharp";
 import multer from "multer";
 import { uploadBufferToStorage, storageServingUrl } from "../lib/storageUpload";
 import { db, enquiriesTable, enquiryMessagesTable, enquiryAttachmentsTable, companiesTable } from "@workspace/db";
@@ -733,7 +732,6 @@ router.post(
       // iPhones sometimes send HEIC bytes with mimetype "image/jpeg". Read the first
       // 12 bytes — ISO Base Media format (HEIC/HEIF) has "ftyp" at bytes 4–7.
       let visionDataUrl: string;
-      let visionTempFile: string | null = null;
       try {
         const header = Buffer.alloc(12);
         const fd = fs.openSync(filePath, "r");
@@ -742,13 +740,9 @@ router.post(
         const isActuallyHeic = header.slice(4, 8).toString("ascii") === "ftyp";
 
         if (isActuallyHeic) {
-          // Convert HEIC → JPEG using ImageMagick (libheif is available on this platform)
-          visionTempFile = path.join(tmpdir(), `vis-${randomBytes(6).toString("hex")}.jpg`);
-          execSync(`magick "${filePath}" -colorspace sRGB "${visionTempFile}"`, {
-            timeout: 15_000, stdio: "pipe",
-          });
-          const b64 = fs.readFileSync(visionTempFile).toString("base64");
-          visionDataUrl = `data:image/jpeg;base64,${b64}`;
+          // Convert HEIC → JPEG using sharp (pure Node, no system PATH dependency)
+          const jpegBuf = await sharp(fs.readFileSync(filePath)).jpeg({ quality: 90 }).toBuffer();
+          visionDataUrl = `data:image/jpeg;base64,${jpegBuf.toString("base64")}`;
         } else {
           const b64 = fs.readFileSync(filePath).toString("base64");
           visionDataUrl = `data:${file.mimetype};base64,${b64}`;
@@ -758,10 +752,6 @@ router.post(
         console.error("[vision] Image prep failed, falling back to raw base64:", readErr);
         const b64 = fs.readFileSync(filePath).toString("base64");
         visionDataUrl = `data:${file.mimetype};base64,${b64}`;
-      } finally {
-        if (visionTempFile) {
-          try { fs.unlinkSync(visionTempFile); } catch { /* already gone */ }
-        }
       }
 
       const vision = await openai.chat.completions.create({

@@ -1,0 +1,61 @@
+Good news: the customer photo now comes through correctly.
+
+So the current problem is narrower:
+
+- enquiry submission works
+- customer photo upload works
+- enquiry photo is available
+- but the AI Concept Visual is still not being generated
+
+DO NOT change the upload flow or customer-facing UX.
+
+Now trace ONLY the AI Concept Visual generation step for the latest failed production enquiry.
+
+For the most recent failed concept visual, report:
+
+1. enquiry ID
+2. concept_visual ID
+3. source photo URL/path
+4. original filename
+5. detected MIME type
+6. file size
+7. whether the production server can successfully read the source image bytes
+8. exact OpenAI SDK method being called
+9. exact model name
+10. whether images.edit() is being used
+11. how the source image is being passed (file, bytes, stream, etc.)
+12. exact sanitized request payload shape
+13. exact OpenAI HTTP status
+14. exact OpenAI error message/body
+15. request duration before failure
+16. whether OpenAI returned any image data at all
+17. if yes, whether decoding/saving failed
+18. final concept_visual status written to DB
+
+Check these specific likely causes:
+
+A. HEIC / HEIF input from iPhone
+If the uploaded image is HEIC/HEIF, convert it server-side to PNG or JPEG before calling OpenAI.
+
+B. Wrong request format
+Confirm the installed OpenAI SDK call for gpt-image-1 image editing is constructed exactly correctly.
+
+C. Route timeout
+Confirm the image-generation route is not timing out before OpenAI responds.
+
+D. Output save failure
+If OpenAI returns image data, confirm the output file saves correctly and the resulting URL is publicly reachable.
+
+E. Invalid source file format
+Validate the actual image bytes, not just the file extension.
+
+IMPORTANT:
+Do not guess.
+Show the actual production provider error for THIS failed generation.
+
+After fixing:
+- reuse the latest existing enquiry/photo if possible
+- generate one real production concept visual
+- confirm it displays in the live chat
+- confirm it is saved against the enquiry
+- confirm it displays in the dashboard
