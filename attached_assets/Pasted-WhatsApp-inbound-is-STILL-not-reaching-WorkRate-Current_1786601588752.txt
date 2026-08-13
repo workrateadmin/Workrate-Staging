@@ -1,0 +1,73 @@
+WhatsApp inbound is STILL not reaching WorkRate.
+
+Current confirmed state:
+- Meta test number can send messages to my phone
+- My reply to the Meta test number shows as delivered in WhatsApp
+- Webhook callback URL is configured
+- Verify token was accepted
+- messages field is subscribed
+- whatsapp_business_management is Ready for testing
+- whatsapp_business_messaging is Ready for testing
+- WorkRate still receives nothing / creates no enquiry / sends no AI reply
+
+DO NOT change the UI or credentials yet.
+
+Trace ONE inbound WhatsApp message end-to-end.
+
+I need hard evidence from both Meta and WorkRate.
+
+1. Check production logs for:
+   POST /api/webhooks/whatsapp
+
+2. Report whether ANY webhook POST arrives when I send a WhatsApp message.
+
+3. If no POST arrives:
+   - confirm the Meta app is still unpublished / testing mode
+   - confirm my WhatsApp number is added as an approved tester/recipient if required
+   - confirm the test WhatsApp account is subscribed to the app
+   - confirm the messages webhook field is subscribed on the correct WhatsApp Business Account
+   - confirm the webhook is attached to the SAME app/test WABA that owns Phone Number ID 1231454666722391
+
+4. If POST does arrive:
+   show the sanitized payload:
+   - object
+   - entry id
+   - phone_number_id
+   - from
+   - message id
+   - message type
+   - text body
+
+5. Verify WorkRate business resolution:
+   phone_number_id 1231454666722391
+   must resolve to the correct WorkRate WhatsApp integration/company.
+
+6. If business lookup fails:
+   show exactly what phone_number_id / WABA ID is stored in WorkRate and what was received from Meta.
+
+7. Verify webhook signature validation.
+   If Meta POST arrives but gets rejected, show:
+   - response status
+   - signature validation result
+   - exact rejection reason
+
+8. Verify idempotency does not incorrectly discard the first real inbound event.
+
+9. Verify the webhook handler reaches:
+   - store message
+   - create/update enquiry
+   - AI response
+   - outbound WhatsApp send
+
+10. Show the first exact step where the flow stops.
+
+IMPORTANT:
+Do not say "webhook configured correctly" based only on the Meta UI.
+Prove whether the production WorkRate endpoint receives the POST.
+
+Do not mark fixed until:
+- I send a WhatsApp message
+- production logs show the webhook POST
+- WorkRate stores the message
+- an enquiry appears
+- AI sends a WhatsApp reply
