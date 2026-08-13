@@ -188,6 +188,9 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
               if (ev.completed) {
                 setIsComplete(true);
               }
+              if ((ev as any).conceptVisualOffer) {
+                setConceptState("offered");
+              }
               if (ev.content) {
                 setMessages((prev) => {
                   const updated = [...prev];
@@ -243,31 +246,62 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
     }
 
     // ── Concept visual handlers ────────────────────────────────────────────────
+    //
+    // Generation takes 60–85 s, which exceeds Replit's reverse-proxy HTTP timeout
+    // (~60 s). With the old synchronous approach the proxy killed the connection,
+    // the widget received an HTML error page, res.json() threw a SyntaxError, and
+    // conceptState was set to "failed" — even though the server finished successfully
+    // and the image was visible in the dashboard.
+    //
+    // Fix: the generate endpoint now returns { conceptId, status: "generating" }
+    // within ~100 ms. This function polls GET /concept-visual/:id every 3 s until
+    // the record transitions to "generated" or "failed" (max 120 s).
+
+    async function pollConceptStatus(id: number, genCount: number): Promise<void> {
+      const INTERVAL_MS = 3_000;
+      const MAX_ATTEMPTS = 40; // 40 × 3 s = 120 s total
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        await new Promise<void>((r) => setTimeout(r, INTERVAL_MS));
+        try {
+          const res = await fetch(`/api/chat/${token}/concept-visual/${id}`);
+          if (!res.ok) continue; // transient error — keep polling
+          const data: { conceptId: number; status: string; imageUrl: string | null } = await res.json();
+          if (data.status === "generated" && data.imageUrl) {
+            setConceptImageUrl(data.imageUrl);
+            setConceptGenCount(genCount);
+            setConceptState("generated");
+            return;
+          }
+          if (data.status === "failed") {
+            setConceptState("failed");
+            return;
+          }
+          // "generating" → keep polling
+        } catch {
+          // transient network error — keep polling
+        }
+      }
+      // 120 s elapsed without a terminal status
+      setConceptState("failed");
+    }
+
     async function handleCreateConcept() {
       if (!token) return;
       setConceptState("generating");
-      // 90 s client-side abort — matches server's 85 s AbortSignal so the server
-      // always finishes first and can mark the record before we give up.
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90_000);
       try {
         const res = await fetch(`/api/chat/${token}/concept-visual/generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({}),
-          signal: controller.signal,
         });
         const data = await res.json();
-        if (!res.ok || data.status === "failed") throw new Error(data.error ?? "Generation failed");
-        setConceptImageUrl(data.imageUrl);
+        if (!res.ok) throw new Error(data.error ?? "Generation failed");
+        // Server returns immediately with { conceptId, status: "generating" }.
         setConceptId(data.conceptId);
-        setConceptGenCount(1);
-        setConceptState("generated");
+        await pollConceptStatus(data.conceptId, 1);
       } catch {
         // Enquiry is already safely saved. Generation failure is non-fatal.
         setConceptState("failed");
-      } finally {
-        clearTimeout(timeoutId);
       }
     }
 
@@ -298,25 +332,18 @@ const ChatWidget = forwardRef<ChatWidgetHandle, { onOpenChange?: (open: boolean)
           });
         } catch { /* ignore */ }
       }
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90_000);
       try {
         const res = await fetch(`/api/chat/${token}/concept-visual/generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ revisionNotes: notes }),
-          signal: controller.signal,
         });
         const data = await res.json();
-        if (!res.ok || data.status === "failed") throw new Error(data.error ?? "Generation failed");
-        setConceptImageUrl(data.imageUrl);
+        if (!res.ok) throw new Error(data.error ?? "Generation failed");
         setConceptId(data.conceptId);
-        setConceptGenCount((c) => c + 1);
-        setConceptState("generated");
+        await pollConceptStatus(data.conceptId, conceptGenCount + 1);
       } catch {
         setConceptState("failed");
-      } finally {
-        clearTimeout(timeoutId);
       }
     }
 

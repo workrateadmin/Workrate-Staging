@@ -206,7 +206,100 @@ const requireAuth = (req: any, res: any, next: any) => {
   next();
 };
 
+// ── Background generation ─────────────────────────────────────────────────────
+//
+// Generation takes 60–85 s. Replit's reverse proxy terminates HTTP connections
+// at ~60 s, which meant the client received a gateway-error HTML page, failed
+// to JSON-parse it, and showed the failure message — even though the server
+// completed successfully and the image appeared in the dashboard.
+//
+// Fix: the POST route returns { conceptId, status: "generating" } immediately
+// (~100 ms). Actual OpenAI work happens here in the background. The widget
+// polls GET /api/chat/:token/concept-visual/:conceptId every 3 s until the
+// record flips to "generated" or "failed".
+async function runConceptGeneration(
+  conceptRecordId: number,
+  enquiryId: number,
+  photoBuffer: Buffer,
+  promptBrief: string,
+  baseUrl: string,     // e.g. "https://work-rate-manager.replit.app"
+  isRevision: boolean,
+): Promise<void> {
+  const startedAt = Date.now();
+  try {
+    const openai = getOpenAI();
+
+    // Convert JPEG / WEBP / PNG → PNG (RGBA) via sharp.
+    // Flatten transparent backgrounds to white so the model sees a solid canvas.
+    let pngBuffer: Buffer;
+    try {
+      pngBuffer = await sharp(photoBuffer)
+        .flatten({ background: { r: 255, g: 255, b: 255 } })
+        .toFormat("png")
+        .toBuffer();
+      console.log(`[concept-visual] Converted to PNG: ${pngBuffer.length} bytes`);
+    } catch (convertErr: any) {
+      console.error("[concept-visual] sharp conversion failed, using raw buffer:", convertErr?.message);
+      pngBuffer = photoBuffer;
+    }
+
+    const photoFile = await toFile(pngBuffer, "room.png", { type: "image/png" });
+
+    // 110 s server-side timeout — no client racing against it any more.
+    const timeoutSignal = AbortSignal.timeout(110_000);
+
+    const response = await openai.images.edit(
+      {
+        model: "gpt-image-1",
+        image: photoFile,
+        prompt: promptBrief,
+        n: 1,
+        size: "1024x1024",
+      },
+      { signal: timeoutSignal },
+    );
+
+    const b64 = response.data[0]?.b64_json;
+    if (!b64) throw new Error("No image data in OpenAI response");
+
+    const outputBuffer = Buffer.from(b64, "base64");
+    const fileSizeKb = Math.round(outputBuffer.length / 1024);
+    const elapsedMs = Date.now() - startedAt;
+
+    const { objectPath } = await uploadBufferToStorage(outputBuffer, "image/png");
+    // Build the URL from the captured baseUrl — req is no longer safe to use here.
+    const conceptUrl = `${baseUrl}/api/storage${objectPath}`;
+
+    console.log(
+      `[concept-visual] Generated in ${elapsedMs}ms | ${fileSizeKb}KB | record: ${conceptRecordId} | enquiry: ${enquiryId}`,
+    );
+
+    await db
+      .update(conceptVisualsTable)
+      .set({
+        status: "generated",
+        generatedImageUrl: conceptUrl,
+        revisionCount: isRevision ? 1 : 0,
+        generatedAt: new Date(),
+      })
+      .where(eq(conceptVisualsTable.id, conceptRecordId));
+  } catch (err: any) {
+    const elapsedMs = Date.now() - startedAt;
+    const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
+    console.error(
+      `[concept-visual] Generation failed after ${elapsedMs}ms | record: ${conceptRecordId} | ${isTimeout ? "TIMEOUT" : err?.message ?? err}`,
+    );
+    await db
+      .update(conceptVisualsTable)
+      .set({ status: "failed" })
+      .where(eq(conceptVisualsTable.id, conceptRecordId));
+  }
+}
+
 // ── POST /api/chat/:token/concept-visual/generate ─────────────────────────────
+// Returns { conceptId, status: "generating" } immediately.
+// Actual image generation runs in the background via runConceptGeneration().
+// Widget polls GET /api/chat/:token/concept-visual/:conceptId for the result.
 router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Response): Promise<void> => {
   const token = req.params.token as string;
   const { revisionNotes } = req.body as { revisionNotes?: string };
@@ -227,9 +320,8 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
   }
 
   // ── Enforce max 2 generated images per enquiry (server-side, always) ─────────
-  // Count ALL records where a real image was produced (regardless of current status —
-  // selected, revision_requested, generated all count). Only records that never produced
-  // an image (offered, generating, failed) are excluded.
+  // Count records where a real image was produced (generatedImageUrl IS NOT NULL).
+  // In-progress (generating) and failed records don't count toward the limit.
   const [{ cnt }] = await db
     .select({ cnt: count() })
     .from(conceptVisualsTable)
@@ -246,7 +338,7 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
   }
 
   // Find the most recent suitable image attachment (JPEG/PNG/WEBP — skip HEIC which
-  // gpt-image-1 cannot read)
+  // gpt-image-1 cannot read).
   const attachments = await db
     .select()
     .from(enquiryAttachmentsTable)
@@ -271,17 +363,15 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
   let photoBuffer: Buffer;
   try {
     if (isStorageUrl(imageAttachment.url)) {
-      // New format: download from GCS
       const objectPath = parseObjectPath(imageAttachment.url);
       photoBuffer = await downloadBufferFromStorage(objectPath);
     } else {
-      // Legacy format: read from local disk (may fail if container restarted)
+      // Legacy: read from local disk (may fail if the container has restarted)
       const photoFilename = path.basename(new URL(imageAttachment.url).pathname);
       const photoPath = path.join(uploadsDir, photoFilename);
       if (!fs.existsSync(photoPath)) {
         res.status(500).json({
           error: "Original photo is no longer accessible. Re-uploading the photo will resolve this.",
-          status: "failed",
         });
         return;
       }
@@ -289,13 +379,14 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
     }
   } catch (photoErr: any) {
     console.error("[concept-visual] Failed to load photo:", photoErr?.message ?? photoErr);
-    res.status(500).json({ error: "Could not load the original photo.", status: "failed" });
+    res.status(500).json({ error: "Could not load the original photo." });
     return;
   }
 
-  // Create a concept_visuals record in 'generating' status BEFORE calling OpenAI.
-  // This confirms the enquiry is already safely submitted; generation is a bonus step.
+  // Capture base URL before responding (req object is unreliable after res.json()).
+  const baseUrl = `${req.protocol}://${req.get("host") ?? "localhost"}`;
   const promptBrief = buildConceptPrompt(enquiry, revisionNotes);
+
   const [conceptRecord] = await db
     .insert(conceptVisualsTable)
     .values({
@@ -306,89 +397,47 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
     })
     .returning();
 
-  // ── Generate concept image via gpt-image-1 ───────────────────────────────────
-  // gpt-image-1 images.edit() requires a PNG file (PNG32 / RGBA).
-  // Convert in-memory using sharp — pure Node/libvips, no system PATH dependency.
-  // This fixes the production "magick: not found" error on autoscale containers.
-  const startedAt = Date.now();
-  try {
-    const openai = getOpenAI();
+  // Respond immediately — widget will poll for the result.
+  res.json({ conceptId: conceptRecord.id, status: "generating" });
 
-    // Convert JPEG / WEBP / HEIC / PNG → PNG (RGBA) via sharp.
-    // Flatten transparent backgrounds to white so the model sees a solid canvas.
-    let pngBuffer: Buffer;
-    try {
-      pngBuffer = await sharp(photoBuffer)
-        .flatten({ background: { r: 255, g: 255, b: 255 } })
-        .toFormat("png")
-        .toBuffer();
-      console.log(`[concept-visual] Converted photo to PNG via sharp (${pngBuffer.length} bytes)`);
-    } catch (convertErr: any) {
-      console.error("[concept-visual] sharp conversion failed, using raw buffer:", convertErr?.message);
-      pngBuffer = photoBuffer;
-    }
+  // Fire background generation. Errors are caught and written to the DB record.
+  runConceptGeneration(
+    conceptRecord.id,
+    enquiry.id,
+    photoBuffer,
+    promptBrief,
+    baseUrl,
+    !!revisionNotes,
+  ).catch((err) => {
+    console.error("[concept-visual] Unhandled background generation error:", err);
+  });
+});
 
-    const photoFile = await toFile(pngBuffer, "room.png", { type: "image/png" });
+// ── GET /api/chat/:token/concept-visual/:conceptId ────────────────────────────
+// Customer-side status poll. No Clerk auth — uses chat token for identity.
+// Returns { conceptId, status, imageUrl } so the widget can transition state.
+router.get("/chat/:token/concept-visual/:conceptId", async (req: Request, res: Response): Promise<void> => {
+  const token = req.params.token as string;
+  const conceptId = parseInt(req.params.conceptId as string, 10);
+  if (isNaN(conceptId)) { res.status(400).json({ error: "Invalid concept ID" }); return; }
 
-    // 85 s server timeout — slightly shorter than the client's 90 s so the server
-    // can mark the record as failed and return a structured error before the client
-    // gives up.
-    const timeoutSignal = AbortSignal.timeout(85_000);
+  const [enquiry] = await db
+    .select()
+    .from(enquiriesTable)
+    .where(eq(enquiriesTable.chatToken, token));
+  if (!enquiry) { res.status(404).json({ error: "Chat session not found" }); return; }
 
-    const response = await openai.images.edit(
-      {
-        model: "gpt-image-1",
-        image: photoFile,
-        prompt: promptBrief,
-        n: 1,
-        size: "1024x1024",
-      },
-      { signal: timeoutSignal },
-    );
+  const [concept] = await db
+    .select()
+    .from(conceptVisualsTable)
+    .where(and(eq(conceptVisualsTable.id, conceptId), eq(conceptVisualsTable.enquiryId, enquiry.id)));
+  if (!concept) { res.status(404).json({ error: "Concept visual not found" }); return; }
 
-    const b64 = response.data[0]?.b64_json;
-    if (!b64) throw new Error("No image data in OpenAI response");
-
-    const outputBuffer = Buffer.from(b64, "base64");
-    const fileSizeKb = Math.round(outputBuffer.length / 1024);
-    const elapsedMs = Date.now() - startedAt;
-
-    // Upload the generated PNG to persistent object storage
-    const { objectPath: conceptObjectPath } = await uploadBufferToStorage(outputBuffer, "image/png");
-    const conceptUrl = storageServingUrl(req, conceptObjectPath);
-
-    console.log(
-      `[concept-visual] Generated in ${elapsedMs}ms | size: ${fileSizeKb}KB | enquiry: ${enquiry.id} | record: ${conceptRecord.id} | url: ${conceptObjectPath}`,
-    );
-
-    await db
-      .update(conceptVisualsTable)
-      .set({
-        status: "generated",
-        generatedImageUrl: conceptUrl,
-        revisionCount: revisionNotes ? 1 : 0,
-        generatedAt: new Date(),
-      })
-      .where(eq(conceptVisualsTable.id, conceptRecord.id));
-
-    res.json({ conceptId: conceptRecord.id, imageUrl: conceptUrl, status: "generated" });
-  } catch (err: any) {
-    const elapsedMs = Date.now() - startedAt;
-    const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
-    console.error(
-      `[concept-visual] Generation failed after ${elapsedMs}ms | enquiry: ${enquiry.id} | ${isTimeout ? "TIMEOUT" : err?.message ?? err}`,
-    );
-    await db
-      .update(conceptVisualsTable)
-      .set({ status: "failed" })
-      .where(eq(conceptVisualsTable.id, conceptRecord.id));
-
-    res.status(500).json({
-      error: isTimeout ? "Image generation timed out" : "Image generation failed",
-      status: "failed",
-      conceptId: conceptRecord.id,
-    });
-  }
+  res.json({
+    conceptId: concept.id,
+    status: concept.status,
+    imageUrl: concept.generatedImageUrl ?? null,
+  });
 });
 
 // ── POST /api/chat/:token/concept-visual/:conceptId/feedback ──────────────────
