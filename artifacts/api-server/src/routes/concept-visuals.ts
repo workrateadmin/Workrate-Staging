@@ -78,11 +78,25 @@ export function isConceptSupported(tradeType: string | null): boolean {
  * Builds the gpt-image-1 edit prompt.
  *
  * Design principles:
- * - Lead with explicit room-preservation rules so the model treats the photo as a locked base.
+ * - Lead with source-image preservation as the highest-priority rule.
+ * - Add project-type-specific geometry rules (e.g. staircase constraints for under-stair jobs).
  * - Then specify precisely what joinery to ADD and how it should be styled.
  * - Close with photorealism requirements so the result looks like a real site photo.
  * - On revisions, append the customer's instruction at the end.
  */
+
+/** Under-stair / boot-room project types that require staircase geometry rules. */
+const UNDER_STAIR_TYPES = new Set([
+  "under stair storage",
+  "understairs storage",
+  "boot room storage",
+]);
+
+function isUnderStairProject(projectType: string | null): boolean {
+  if (!projectType) return false;
+  return UNDER_STAIR_TYPES.has(normalizeTradeType(projectType));
+}
+
 function buildConceptPrompt(
   enquiry: {
     projectType: string | null;
@@ -92,9 +106,14 @@ function buildConceptPrompt(
   revisionNotes?: string,
 ): string {
   const projectType = enquiry.projectType ?? "bespoke joinery";
+  const underStair = isUnderStairProject(projectType);
 
   const lines: string[] = [
     "You are editing this room photograph to show how a proposed bespoke joinery installation would look when professionally fitted in this exact space.",
+    "",
+    "═══ SOURCE-IMAGE PRESERVATION — HIGHEST PRIORITY ═══",
+    "Source-image preservation is more important than visual creativity.",
+    "If you cannot preserve the room geometry exactly, treat the generation as unsuccessful rather than returning a misleading concept.",
     "",
     "═══ PRESERVE EXACTLY — DO NOT ALTER ═══",
     "The room in the source photo is the fixed, immovable canvas. Preserve every detail:",
@@ -109,21 +128,46 @@ function buildConceptPrompt(
     "• Camera viewpoint — identical angle and height to the source photograph; do not tilt, pan, or zoom",
     "• Lighting — preserve the direction, colour temperature, intensity, and cast-shadow patterns of every light source in the photo",
     "• All existing furniture and décor that the joinery does not physically replace",
+  ];
+
+  if (underStair) {
+    lines.push(
+      "• Staircase — the staircase must remain in exactly the same direction, angle, position, and proportions as in the source photo",
+      "  Do NOT mirror, rotate, flip, crop, redesign, or reinterpret the staircase architecture in any way",
+      "• Stair geometry — the cabinetry must follow the actual slope and geometry of the staircase",
+      "  The joinery must not intersect, block, or extend through the stair structure",
+      "• Only add joinery within the physically available space shown in the photograph",
+      "  All cabinet tops must be angled or stepped to match the underside profile of the stair string",
+    );
+  }
+
+  lines.push(
     "",
     "═══ JOINERY TO ADD ═══",
     `Project type: ${projectType}`,
-  ];
+  );
 
   if (enquiry.description) {
     lines.push(
-      `Customer specification: ${enquiry.description}`,
       "",
-      "Read the specification carefully and reflect:",
+      "Follow the customer's requested specification as closely as physically possible:",
+      enquiry.description,
+      "",
+      "Reflect in the joinery:",
       "• Approximate dimensions or size (e.g. full-height, alcove-width, number of units)",
       "• Door style (e.g. shaker, slab/handleless, beaded-inset, panelled, glass-fronted)",
       "• Colour and finish (e.g. painted, matt, gloss, natural oak, walnut veneer)",
       "• Internal layout (e.g. hanging rail, shelving, drawers, pull-outs, TV recess, cable tray)",
       "• Any hardware details mentioned (e.g. bar handles, J-pull, no visible handle)",
+    );
+  }
+
+  if (underStair) {
+    lines.push(
+      "",
+      "Under-stair geometry rules:",
+      "• The cabinetry must follow the stair slope precisely — taller cabinet sections at the high end, shorter at the low end",
+      "• If a requested element cannot physically fit the available under-stair space, adapt it realistically while preserving the overall intent",
     );
   }
 
