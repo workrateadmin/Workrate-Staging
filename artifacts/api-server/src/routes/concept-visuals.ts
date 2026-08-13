@@ -37,8 +37,9 @@ function getOpenAI() {
   return new OpenAI({ apiKey });
 }
 
-// Joinery sub-types that support concept visual generation
-export const SUPPORTED_CONCEPT_TRADE_TYPES = new Set([
+// Joinery sub-types that support concept visual generation.
+// Matching is case-, whitespace-, and hyphen-tolerant via normalizeTradeType().
+const SUPPORTED_CONCEPT_TRADE_TYPES_RAW = [
   "joinery",
   "fitted wardrobes",
   "freestanding wardrobes",
@@ -49,11 +50,28 @@ export const SUPPORTED_CONCEPT_TRADE_TYPES = new Set([
   "bespoke joinery",
   "kitchen installation",
   "built-in storage",
-]);
+  // Under-stair / boot-room variants
+  "boot room storage",
+  "under stair storage",
+  "understairs storage",
+];
+
+/** Collapse case, leading/trailing whitespace, runs of spaces, and hyphens. */
+function normalizeTradeType(s: string): string {
+  return s.toLowerCase().trim().replace(/[\s-]+/g, " ");
+}
+
+// Pre-normalised set for O(1) lookup.
+const SUPPORTED_CONCEPT_TRADE_TYPES_NORMALIZED = new Set(
+  SUPPORTED_CONCEPT_TRADE_TYPES_RAW.map(normalizeTradeType),
+);
+
+// Kept for external reference (e.g. UI labels) — original casing preserved.
+export const SUPPORTED_CONCEPT_TRADE_TYPES = new Set(SUPPORTED_CONCEPT_TRADE_TYPES_RAW);
 
 export function isConceptSupported(tradeType: string | null): boolean {
   if (!tradeType) return false;
-  return SUPPORTED_CONCEPT_TRADE_TYPES.has(tradeType.toLowerCase());
+  return SUPPORTED_CONCEPT_TRADE_TYPES_NORMALIZED.has(normalizeTradeType(tradeType));
 }
 
 /**
