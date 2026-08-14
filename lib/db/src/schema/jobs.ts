@@ -40,6 +40,16 @@ export const jobsTable = pgTable("jobs", {
   // Snapshot of enquiry AI summary / attachments
   aiSummary: text("ai_summary"),
   attachmentUrls: text("attachment_urls"),
+  // ── Job completion / actuals ──────────────────────────────────────────────
+  completedAt: text("completed_at"),
+  finalAmountCharged: numeric("final_amount_charged", { precision: 10, scale: 2 }),
+  actualLabourHours: numeric("actual_labour_hours", { precision: 10, scale: 2 }),
+  actualLabourCost: numeric("actual_labour_cost", { precision: 10, scale: 2 }),
+  actualMaterialsCost: numeric("actual_materials_cost", { precision: 10, scale: 2 }),
+  variationAmount: numeric("variation_amount", { precision: 10, scale: 2 }),
+  variationNote: text("variation_note"),
+  completionNotes: text("completion_notes"),
+  completionPhotoUrls: text("completion_photo_urls"), // JSON array of serving URLs
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

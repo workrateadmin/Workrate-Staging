@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, enquiriesTable, quotesTable, jobsTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
+import multer from "multer";
+import { uploadBufferToStorage, storageServingUrl } from "../lib/storageUpload";
 
 const router: IRouter = Router();
 
@@ -20,8 +22,25 @@ function parseJob(j: any) {
     materialsAllowance: Number(j.materialsAllowance ?? 0),
     labourAllowance: Number(j.labourAllowance ?? 0),
     totalWithVat: Number(j.totalWithVat ?? 0),
+    // Completion actuals — null if not recorded
+    finalAmountCharged: j.finalAmountCharged != null ? Number(j.finalAmountCharged) : null,
+    actualLabourHours: j.actualLabourHours != null ? Number(j.actualLabourHours) : null,
+    actualLabourCost: j.actualLabourCost != null ? Number(j.actualLabourCost) : null,
+    actualMaterialsCost: j.actualMaterialsCost != null ? Number(j.actualMaterialsCost) : null,
+    variationAmount: j.variationAmount != null ? Number(j.variationAmount) : null,
   };
 }
+
+// ── Multer (memory) for completion photos → GCS ───────────────────────────────
+const memUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"]);
+    if (allowed.has(file.mimetype)) cb(null, true);
+    else cb(new Error("Only image files are allowed"));
+  },
+});
 
 /** Verify that a job's enquiry belongs to the logged-in user. */
 async function verifyJobOwnership(jobId: number, userId: string): Promise<{ job: typeof jobsTable.$inferSelect } | null> {
@@ -179,6 +198,71 @@ router.patch("/jobs/:id/schedule", requireAuth, async (req, res): Promise<void> 
     .returning();
 
   res.json(parseJob(updated));
+});
+
+// Complete a job — record actuals, set status to Completed
+router.post("/jobs/:id/complete", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const owned = await verifyJobOwnership(id, userId!);
+  if (!owned) { res.status(404).json({ error: "Job not found" }); return; }
+
+  const body = req.body ?? {};
+  const today = new Date().toISOString().slice(0, 10);
+
+  const updates: Record<string, any> = {
+    status: "Completed",
+    completedAt: body.completedAt || today,
+  };
+
+  // Only store what was explicitly provided — do not invent costs
+  if (body.finalAmountCharged != null && body.finalAmountCharged !== "") updates.finalAmountCharged = String(Number(body.finalAmountCharged));
+  if (body.actualLabourHours != null && body.actualLabourHours !== "") updates.actualLabourHours = String(Number(body.actualLabourHours));
+  if (body.actualLabourCost != null && body.actualLabourCost !== "") updates.actualLabourCost = String(Number(body.actualLabourCost));
+  if (body.actualMaterialsCost != null && body.actualMaterialsCost !== "") updates.actualMaterialsCost = String(Number(body.actualMaterialsCost));
+  if (body.variationAmount != null && body.variationAmount !== "") updates.variationAmount = String(Number(body.variationAmount));
+  if (body.variationNote != null) updates.variationNote = String(body.variationNote);
+  if (body.completionNotes != null) updates.completionNotes = String(body.completionNotes);
+
+  const [updated] = await db
+    .update(jobsTable)
+    .set(updates)
+    .where(eq(jobsTable.id, id))
+    .returning();
+
+  res.json(parseJob(updated));
+});
+
+// Upload a completion photo → GCS, append URL to completionPhotoUrls
+router.post("/jobs/:id/completion-photos", requireAuth, memUpload.single("file"), async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const owned = await verifyJobOwnership(id, userId!);
+  if (!owned) { res.status(404).json({ error: "Job not found" }); return; }
+
+  const file = req.file;
+  if (!file) { res.status(400).json({ error: "No file provided" }); return; }
+
+  const { objectPath } = await uploadBufferToStorage(file.buffer, file.mimetype);
+  const url = storageServingUrl(req, objectPath);
+
+  // Append to completionPhotoUrls JSON array
+  const existing: string[] = (() => {
+    try { return JSON.parse((owned.job as any).completionPhotoUrls ?? "[]"); } catch { return []; }
+  })();
+  existing.push(url);
+
+  const [updated] = await db
+    .update(jobsTable)
+    .set({ completionPhotoUrls: JSON.stringify(existing) })
+    .where(eq(jobsTable.id, id))
+    .returning();
+
+  res.status(201).json({ url, job: parseJob(updated) });
 });
 
 // Convert enquiry → job

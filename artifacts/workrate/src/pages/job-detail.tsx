@@ -35,6 +35,12 @@ import {
   ImageIcon,
   ExternalLink,
   Clock,
+  CheckCircle2,
+  Camera,
+  TrendingUp,
+  TrendingDown,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   Select,
@@ -73,6 +79,20 @@ export default function JobDetail() {
   const [surveyDate, setSurveyDate] = useState("");
   const [installStartDate, setInstallStartDate] = useState("");
   const [installEndDate, setInstallEndDate] = useState("");
+  // Completion form state
+  const [completingJob, setCompletingJob] = useState(false);
+  const [completionSaving, setCompletionSaving] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [completionForm, setCompletionForm] = useState({
+    finalAmountCharged: "",
+    actualLabourHours: "",
+    actualLabourCost: "",
+    actualMaterialsCost: "",
+    variationAmount: "",
+    variationNote: "",
+    completionNotes: "",
+    completedAt: new Date().toISOString().slice(0, 10),
+  });
 
   const updateJob = useUpdateJob({
     mutation: {
@@ -146,6 +166,54 @@ export default function JobDetail() {
     });
   };
 
+  const handleCompleteJob = async () => {
+    setCompletionSaving(true);
+    try {
+      const body: Record<string, any> = { completedAt: completionForm.completedAt };
+      if (completionForm.finalAmountCharged) body.finalAmountCharged = Number(completionForm.finalAmountCharged);
+      if (completionForm.actualLabourHours) body.actualLabourHours = Number(completionForm.actualLabourHours);
+      if (completionForm.actualLabourCost) body.actualLabourCost = Number(completionForm.actualLabourCost);
+      if (completionForm.actualMaterialsCost) body.actualMaterialsCost = Number(completionForm.actualMaterialsCost);
+      if (completionForm.variationAmount) body.variationAmount = Number(completionForm.variationAmount);
+      if (completionForm.variationNote) body.variationNote = completionForm.variationNote;
+      if (completionForm.completionNotes) body.completionNotes = completionForm.completionNotes;
+
+      const r = await fetch(`/api/jobs/${id}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      toast({ title: "Job marked as completed" });
+      queryClient.invalidateQueries({ queryKey: [`/api/jobs/${id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      setCompletingJob(false);
+    } catch {
+      toast({ title: "Failed to complete job", variant: "destructive" });
+    } finally {
+      setCompletionSaving(false);
+    }
+  };
+
+  const handleUploadCompletionPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await fetch(`/api/jobs/${id}/completion-photos`, { method: "POST", body: fd });
+      if (!r.ok) throw new Error(await r.text());
+      toast({ title: "Photo uploaded" });
+      queryClient.invalidateQueries({ queryKey: [`/api/jobs/${id}`] });
+    } catch {
+      toast({ title: "Photo upload failed", variant: "destructive" });
+    } finally {
+      setPhotoUploading(false);
+      e.target.value = "";
+    }
+  };
+
   // Parse AI summary
   let summaryText = "";
   let summaryMeasurements = "";
@@ -170,6 +238,25 @@ export default function JobDetail() {
       if (job.attachmentUrls) attachmentList = [job.attachmentUrls];
     }
   }
+
+  // ── Completion actuals (cast — new fields not yet in generated types) ──────
+  const jx = job as any;
+  const isCompleted = jx.completedAt != null;
+  const finalCharged: number | null = jx.finalAmountCharged ?? null;
+  const quoteVariance = finalCharged != null ? finalCharged - job.totalWithVat : null;
+  const quoteVariancePct = quoteVariance != null && job.totalWithVat > 0
+    ? (quoteVariance / job.totalWithVat) * 100 : null;
+  const labourVariance = jx.actualLabourCost != null && job.labourAllowance > 0
+    ? jx.actualLabourCost - job.labourAllowance : null;
+  const materialVariance = jx.actualMaterialsCost != null && job.materialsAllowance > 0
+    ? jx.actualMaterialsCost - job.materialsAllowance : null;
+  const grossProfit = finalCharged != null && jx.actualLabourCost != null && jx.actualMaterialsCost != null
+    ? finalCharged - jx.actualLabourCost - jx.actualMaterialsCost : null;
+  const grossMarginPct = grossProfit != null && finalCharged != null && finalCharged > 0
+    ? (grossProfit / finalCharged) * 100 : null;
+  const completionPhotos: string[] = (() => {
+    try { return JSON.parse(jx.completionPhotoUrls ?? "[]"); } catch { return []; }
+  })();
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-24 animate-in fade-in-0 duration-300">
@@ -218,6 +305,149 @@ export default function JobDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Complete Job form (full-width, shown when completing) ─────────── */}
+      {completingJob && (
+        <Card className="shadow-sm border-green-500/30 rounded-2xl">
+          <div className="px-6 py-5 border-b border-border/60 flex items-center justify-between">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-green-600" /> Complete Job — Record Actuals
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setCompletingJob(false)} className="rounded-lg">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+          <CardContent className="p-6 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Final amount charged */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Final Amount Charged (£)</Label>
+                <Input
+                  type="number" min="0" step="0.01"
+                  placeholder="e.g. 4800"
+                  value={completionForm.finalAmountCharged}
+                  onChange={(e) => setCompletionForm(f => ({ ...f, finalAmountCharged: e.target.value }))}
+                  className="field-input font-medium h-10"
+                />
+              </div>
+              {/* Completion date */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Completion Date</Label>
+                <Input
+                  type="date"
+                  value={completionForm.completedAt}
+                  onChange={(e) => setCompletionForm(f => ({ ...f, completedAt: e.target.value }))}
+                  className="field-input font-medium h-10"
+                />
+              </div>
+              {/* Labour hours */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Labour Hours</Label>
+                <Input
+                  type="number" min="0" step="0.5"
+                  placeholder="e.g. 24"
+                  value={completionForm.actualLabourHours}
+                  onChange={(e) => setCompletionForm(f => ({ ...f, actualLabourHours: e.target.value }))}
+                  className="field-input font-medium h-10"
+                />
+              </div>
+              {/* Labour cost */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Labour Cost (£) <span className="normal-case font-normal text-muted-foreground/70">optional</span></Label>
+                <Input
+                  type="number" min="0" step="0.01"
+                  placeholder="e.g. 840"
+                  value={completionForm.actualLabourCost}
+                  onChange={(e) => setCompletionForm(f => ({ ...f, actualLabourCost: e.target.value }))}
+                  className="field-input font-medium h-10"
+                />
+              </div>
+              {/* Materials cost */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Materials Cost (£)</Label>
+                <Input
+                  type="number" min="0" step="0.01"
+                  placeholder="e.g. 1200"
+                  value={completionForm.actualMaterialsCost}
+                  onChange={(e) => setCompletionForm(f => ({ ...f, actualMaterialsCost: e.target.value }))}
+                  className="field-input font-medium h-10"
+                />
+              </div>
+              {/* Variation amount */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Variation (£) <span className="normal-case font-normal text-muted-foreground/70">+ added / − removed</span></Label>
+                <Input
+                  type="number" step="0.01"
+                  placeholder="e.g. 250 or -150"
+                  value={completionForm.variationAmount}
+                  onChange={(e) => setCompletionForm(f => ({ ...f, variationAmount: e.target.value }))}
+                  className="field-input font-medium h-10"
+                />
+              </div>
+            </div>
+            {/* Variation note */}
+            {completionForm.variationAmount && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Variation Reason</Label>
+                <Input
+                  placeholder="e.g. Extra shelf run added on site"
+                  value={completionForm.variationNote}
+                  onChange={(e) => setCompletionForm(f => ({ ...f, variationNote: e.target.value }))}
+                  className="field-input font-medium h-10"
+                />
+              </div>
+            )}
+            {/* Completion notes */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Completion Notes <span className="normal-case font-normal text-muted-foreground/70">optional</span></Label>
+              <Textarea
+                rows={3}
+                placeholder="Any notes on how the job went, issues encountered, snagging…"
+                value={completionForm.completionNotes}
+                onChange={(e) => setCompletionForm(f => ({ ...f, completionNotes: e.target.value }))}
+                className="field-input resize-none font-medium"
+              />
+            </div>
+            {/* Finished photos */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5" /> Finished Photos <span className="normal-case font-normal text-muted-foreground/70">optional — upload one at a time</span>
+              </Label>
+              <label className={cn(
+                "flex items-center justify-center gap-2 border-2 border-dashed border-border/60 rounded-xl px-4 py-5 cursor-pointer text-sm font-semibold text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors",
+                photoUploading && "opacity-50 pointer-events-none"
+              )}>
+                <Camera className="w-4 h-4" />
+                {photoUploading ? "Uploading…" : "Choose photo"}
+                <input type="file" accept="image/*" className="hidden" disabled={photoUploading} onChange={handleUploadCompletionPhoto} />
+              </label>
+              {completionPhotos.length > 0 && (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-2">
+                  {completionPhotos.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="aspect-square rounded-lg overflow-hidden border border-border/60 bg-secondary/40">
+                      <img src={url} alt={`Finished photo ${i + 1}`} className="w-full h-full object-cover" />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Actions */}
+            <div className="flex gap-3 pt-2 border-t border-border/40">
+              <Button
+                onClick={handleCompleteJob}
+                disabled={completionSaving}
+                className="font-bold h-11 rounded-xl bg-green-600 hover:bg-green-700 text-white px-6"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                {completionSaving ? "Saving…" : "Save & Complete Job"}
+              </Button>
+              <Button variant="outline" onClick={() => setCompletingJob(false)} className="font-bold h-11 rounded-xl">
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left col — main info */}
@@ -307,6 +537,99 @@ export default function JobDetail() {
             </CardContent>
           </Card>
 
+          {/* ── Job Actuals (only shown after completion) ─────────────────────── */}
+          {isCompleted && (
+            <Card className="shadow-sm border-green-500/25 rounded-2xl">
+              <div className="px-6 py-5 border-b border-border/60">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-green-600" /> Job Actuals
+                </h2>
+              </div>
+              <CardContent className="p-6 space-y-5">
+                {/* Financial summary */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  <ActualBox label="Quoted" value={formatCurrency(job.totalWithVat)} />
+                  {finalCharged != null && <ActualBox label="Final Charged" value={formatCurrency(finalCharged)} highlight />}
+                  {quoteVariance != null && (
+                    <ActualBox
+                      label="Quote Variance"
+                      value={`${quoteVariance >= 0 ? "+" : ""}${formatCurrency(quoteVariance)}${quoteVariancePct != null ? ` (${quoteVariancePct >= 0 ? "+" : ""}${quoteVariancePct.toFixed(1)}%)` : ""}`}
+                      trend={quoteVariance >= 0 ? "up" : "down"}
+                    />
+                  )}
+                  {jx.actualLabourHours != null && (
+                    <ActualBox label="Labour Hours" value={`${jx.actualLabourHours}h`} />
+                  )}
+                  {jx.actualLabourCost != null && (
+                    <ActualBox
+                      label="Labour Cost"
+                      value={formatCurrency(jx.actualLabourCost)}
+                      sub={labourVariance != null ? `${labourVariance >= 0 ? "+" : ""}${formatCurrency(labourVariance)} vs quoted` : undefined}
+                      trend={labourVariance != null ? (labourVariance <= 0 ? "up" : "down") : undefined}
+                    />
+                  )}
+                  {jx.actualMaterialsCost != null && (
+                    <ActualBox
+                      label="Materials Cost"
+                      value={formatCurrency(jx.actualMaterialsCost)}
+                      sub={materialVariance != null ? `${materialVariance >= 0 ? "+" : ""}${formatCurrency(materialVariance)} vs quoted` : undefined}
+                      trend={materialVariance != null ? (materialVariance <= 0 ? "up" : "down") : undefined}
+                    />
+                  )}
+                  {grossProfit != null && <ActualBox label="Gross Profit" value={formatCurrency(grossProfit)} highlight />}
+                  {grossMarginPct != null && <ActualBox label="Gross Margin" value={`${grossMarginPct.toFixed(1)}%`} highlight />}
+                </div>
+                {/* Variation */}
+                {jx.variationAmount != null && (
+                  <div className="bg-secondary/40 rounded-xl border border-border/40 p-4">
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Variation</p>
+                    <p className="text-sm font-bold">
+                      {Number(jx.variationAmount) >= 0 ? "+" : ""}{formatCurrency(Number(jx.variationAmount))}
+                      {jx.variationNote && <span className="font-normal text-muted-foreground ml-2">— {jx.variationNote}</span>}
+                    </p>
+                  </div>
+                )}
+                {/* Completion notes */}
+                {jx.completionNotes && (
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Completion Notes</p>
+                    <p className="text-sm font-medium text-muted-foreground whitespace-pre-line">{jx.completionNotes}</p>
+                  </div>
+                )}
+                {/* Finished photos */}
+                {completionPhotos.length > 0 && (
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5" /> Finished Photos
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {completionPhotos.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                          className="group relative aspect-square rounded-xl overflow-hidden border border-border/60 bg-secondary/40 hover:border-primary/30 transition-all">
+                          <img src={url} alt={`Finished photo ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                            <ExternalLink className="w-5 h-5 text-white drop-shadow" />
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Add more photos (if already completed) */}
+                {!completingJob && (
+                  <label className={cn(
+                    "flex items-center gap-2 text-sm font-semibold text-muted-foreground cursor-pointer hover:text-primary transition-colors",
+                    photoUploading && "opacity-50 pointer-events-none"
+                  )}>
+                    <Camera className="w-4 h-4" />
+                    {photoUploading ? "Uploading…" : "Add finished photo"}
+                    <input type="file" accept="image/*" className="hidden" disabled={photoUploading} onChange={handleUploadCompletionPhoto} />
+                  </label>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Photos from enquiry */}
           {attachments && attachments.length > 0 && (
             <Card className="shadow-sm border-border/60 rounded-2xl">
@@ -378,6 +701,20 @@ export default function JobDetail() {
                 >
                   <Check className="w-4 h-4 mr-2" /> Save Status
                 </Button>
+              )}
+              {!isCompleted && !completingJob && (
+                <Button
+                  onClick={() => setCompletingJob(true)}
+                  variant="outline"
+                  className="w-full font-bold h-12 rounded-xl border-green-500/40 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30"
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" /> Complete Job
+                </Button>
+              )}
+              {isCompleted && (
+                <div className="flex items-center justify-center gap-2 text-sm text-green-600 dark:text-green-400 font-bold">
+                  <CheckCircle2 className="w-4 h-4" /> Completed {jx.completedAt}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -512,6 +849,43 @@ function InfoBox({ icon: Icon, label, value }: { icon: any; label: string; value
       <p className={cn("text-sm font-bold", !value && "text-muted-foreground italic font-medium")}>
         {value ?? "Not provided"}
       </p>
+    </div>
+  );
+}
+
+// ── Actual box (job completion actuals) ───────────────────────────────────────
+function ActualBox({
+  label,
+  value,
+  sub,
+  highlight,
+  trend,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  highlight?: boolean;
+  trend?: "up" | "down";
+}) {
+  return (
+    <div className={cn(
+      "rounded-xl border p-4",
+      highlight
+        ? "bg-primary/5 border-primary/20"
+        : "bg-secondary/40 border-border/40"
+    )}>
+      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
+      <p className={cn("text-sm font-bold", highlight && "text-primary")}>{value}</p>
+      {sub && (
+        <p className={cn(
+          "text-xs font-semibold mt-0.5 flex items-center gap-1",
+          trend === "up" ? "text-green-600 dark:text-green-400" : trend === "down" ? "text-red-500" : "text-muted-foreground"
+        )}>
+          {trend === "up" && <TrendingUp className="w-3 h-3" />}
+          {trend === "down" && <TrendingDown className="w-3 h-3" />}
+          {sub}
+        </p>
+      )}
     </div>
   );
 }

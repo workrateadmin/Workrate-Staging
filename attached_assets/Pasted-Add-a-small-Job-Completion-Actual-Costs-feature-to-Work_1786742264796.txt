@@ -1,0 +1,72 @@
+Add a small Job Completion / Actual Costs feature to WorkRate.
+
+IMPORTANT:
+Do NOT redesign the existing job, quote, proposal, invoice, or enquiry flows.
+Do NOT change existing working behaviour unless required to add this feature.
+
+GOAL:
+When a job is finished, capture what actually happened so WorkRate can later compare quoted vs actual and build pricing intelligence.
+
+Add a "Complete Job" action to an existing job.
+
+When clicked, show a simple completion form with:
+
+1. Final amount charged
+2. Labour
+   - total labour hours
+   - optional labour cost
+3. Materials
+   - total material cost
+4. Variations
+   - optional amount added/removed
+   - optional short note explaining why
+5. Finished photos
+   - allow upload of final job images
+6. Completion notes
+   - optional free text
+7. Completion date
+
+Also store:
+- original quoted amount
+- final charged amount
+- difference in £
+- difference in %
+- estimated vs actual margin where enough data exists
+
+Do NOT invent costs if fields are blank.
+
+After completion:
+- mark job as Completed
+- show a clear "Job Actuals" section on the job page
+- preserve all original quote/invoice data
+- do not overwrite historical pricing
+
+Add internal-only calculated fields where possible:
+- quote variance
+- labour variance if estimated labour exists
+- material variance if estimated material cost exists
+- gross profit
+- gross margin %
+
+If estimated values do not exist, leave comparisons blank rather than guessing.
+
+FINISHED PHOTOS:
+Reuse the existing WorkRate upload/storage system.
+Do not create a separate storage architecture.
+
+DATA SAFETY:
+- existing jobs must continue to work
+- existing completed jobs must not break
+- all new fields should be optional where possible
+- no production data should be modified during testing
+
+TEST:
+Use one test job and prove:
+1. job can be completed
+2. actual costs save
+3. finished photos save
+4. original quote remains unchanged
+5. calculations are correct
+6. reopening the job shows the saved actuals
+
+Before implementing, inspect the current job schema and completion/status flow and make the smallest safe change.
