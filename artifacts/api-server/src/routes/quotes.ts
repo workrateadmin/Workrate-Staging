@@ -171,7 +171,25 @@ router.post("/enquiries/:id/quote", requireAuth, async (req, res): Promise<void>
   if (company?.preferredSuppliers) brainLines.push(`Preferred suppliers (use for material sourcing): ${company.preferredSuppliers}`);
   if (company?.typicalLeadTimes) brainLines.push(`Typical lead times: ${company.typicalLeadTimes}`);
 
-  const prompt = `You are an experienced ${company?.tradeType ?? "trade"} estimator based in the UK. Generate a realistic draft quote based on the following project details.
+  // Build the AI summary section — use ALL fields the chat AI captured, not just 3
+  const aiSummarySection = enquiry.aiSummary ? (() => {
+    try {
+      const s = JSON.parse(enquiry.aiSummary!);
+      const lines: string[] = ["What the customer confirmed (from enquiry chat):"];
+      if (s.project)                lines.push(`  Project: ${s.project}`);
+      if (s.measurements)           lines.push(`  Measurements: ${s.measurements}`);
+      if (s.materials)              lines.push(`  Materials/finish: ${s.materials}`);
+      if (s.customerRequirements)   lines.push(`  Customer requirements: ${s.customerRequirements}`);
+      if (s.summary)                lines.push(`  Summary: ${s.summary}`);
+      if (s.potentialChallenges)    lines.push(`  Potential challenges: ${s.potentialChallenges}`);
+      if (s.recommendedNextAction)  lines.push(`  Recommended next action: ${s.recommendedNextAction}`);
+      return lines.join("\n");
+    } catch {
+      return `AI Summary: ${enquiry.aiSummary}`;
+    }
+  })() : "No structured summary available — work from Description only.";
+
+  const prompt = `You are an experienced ${company?.tradeType ?? "trade"} estimator based in the UK. Generate a realistic draft quote based only on the confirmed project details below.
 
 Business settings (WorkRate Brain):
 ${brainLines.join("\n")}
@@ -179,23 +197,30 @@ ${brainLines.join("\n")}
 Customer: ${enquiry.customerName}
 Email: ${enquiry.customerEmail ?? "Not provided"}
 Phone: ${enquiry.customerPhone ?? "Not provided"}
-Project: ${enquiry.projectType ?? "General trade work"}
+Project type: ${enquiry.projectType ?? "General trade work"}
 Location: ${enquiry.location ?? "Not provided"}
-Description: ${enquiry.description ?? "Not provided"}
-AI Summary: ${enquiry.aiSummary ? (() => { try { const s = JSON.parse(enquiry.aiSummary!); return `${s.summary ?? ""} Measurements: ${s.measurements ?? ""}. Materials: ${s.materials ?? ""}.`; } catch { return enquiry.aiSummary!; } })() : "Not available"}
 Budget: ${enquiry.budget ?? "Not provided"}
 Timescale: ${enquiry.timescale ?? "Not provided"}
 
+Description (from enquiry):
+${enquiry.description ?? "Not provided"}
+
+${aiSummarySection}
+
+Rules — follow these exactly:
+1. Only describe scope, dimensions, materials, and quantities that the customer has explicitly stated above.
+2. Do not invent or assume any dimensions, quantities, or finishes not mentioned by the customer. If a detail is unknown, write [TBC] in projectDescription and add a "Missing — [what is needed]" line in assumptions.
+3. Where the customer has left a material choice open (e.g. said "painted" but not which substrate), you may note the trade-appropriate default as "Assumed — [reason]" in assumptions — but do not present it as confirmed in projectDescription.
+4. Apply the labour rate and materials markup from Business settings. Ensure the total does not fall below the minimum project value if set.
+
 Return ONLY a valid JSON object with these exact fields (numbers as integers or decimals, no currency symbols):
 {
-  "projectDescription": "detailed project description covering scope and key deliverables",
+  "projectDescription": "scope of works using only what the customer confirmed; mark any unknown details as [TBC]",
   "materialsAllowance": 0,
   "labourAllowance": 0,
   "notes": "important notes — include lead time if relevant",
-  "assumptions": "key assumptions made in this estimate"
-}
-
-Use the business settings to set labour rates. Apply the materials markup to your cost-price estimates. Ensure the total does not fall below the minimum project value if set. Be realistic and professional.`;
+  "assumptions": "gaps prefixed Missing — and trade defaults prefixed Assumed — ; leave blank if everything is confirmed"
+}`;
 
   const openai = getOpenAI();
   const completion = await openai.chat.completions.create({
