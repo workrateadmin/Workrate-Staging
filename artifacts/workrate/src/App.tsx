@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk } from '@clerk/react';
+import { PwaUpdatePrompt } from "@/components/pwa-update-prompt";
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
@@ -258,11 +259,34 @@ function ClerkProviderWithRoutes() {
   );
 }
 
+/**
+ * Invalidates all React Query caches when the home-screen PWA is foregrounded.
+ * This ensures stale enquiry data from a backgrounded session is always
+ * refreshed when the user returns to the app — satisfying requirement F.
+ */
+function VisibilityRefresher() {
+  const qc = useQueryClient();
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        qc.invalidateQueries();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [qc]);
+  return null;
+}
+
 export default function App() {
   return (
     <>
       <DevBanner />
+      <PwaUpdatePrompt />
       <WouterRouter base={basePath}>
+        <QueryClientProvider client={queryClient}>
+          <VisibilityRefresher />
+        </QueryClientProvider>
         <ClerkProviderWithRoutes />
         <Toaster />
       </WouterRouter>

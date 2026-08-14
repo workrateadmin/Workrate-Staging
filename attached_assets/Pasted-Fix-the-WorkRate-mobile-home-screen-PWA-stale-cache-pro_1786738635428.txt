@@ -1,0 +1,94 @@
+Fix the WorkRate mobile home-screen / PWA stale-cache problem.
+
+Current proven behaviour:
+
+- Production desktop shows current enquiries correctly.
+- Production mobile browser at:
+  https://work-rate-manager.replit.app
+  also shows current enquiries correctly.
+- BUT when WorkRate is saved to the phone home screen and opened from the icon, it can show an older/stale version of the app and older enquiry data.
+- Deleting and re-adding the home-screen icon does not reliably fix it.
+- Replit Preview/dev is intentionally separate and is NOT part of this bug.
+
+Do NOT investigate database sync.
+Do NOT investigate Clerk/business IDs unless needed after proving cache behaviour.
+Do NOT change production data.
+
+Goal:
+The home-screen/PWA version must always load the current production frontend and current production API data after a deploy.
+
+Please inspect the production PWA/service-worker setup and report first:
+
+1. Whether WorkRate currently registers a service worker.
+2. The service worker file/path.
+3. The current cache strategy for:
+   - HTML/navigation requests
+   - JS/CSS bundles
+   - API requests
+   - images/static assets
+4. Whether API responses such as enquiry lists are being cached.
+5. Whether index.html/app shell can remain cached across deployments.
+6. Whether an old service worker can continue controlling the home-screen app after a new production deploy.
+7. Current manifest/start_url/scope values.
+8. Whether the home-screen app is definitely pointing to:
+   https://work-rate-manager.replit.app
+
+Then implement a safe production fix:
+
+A. API requests
+- NEVER serve enquiry/customer/job/CRM API data from a stale cache.
+- Requests to /api/* should be network-only, or otherwise guaranteed fresh.
+- Do not cache authenticated JSON API responses.
+
+B. App shell / HTML
+- index.html and navigation requests must check the network so a new deploy is picked up.
+- Do not use cache-first for HTML.
+- Use network-first or equivalent safe strategy.
+
+C. Versioned static assets
+- Hashed/versioned JS/CSS/assets may be cached long-term because filenames change on deploy.
+- Do not break normal asset caching.
+
+D. Service worker updates
+- Ensure a newly deployed service worker activates promptly.
+- Use skipWaiting/clientsClaim or the framework-equivalent if appropriate.
+- Ensure old caches are deleted during activation.
+- Use an explicit cache version if needed.
+
+E. User update behaviour
+- If an old installed PWA is open when a new build is available, either:
+  1. update automatically on next launch, or
+  2. show a simple “WorkRate has been updated — reload” prompt.
+- Do not leave users unknowingly running an old build for days.
+
+F. Data refresh
+- When the home-screen app launches or returns to foreground, re-fetch the enquiry list from production.
+- Do not rely only on previously cached client state.
+
+G. Environment safety
+- Production PWA must always use production API/database.
+- Do not point production home-screen builds at Replit Preview/dev.
+- Preserve the DEV MODE banner in development only.
+
+Testing required before marking fixed:
+
+1. Record current production build/version.
+2. Open WorkRate from mobile home-screen.
+3. Confirm newest production enquiry is visible.
+4. Make a harmless visible frontend change/build-version change.
+5. Publish a new production build.
+6. Reopen the EXISTING home-screen app without deleting/re-adding it.
+7. Prove the new build is loaded.
+8. Prove the newest enquiry data is fetched from production.
+9. Confirm /api/* responses are not being served from stale service-worker cache.
+10. Confirm normal mobile browser and desktop still work.
+
+Please report:
+- root cause
+- files changed
+- cache strategy before
+- cache strategy after
+- how you proved the installed home-screen app updates correctly
+
+Do not mark this fixed based only on desktop or normal mobile browser.
+The acceptance test is the existing saved-to-home-screen WorkRate app.

@@ -10,3 +10,4 @@
 - [WorkRateVisualTesting shortcut](workrate-visual-test-shortcut.md) — two-phase test shortcut; Phase 1 pre-fills enquiry, Phase 2 upload auto-completes + conceptVisualOffer
 - [Clerk dev/prod user ID split](workrate-clerk-env-split.md) — dev and prod have separate Clerk user stores; use widgetToken UUID (not userId) as the widget businessId
 - [WhatsApp Business integration](whatsapp-integration.md) — Meta Cloud API webhook, rawBody capture, schema via raw SQL (drizzle-kit push needs TTY for UNIQUE), WAConnectModal, @clerk/react import
+- [WorkRate PWA setup](workrate-pwa-setup.md) — vite-plugin-pwa fix for home-screen stale cache; NetworkOnly for /api/*, SW disabled in dev, prompt-based update toast
