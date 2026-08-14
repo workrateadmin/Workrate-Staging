@@ -1,0 +1,95 @@
+Improve the AI enquiry logic so every enquiry is bespoke and context-aware.
+
+CORE PRINCIPLE:
+Do NOT run customers through rigid project-type questionnaires.
+
+Each enquiry must be handled dynamically based on:
+- what the customer has already said
+- the project type
+- likely trade requirements
+- what information is genuinely missing
+- the customer’s level of detail
+- photos / measurements already supplied
+- budget / finish / style clues already given
+
+The AI should behave like an experienced joinery office manager who understands the trade and asks only the next useful question.
+
+PROJECT KNOWLEDGE SHOULD GUIDE, NOT SCRIPT, THE CONVERSATION.
+
+Example:
+If customer says:
+"I need a painted front door and frame replacing, probably traditional style, I have photos"
+
+Do NOT then ask:
+- door or frame?
+- painted or natural?
+- traditional or contemporary?
+
+Those are already answered.
+
+Instead the AI should move naturally to what is still useful, for example:
+- approximate opening size if known
+- glazing required?
+- preferred ironmongery / security requirements?
+- postcode
+- upload the photos
+
+MATERIAL INTELLIGENCE:
+Material suggestions must make sense for the job.
+
+For external front doors:
+- never suggest MDF
+- Accoya is a strong recommended option for painted external joinery
+- suitable hardwoods may be relevant for natural finishes
+
+For wardrobes / alcoves / fitted furniture:
+- MDF / MR MDF / veneered board / plywood / solid timber may be relevant
+
+But do NOT ask customers to choose materials unless it is actually useful at that point.
+The AI may recommend a sensible material instead of forcing a technical choice.
+
+Example:
+"For a painted external door, Accoya is usually a very good option because it’s stable and durable outdoors. If you’re happy, we can base the initial estimate around that."
+
+BESPOKE QUESTIONING RULES:
+1. Read the whole conversation before asking the next question.
+2. Never repeat information already supplied.
+3. Never ask irrelevant generic questions.
+4. Ask one or two useful questions at a time.
+5. Adapt depth depending on the customer:
+   - vague enquiry → guide them more
+   - detailed enquiry → ask less
+6. Infer obvious details where confidence is high.
+7. If unsure, ask one sensible clarification.
+8. Avoid trade jargon unless useful.
+9. Make recommendations like an experienced tradesperson would.
+10. Keep the conversation natural, not form-like.
+
+Create a project knowledge layer containing:
+- suitable materials
+- unsuitable materials
+- common design considerations
+- common missing information
+- synonyms / related project types
+
+But use this only as background reasoning.
+DO NOT turn it into a fixed questionnaire.
+
+TEST:
+Run realistic bespoke conversations for:
+- front door
+- fitted wardrobe
+- media unit
+- under-stair storage
+- alcove units
+- home office
+- internal doors
+- unusual bespoke joinery enquiry
+
+For each, show:
+- what the customer initially says
+- the AI's next question
+- why that question is appropriate
+- confirmation that no already-answered question was repeated
+
+Do not disturb enquiry saving, CRM, photo uploads, concept visuals, quote generation, or production data.
