@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -41,6 +41,10 @@ import {
   TrendingDown,
   ChevronDown,
   ChevronUp,
+  Trash2,
+  Upload,
+  FileText as FileTextIcon,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   Select,
@@ -93,6 +97,24 @@ export default function JobDetail() {
     completionNotes: "",
     completedAt: new Date().toISOString().slice(0, 10),
   });
+  // Edit actuals state
+  const [editingActuals, setEditingActuals] = useState(false);
+  const [actualsSaving, setActualsSaving] = useState(false);
+  const [actualsForm, setActualsForm] = useState({
+    finalAmountCharged: "",
+    actualLabourHours: "",
+    actualLabourCost: "",
+    actualMaterialsCost: "",
+    variationAmount: "",
+    variationNote: "",
+    completionNotes: "",
+    completedAt: "",
+  });
+  // Production documents state
+  const [prodDocs, setProdDocs] = useState<any[]>([]);
+  const [docUploading, setDocUploading] = useState(false);
+  const [newDocType, setNewDocType] = useState("cutting_list");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const updateJob = useUpdateJob({
     mutation: {
@@ -211,6 +233,92 @@ export default function JobDetail() {
     } finally {
       setPhotoUploading(false);
       e.target.value = "";
+    }
+  };
+
+  // ── Edit actuals ──────────────────────────────────────────────────────────
+  const handleOpenEditActuals = () => {
+    const jx = job as any;
+    setActualsForm({
+      finalAmountCharged: jx.finalAmountCharged != null ? String(jx.finalAmountCharged) : "",
+      actualLabourHours:  jx.actualLabourHours  != null ? String(jx.actualLabourHours)  : "",
+      actualLabourCost:   jx.actualLabourCost   != null ? String(jx.actualLabourCost)   : "",
+      actualMaterialsCost: jx.actualMaterialsCost != null ? String(jx.actualMaterialsCost) : "",
+      variationAmount:    jx.variationAmount    != null ? String(jx.variationAmount)    : "",
+      variationNote:      jx.variationNote      ?? "",
+      completionNotes:    jx.completionNotes    ?? "",
+      completedAt:        jx.completedAt        ?? new Date().toISOString().slice(0, 10),
+    });
+    setEditingActuals(true);
+  };
+
+  const handleSaveActuals = async () => {
+    setActualsSaving(true);
+    try {
+      const body: Record<string, any> = { completedAt: actualsForm.completedAt };
+      if (actualsForm.finalAmountCharged) body.finalAmountCharged = Number(actualsForm.finalAmountCharged);
+      if (actualsForm.actualLabourHours)  body.actualLabourHours  = Number(actualsForm.actualLabourHours);
+      if (actualsForm.actualLabourCost)   body.actualLabourCost   = Number(actualsForm.actualLabourCost);
+      if (actualsForm.actualMaterialsCost) body.actualMaterialsCost = Number(actualsForm.actualMaterialsCost);
+      if (actualsForm.variationAmount)    body.variationAmount    = Number(actualsForm.variationAmount);
+      body.variationNote   = actualsForm.variationNote;
+      body.completionNotes = actualsForm.completionNotes;
+      const r = await fetch(`/api/jobs/${id}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      toast({ title: "Actuals updated" });
+      queryClient.invalidateQueries({ queryKey: [`/api/jobs/${id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      setEditingActuals(false);
+    } catch {
+      toast({ title: "Failed to save actuals", variant: "destructive" });
+    } finally {
+      setActualsSaving(false);
+    }
+  };
+
+  // ── Production documents ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!job || !(job as any).completedAt) return;
+    fetch(`/api/jobs/${id}/production-documents`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setProdDocs)
+      .catch(() => {});
+  }, [id, job]);
+
+  const handleUploadDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setDocUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("docType", newDocType);
+      const r = await fetch(`/api/jobs/${id}/production-documents`, { method: "POST", body: fd });
+      if (!r.ok) throw new Error(await r.text());
+      const doc = await r.json();
+      setProdDocs(prev => [doc, ...prev]);
+      toast({ title: "Document uploaded" });
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setDocUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDeleteDoc = async (docId: number) => {
+    try {
+      const r = await fetch(`/api/jobs/${id}/production-documents/${docId}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(await r.text());
+      setProdDocs(prev => prev.filter(d => d.id !== docId));
+      setConfirmDeleteId(null);
+      toast({ title: "Document removed" });
+    } catch {
+      toast({ title: "Failed to remove document", variant: "destructive" });
     }
   };
 
@@ -540,92 +648,265 @@ export default function JobDetail() {
           {/* ── Job Actuals (only shown after completion) ─────────────────────── */}
           {isCompleted && (
             <Card className="shadow-sm border-green-500/25 rounded-2xl">
-              <div className="px-6 py-5 border-b border-border/60">
+              <div className="px-6 py-5 border-b border-border/60 flex items-center justify-between">
                 <h2 className="text-lg font-bold flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-green-600" /> Job Actuals
                 </h2>
+                {!editingActuals && (
+                  <Button variant="ghost" size="sm" onClick={handleOpenEditActuals} className="rounded-lg">
+                    <Pencil className="w-4 h-4 mr-1" /> Edit
+                  </Button>
+                )}
               </div>
               <CardContent className="p-6 space-y-5">
-                {/* Financial summary */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  <ActualBox label="Quoted" value={formatCurrency(job.totalWithVat)} />
-                  {finalCharged != null && <ActualBox label="Final Charged" value={formatCurrency(finalCharged)} highlight />}
-                  {quoteVariance != null && (
-                    <ActualBox
-                      label="Quote Variance"
-                      value={`${quoteVariance >= 0 ? "+" : ""}${formatCurrency(quoteVariance)}${quoteVariancePct != null ? ` (${quoteVariancePct >= 0 ? "+" : ""}${quoteVariancePct.toFixed(1)}%)` : ""}`}
-                      trend={quoteVariance >= 0 ? "up" : "down"}
-                    />
-                  )}
-                  {jx.actualLabourHours != null && (
-                    <ActualBox label="Labour Hours" value={`${jx.actualLabourHours}h`} />
-                  )}
-                  {jx.actualLabourCost != null && (
-                    <ActualBox
-                      label="Labour Cost"
-                      value={formatCurrency(jx.actualLabourCost)}
-                      sub={labourVariance != null ? `${labourVariance >= 0 ? "+" : ""}${formatCurrency(labourVariance)} vs quoted` : undefined}
-                      trend={labourVariance != null ? (labourVariance <= 0 ? "up" : "down") : undefined}
-                    />
-                  )}
-                  {jx.actualMaterialsCost != null && (
-                    <ActualBox
-                      label="Materials Cost"
-                      value={formatCurrency(jx.actualMaterialsCost)}
-                      sub={materialVariance != null ? `${materialVariance >= 0 ? "+" : ""}${formatCurrency(materialVariance)} vs quoted` : undefined}
-                      trend={materialVariance != null ? (materialVariance <= 0 ? "up" : "down") : undefined}
-                    />
-                  )}
-                  {grossProfit != null && <ActualBox label="Gross Profit" value={formatCurrency(grossProfit)} highlight />}
-                  {grossMarginPct != null && <ActualBox label="Gross Margin" value={`${grossMarginPct.toFixed(1)}%`} highlight />}
-                </div>
-                {/* Variation */}
-                {jx.variationAmount != null && (
-                  <div className="bg-secondary/40 rounded-xl border border-border/40 p-4">
-                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Variation</p>
-                    <p className="text-sm font-bold">
-                      {Number(jx.variationAmount) >= 0 ? "+" : ""}{formatCurrency(Number(jx.variationAmount))}
-                      {jx.variationNote && <span className="font-normal text-muted-foreground ml-2">— {jx.variationNote}</span>}
-                    </p>
-                  </div>
-                )}
-                {/* Completion notes */}
-                {jx.completionNotes && (
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Completion Notes</p>
-                    <p className="text-sm font-medium text-muted-foreground whitespace-pre-line">{jx.completionNotes}</p>
-                  </div>
-                )}
-                {/* Finished photos */}
-                {completionPhotos.length > 0 && (
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
-                      <Camera className="w-3.5 h-3.5" /> Finished Photos
-                    </p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {completionPhotos.map((url, i) => (
-                        <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                          className="group relative aspect-square rounded-xl overflow-hidden border border-border/60 bg-secondary/40 hover:border-primary/30 transition-all">
-                          <img src={url} alt={`Finished photo ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <ExternalLink className="w-5 h-5 text-white drop-shadow" />
-                          </div>
-                        </a>
-                      ))}
+
+                {/* ── Edit actuals inline form ──────────────────────────── */}
+                {editingActuals ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Final Charged (£)</Label>
+                        <Input type="number" min="0" step="0.01" value={actualsForm.finalAmountCharged}
+                          onChange={e => setActualsForm(f => ({ ...f, finalAmountCharged: e.target.value }))}
+                          className="field-input font-medium h-10" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Completion Date</Label>
+                        <Input type="date" value={actualsForm.completedAt}
+                          onChange={e => setActualsForm(f => ({ ...f, completedAt: e.target.value }))}
+                          className="field-input font-medium h-10" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Labour Hours</Label>
+                        <Input type="number" min="0" step="0.5" value={actualsForm.actualLabourHours}
+                          onChange={e => setActualsForm(f => ({ ...f, actualLabourHours: e.target.value }))}
+                          className="field-input font-medium h-10" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Labour Cost (£)</Label>
+                        <Input type="number" min="0" step="0.01" value={actualsForm.actualLabourCost}
+                          onChange={e => setActualsForm(f => ({ ...f, actualLabourCost: e.target.value }))}
+                          className="field-input font-medium h-10" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Materials Cost (£)</Label>
+                        <Input type="number" min="0" step="0.01" value={actualsForm.actualMaterialsCost}
+                          onChange={e => setActualsForm(f => ({ ...f, actualMaterialsCost: e.target.value }))}
+                          className="field-input font-medium h-10" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Variation (£)</Label>
+                        <Input type="number" step="0.01" value={actualsForm.variationAmount}
+                          onChange={e => setActualsForm(f => ({ ...f, variationAmount: e.target.value }))}
+                          className="field-input font-medium h-10" placeholder="0" />
+                      </div>
+                    </div>
+                    {actualsForm.variationAmount && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Variation Reason</Label>
+                        <Input value={actualsForm.variationNote}
+                          onChange={e => setActualsForm(f => ({ ...f, variationNote: e.target.value }))}
+                          placeholder="e.g. Extra shelf run added on site"
+                          className="field-input font-medium h-10" />
+                      </div>
+                    )}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Completion Notes</Label>
+                      <Textarea rows={3} value={actualsForm.completionNotes}
+                        onChange={e => setActualsForm(f => ({ ...f, completionNotes: e.target.value }))}
+                        className="field-input resize-none font-medium" />
+                    </div>
+                    <div className="flex gap-3 pt-1 border-t border-border/40">
+                      <Button onClick={handleSaveActuals} disabled={actualsSaving}
+                        className="font-bold h-10 rounded-xl px-5">
+                        <Check className="w-4 h-4 mr-1.5" />{actualsSaving ? "Saving…" : "Save Changes"}
+                      </Button>
+                      <Button variant="outline" onClick={() => setEditingActuals(false)} className="font-bold h-10 rounded-xl">
+                        <X className="w-4 h-4 mr-1" /> Cancel
+                      </Button>
                     </div>
                   </div>
+                ) : (
+                  <>
+                    {/* ── Read-only actuals display ─────────────────────── */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      <ActualBox label="Quoted" value={formatCurrency(job.totalWithVat)} />
+                      {finalCharged != null && <ActualBox label="Final Charged" value={formatCurrency(finalCharged)} highlight />}
+                      {quoteVariance != null && (
+                        <ActualBox
+                          label="Quote Variance"
+                          value={`${quoteVariance >= 0 ? "+" : ""}${formatCurrency(quoteVariance)}${quoteVariancePct != null ? ` (${quoteVariancePct >= 0 ? "+" : ""}${quoteVariancePct.toFixed(1)}%)` : ""}`}
+                          trend={quoteVariance >= 0 ? "up" : "down"}
+                        />
+                      )}
+                      {jx.actualLabourHours != null && (
+                        <ActualBox label="Labour Hours" value={`${jx.actualLabourHours}h`} />
+                      )}
+                      {jx.actualLabourCost != null && (
+                        <ActualBox
+                          label="Labour Cost"
+                          value={formatCurrency(jx.actualLabourCost)}
+                          sub={labourVariance != null ? `${labourVariance >= 0 ? "+" : ""}${formatCurrency(labourVariance)} vs quoted` : undefined}
+                          trend={labourVariance != null ? (labourVariance <= 0 ? "up" : "down") : undefined}
+                        />
+                      )}
+                      {jx.actualMaterialsCost != null && (
+                        <ActualBox
+                          label="Materials Cost"
+                          value={formatCurrency(jx.actualMaterialsCost)}
+                          sub={materialVariance != null ? `${materialVariance >= 0 ? "+" : ""}${formatCurrency(materialVariance)} vs quoted` : undefined}
+                          trend={materialVariance != null ? (materialVariance <= 0 ? "up" : "down") : undefined}
+                        />
+                      )}
+                      {grossProfit != null && <ActualBox label="Gross Profit" value={formatCurrency(grossProfit)} highlight />}
+                      {grossMarginPct != null && <ActualBox label="Gross Margin" value={`${grossMarginPct.toFixed(1)}%`} highlight />}
+                    </div>
+                    {/* Variation */}
+                    {jx.variationAmount != null && (
+                      <div className="bg-secondary/40 rounded-xl border border-border/40 p-4">
+                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Variation</p>
+                        <p className="text-sm font-bold">
+                          {Number(jx.variationAmount) >= 0 ? "+" : ""}{formatCurrency(Number(jx.variationAmount))}
+                          {jx.variationNote && <span className="font-normal text-muted-foreground ml-2">— {jx.variationNote}</span>}
+                        </p>
+                      </div>
+                    )}
+                    {/* Completion notes */}
+                    {jx.completionNotes && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Completion Notes</p>
+                        <p className="text-sm font-medium text-muted-foreground whitespace-pre-line">{jx.completionNotes}</p>
+                      </div>
+                    )}
+                    {/* Finished photos */}
+                    {completionPhotos.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
+                          <Camera className="w-3.5 h-3.5" /> Finished Photos
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {completionPhotos.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                              className="group relative aspect-square rounded-xl overflow-hidden border border-border/60 bg-secondary/40 hover:border-primary/30 transition-all">
+                              <img src={url} alt={`Finished photo ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                <ExternalLink className="w-5 h-5 text-white drop-shadow" />
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* Add more photos */}
+                    {!completingJob && (
+                      <label className={cn(
+                        "flex items-center gap-2 text-sm font-semibold text-muted-foreground cursor-pointer hover:text-primary transition-colors",
+                        photoUploading && "opacity-50 pointer-events-none"
+                      )}>
+                        <Camera className="w-4 h-4" />
+                        {photoUploading ? "Uploading…" : "Add finished photo"}
+                        <input type="file" accept="image/*" className="hidden" disabled={photoUploading} onChange={handleUploadCompletionPhoto} />
+                      </label>
+                    )}
+                  </>
                 )}
-                {/* Add more photos (if already completed) */}
-                {!completingJob && (
-                  <label className={cn(
-                    "flex items-center gap-2 text-sm font-semibold text-muted-foreground cursor-pointer hover:text-primary transition-colors",
-                    photoUploading && "opacity-50 pointer-events-none"
-                  )}>
-                    <Camera className="w-4 h-4" />
-                    {photoUploading ? "Uploading…" : "Add finished photo"}
-                    <input type="file" accept="image/*" className="hidden" disabled={photoUploading} onChange={handleUploadCompletionPhoto} />
-                  </label>
-                )}
+
+                {/* ── Production Documents ──────────────────────────────── */}
+                <div className="pt-4 border-t border-border/40 space-y-4">
+                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                    <FileTextIcon className="w-3.5 h-3.5" /> Production Documents
+                    <span className="font-normal normal-case text-muted-foreground/60 ml-1">— cutting lists, drawings, invoices, BOMs</span>
+                  </p>
+
+                  {/* Doc list */}
+                  {prodDocs.length > 0 && (
+                    <div className="space-y-2">
+                      {prodDocs.map((doc: any) => (
+                        <div key={doc.id} className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-secondary/30">
+                          {doc.mimeType?.startsWith("image/") ? (
+                            <div className="w-9 h-9 rounded-lg overflow-hidden border border-border/40 shrink-0 bg-secondary">
+                              <img src={doc.url} alt="" className="w-full h-full object-cover" />
+                            </div>
+                          ) : doc.mimeType?.includes("spreadsheet") || doc.mimeType === "text/csv" || doc.mimeType?.includes("ms-excel") ? (
+                            <div className="w-9 h-9 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center shrink-0">
+                              <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                            </div>
+                          ) : (
+                            <div className="w-9 h-9 rounded-lg bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
+                              <FileTextIcon className="w-4 h-4 text-primary" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <a href={doc.url} target="_blank" rel="noopener noreferrer"
+                              className="text-sm font-semibold truncate block hover:text-primary transition-colors">
+                              {doc.originalName}
+                            </a>
+                            <p className="text-xs text-muted-foreground font-medium">
+                              {DOC_TYPE_LABELS[doc.docType as keyof typeof DOC_TYPE_LABELS] ?? doc.docType}
+                              {doc.fileSizeBytes && <span className="ml-2 opacity-60">· {formatFileSize(doc.fileSizeBytes)}</span>}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg">
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </Button>
+                            </a>
+                            {confirmDeleteId === doc.id ? (
+                              <div className="flex items-center gap-1">
+                                <Button size="sm" variant="destructive"
+                                  className="h-7 px-2 text-xs font-bold rounded-lg"
+                                  onClick={() => handleDeleteDoc(doc.id)}>
+                                  Remove
+                                </Button>
+                                <Button size="sm" variant="ghost"
+                                  className="h-7 px-2 text-xs rounded-lg"
+                                  onClick={() => setConfirmDeleteId(null)}>
+                                  Keep
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button variant="ghost" size="sm"
+                                className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-destructive"
+                                onClick={() => setConfirmDeleteId(doc.id)}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Upload row */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Select value={newDocType} onValueChange={setNewDocType}>
+                      <SelectTrigger className="h-9 w-[200px] text-sm font-semibold rounded-xl border-border/60">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(DOC_TYPE_LABELS).map(([value, label]) => (
+                          <SelectItem key={value} value={value} className="font-semibold">{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <label className={cn(
+                      "flex items-center gap-1.5 h-9 px-4 rounded-xl border border-border/60 bg-background text-sm font-semibold cursor-pointer hover:bg-secondary/60 transition-colors",
+                      docUploading && "opacity-50 pointer-events-none"
+                    )}>
+                      <Upload className="w-3.5 h-3.5" />
+                      {docUploading ? "Uploading…" : "Add document"}
+                      <input
+                        type="file"
+                        className="hidden"
+                        disabled={docUploading}
+                        accept="image/*,application/pdf,.xlsx,.xls,.csv,.docx,.doc"
+                        onChange={handleUploadDoc}
+                      />
+                    </label>
+                  </div>
+                </div>
+
               </CardContent>
             </Card>
           )}
@@ -851,6 +1132,21 @@ function InfoBox({ icon: Icon, label, value }: { icon: any; label: string; value
       </p>
     </div>
   );
+}
+
+// ── Production document helpers ───────────────────────────────────────────────
+const DOC_TYPE_LABELS = {
+  cutting_list:      "Cutting List",
+  bill_of_materials: "Bill of Materials",
+  drawings:          "Workshop / Mfg Drawings",
+  supplier_invoice:  "Supplier Invoice",
+  other:             "Other",
+} as const;
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024)        return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
 // ── Actual box (job completion actuals) ───────────────────────────────────────

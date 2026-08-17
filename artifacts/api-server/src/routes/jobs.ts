@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
-import { db, enquiriesTable, quotesTable, jobsTable } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { db, enquiriesTable, quotesTable, jobsTable, jobProductionDocumentsTable } from "@workspace/db";
+import { eq, and, inArray, desc } from "drizzle-orm";
 import multer from "multer";
 import { uploadBufferToStorage, storageServingUrl } from "../lib/storageUpload";
 
@@ -263,6 +263,100 @@ router.post("/jobs/:id/completion-photos", requireAuth, memUpload.single("file")
     .returning();
 
   res.status(201).json({ url, job: parseJob(updated) });
+});
+
+// ── Multer for production documents (images + common doc formats, 50 MB) ─────
+const docUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = new Set([
+      "image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif",
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-excel",
+      "text/csv",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/msword",
+    ]);
+    if (allowed.has(file.mimetype)) cb(null, true);
+    else cb(new Error("Unsupported file type"));
+  },
+});
+
+// List production documents for a job
+router.get("/jobs/:id/production-documents", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const owned = await verifyJobOwnership(id, userId!);
+  if (!owned) { res.status(404).json({ error: "Job not found" }); return; }
+
+  const docs = await db
+    .select()
+    .from(jobProductionDocumentsTable)
+    .where(eq(jobProductionDocumentsTable.jobId, id))
+    .orderBy(desc(jobProductionDocumentsTable.uploadedAt));
+
+  res.json(docs);
+});
+
+// Upload a production document → GCS, insert row
+router.post("/jobs/:id/production-documents", requireAuth, docUpload.single("file"), async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const owned = await verifyJobOwnership(id, userId!);
+  if (!owned) { res.status(404).json({ error: "Job not found" }); return; }
+
+  const file = req.file;
+  if (!file) { res.status(400).json({ error: "No file provided" }); return; }
+
+  const docType = String(req.body?.docType ?? "other");
+  const validTypes = ["cutting_list", "bill_of_materials", "drawings", "supplier_invoice", "other"];
+  if (!validTypes.includes(docType)) { res.status(400).json({ error: "Invalid docType" }); return; }
+
+  const { objectPath } = await uploadBufferToStorage(file.buffer, file.mimetype);
+  const url = storageServingUrl(req, objectPath);
+
+  const [doc] = await db
+    .insert(jobProductionDocumentsTable)
+    .values({
+      jobId: id,
+      url,
+      objectPath,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      docType,
+      fileSizeBytes: file.size,
+    })
+    .returning();
+
+  res.status(201).json(doc);
+});
+
+// Delete a production document
+router.delete("/jobs/:id/production-documents/:docId", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const id = Number(req.params.id);
+  const docId = Number(req.params.docId);
+  if (isNaN(id) || isNaN(docId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const owned = await verifyJobOwnership(id, userId!);
+  if (!owned) { res.status(404).json({ error: "Job not found" }); return; }
+
+  const [deleted] = await db
+    .delete(jobProductionDocumentsTable)
+    .where(and(
+      eq(jobProductionDocumentsTable.id, docId),
+      eq(jobProductionDocumentsTable.jobId, id),
+    ))
+    .returning();
+
+  if (!deleted) { res.status(404).json({ error: "Document not found" }); return; }
+  res.status(200).json({ deleted: true });
 });
 
 // Convert enquiry → job

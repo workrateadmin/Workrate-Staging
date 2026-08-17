@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, numeric, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, numeric, timestamp, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -65,3 +65,31 @@ export const insertJobSchema = createInsertSchema(jobsTable).omit({
 
 export type InsertJob = z.infer<typeof insertJobSchema>;
 export type Job = typeof jobsTable.$inferSelect;
+
+// ── Production documents (separate table for metadata + future Cost Intelligence) ──
+export const DOC_TYPES = [
+  "cutting_list",
+  "bill_of_materials",
+  "drawings",
+  "supplier_invoice",
+  "other",
+] as const;
+
+export type DocType = (typeof DOC_TYPES)[number];
+
+export const jobProductionDocumentsTable = pgTable("job_production_documents", {
+  id:            serial("id").primaryKey(),
+  jobId:         integer("job_id").notNull(),
+  url:           text("url").notNull(),
+  objectPath:    text("object_path").notNull(),
+  originalName:  text("original_name").notNull(),
+  mimeType:      text("mime_type").notNull(),
+  docType:       text("doc_type").notNull(),
+  fileSizeBytes: integer("file_size_bytes"),
+  uploadedAt:    timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  // Reserved for Cost Intelligence Phase 2 — will hold structured extraction output
+  // e.g. { components: [{ name, qty, dimensions, material, thickness }] }
+  extractedData: jsonb("extracted_data"),
+});
+
+export type JobProductionDocument = typeof jobProductionDocumentsTable.$inferSelect;

@@ -63,6 +63,13 @@ export async function uploadBufferToStorage(
   const ext = contentType === "image/png" ? "png"
     : (contentType === "image/jpeg" || contentType === "image/jpg") ? "jpg"
     : contentType === "image/webp" ? "webp"
+    : (contentType === "image/heic" || contentType === "image/heif") ? "heic"
+    : contentType === "application/pdf" ? "pdf"
+    : contentType.includes("spreadsheetml") ? "xlsx"
+    : contentType === "application/vnd.ms-excel" ? "xls"
+    : contentType === "text/csv" ? "csv"
+    : contentType.includes("wordprocessingml") ? "docx"
+    : contentType === "application/msword" ? "doc"
     : "bin";
 
   const uuid = randomUUID();
