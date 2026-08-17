@@ -1,4 +1,6 @@
-import { pgTable, serial, integer, text, numeric, timestamp, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
+import {
+  pgTable, serial, integer, text, numeric, timestamp, jsonb,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -66,7 +68,7 @@ export const insertJobSchema = createInsertSchema(jobsTable).omit({
 export type InsertJob = z.infer<typeof insertJobSchema>;
 export type Job = typeof jobsTable.$inferSelect;
 
-// ── Production documents (separate table for metadata + future Cost Intelligence) ──
+// ── Production documents ──────────────────────────────────────────────────────
 export const DOC_TYPES = [
   "cutting_list",
   "bill_of_materials",
@@ -77,19 +79,106 @@ export const DOC_TYPES = [
 
 export type DocType = (typeof DOC_TYPES)[number];
 
+// Extraction lifecycle: pending → processing → completed | failed | not_applicable
+export const DOC_EXTRACTION_STATUSES = [
+  "pending",
+  "processing",
+  "completed",
+  "failed",
+  "not_applicable",
+] as const;
+
+// Per-row review status (both intelligence tables use this enum)
+export const INTEL_ROW_STATUSES = [
+  "ai_extracted",
+  "reviewed",
+  "corrected",
+  "manually_added",
+] as const;
+
 export const jobProductionDocumentsTable = pgTable("job_production_documents", {
-  id:            serial("id").primaryKey(),
-  jobId:         integer("job_id").notNull(),
-  url:           text("url").notNull(),
-  objectPath:    text("object_path").notNull(),
-  originalName:  text("original_name").notNull(),
-  mimeType:      text("mime_type").notNull(),
-  docType:       text("doc_type").notNull(),
-  fileSizeBytes: integer("file_size_bytes"),
-  uploadedAt:    timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
-  // Reserved for Cost Intelligence Phase 2 — will hold structured extraction output
-  // e.g. { components: [{ name, qty, dimensions, material, thickness }] }
-  extractedData: jsonb("extracted_data"),
+  id:                  serial("id").primaryKey(),
+  jobId:               integer("job_id").notNull(),
+  url:                 text("url").notNull(),
+  objectPath:          text("object_path").notNull(),
+  originalName:        text("original_name").notNull(),
+  mimeType:            text("mime_type").notNull(),
+  docType:             text("doc_type").notNull(),
+  fileSizeBytes:       integer("file_size_bytes"),
+  uploadedAt:          timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  uploadedByUserId:    text("uploaded_by_user_id"),
+  // Extraction provenance (added migration 0008)
+  extractionStatus:    text("extraction_status").notNull().default("pending"),
+  extractionTimestamp: timestamp("extraction_timestamp", { withTimezone: true }),
+  extractionMethod:    text("extraction_method"),
+  // Raw AI response dump — kept for auditability
+  extractedData:       jsonb("extracted_data"),
 });
 
 export type JobProductionDocument = typeof jobProductionDocumentsTable.$inferSelect;
+
+// ── Intelligence: cutting list / BOM components ───────────────────────────────
+// One row per component/item. Sawn and finished dimensions are ALWAYS separate.
+// sawn_*_mm is null unless the source document explicitly states the stock size.
+export const jobIntelligenceComponentsTable = pgTable("job_intelligence_components", {
+  id:                   serial("id").primaryKey(),
+  jobId:                integer("job_id").notNull(),
+  documentId:           integer("document_id").notNull(),
+  itemName:             text("item_name"),
+  quantity:             numeric("quantity", { precision: 10, scale: 3 }),
+  // Finished / planed dimensions (required size after machining)
+  finishedLengthMm:     numeric("finished_length_mm", { precision: 10, scale: 2 }),
+  finishedWidthMm:      numeric("finished_width_mm", { precision: 10, scale: 2 }),
+  finishedThicknessMm:  numeric("finished_thickness_mm", { precision: 10, scale: 2 }),
+  // Sawn / nominal dimensions (purchased stock — NEVER invented)
+  sawnLengthMm:         numeric("sawn_length_mm", { precision: 10, scale: 2 }),
+  sawnWidthMm:          numeric("sawn_width_mm", { precision: 10, scale: 2 }),
+  sawnThicknessMm:      numeric("sawn_thickness_mm", { precision: 10, scale: 2 }),
+  // Material
+  material:             text("material"),   // 'timber' | 'sheet' | 'hardware' | 'other'
+  timberSpecies:        text("timber_species"),
+  timberGrade:          text("timber_grade"),
+  boardType:            text("board_type"),
+  sheetFinish:          text("sheet_finish"),
+  hardwareRef:          text("hardware_ref"),
+  supplierRef:          text("supplier_ref"),
+  unitCost:             numeric("unit_cost", { precision: 10, scale: 2 }),
+  totalCost:            numeric("total_cost", { precision: 10, scale: 2 }),
+  notes:                text("notes"),
+  // Provenance
+  extractionStatus:     text("extraction_status").notNull().default("ai_extracted"),
+  confidenceScore:      numeric("confidence_score", { precision: 4, scale: 3 }),
+  originalExtractedText: text("original_extracted_text"),
+  correctedAt:          timestamp("corrected_at", { withTimezone: true }),
+  extractedAt:          timestamp("extracted_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type JobIntelligenceComponent = typeof jobIntelligenceComponentsTable.$inferSelect;
+
+// ── Intelligence: supplier invoice lines ──────────────────────────────────────
+export const jobIntelligenceInvoiceLinesTable = pgTable("job_intelligence_invoice_lines", {
+  id:                    serial("id").primaryKey(),
+  jobId:                 integer("job_id").notNull(),
+  documentId:            integer("document_id").notNull(),
+  // Invoice header (repeated per line for self-contained querying)
+  supplierName:          text("supplier_name"),
+  invoiceNumber:         text("invoice_number"),
+  invoiceDate:           text("invoice_date"),
+  // Line item
+  itemDescription:       text("item_description"),
+  quantity:              numeric("quantity", { precision: 10, scale: 3 }),
+  unit:                  text("unit"),
+  unitPrice:             numeric("unit_price", { precision: 10, scale: 2 }),
+  lineTotal:             numeric("line_total", { precision: 10, scale: 2 }),
+  vatAmount:             numeric("vat_amount", { precision: 10, scale: 2 }),
+  materialCategory:      text("material_category"),
+  productRef:            text("product_ref"),
+  // Provenance
+  extractionStatus:      text("extraction_status").notNull().default("ai_extracted"),
+  confidenceScore:       numeric("confidence_score", { precision: 4, scale: 3 }),
+  originalExtractedText: text("original_extracted_text"),
+  correctedAt:           timestamp("corrected_at", { withTimezone: true }),
+  extractedAt:           timestamp("extracted_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type JobIntelligenceInvoiceLine = typeof jobIntelligenceInvoiceLinesTable.$inferSelect;

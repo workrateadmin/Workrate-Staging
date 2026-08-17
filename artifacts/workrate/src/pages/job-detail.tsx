@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -45,6 +45,9 @@ import {
   Upload,
   FileText as FileTextIcon,
   FileSpreadsheet,
+  Brain,
+  AlertCircle,
+  Plus,
 } from "lucide-react";
 import {
   Select,
@@ -57,6 +60,32 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { JobStatusBadge, JOB_STATUSES } from "./jobs";
+
+// ── Intelligence types ────────────────────────────────────────────────────────
+type IntelComponent = {
+  id: number; jobId: number; documentId: number;
+  itemName: string | null; quantity: string | null;
+  finishedLengthMm: string | null; finishedWidthMm: string | null; finishedThicknessMm: string | null;
+  sawnLengthMm: string | null; sawnWidthMm: string | null; sawnThicknessMm: string | null;
+  material: string | null; timberSpecies: string | null; timberGrade: string | null;
+  boardType: string | null; sheetFinish: string | null;
+  hardwareRef: string | null; supplierRef: string | null;
+  unitCost: string | null; totalCost: string | null; notes: string | null;
+  extractionStatus: string; confidenceScore: string | null;
+  originalExtractedText: string | null; correctedAt: string | null; extractedAt: string;
+};
+
+type IntelInvoiceLine = {
+  id: number; jobId: number; documentId: number;
+  supplierName: string | null; invoiceNumber: string | null; invoiceDate: string | null;
+  itemDescription: string | null; quantity: string | null; unit: string | null;
+  unitPrice: string | null; lineTotal: string | null; vatAmount: string | null;
+  materialCategory: string | null; productRef: string | null;
+  extractionStatus: string; confidenceScore: string | null;
+  originalExtractedText: string | null; correctedAt: string | null; extractedAt: string;
+};
+
+type Intelligence = { components: IntelComponent[]; invoiceLines: IntelInvoiceLine[] };
 
 export default function JobDetail() {
   const params = useParams();
@@ -115,6 +144,9 @@ export default function JobDetail() {
   const [docUploading, setDocUploading] = useState(false);
   const [newDocType, setNewDocType] = useState("cutting_list");
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  // Intelligence state
+  const [intelligence, setIntelligence] = useState<Intelligence>({ components: [], invoiceLines: [] });
+  const [intelLoading, setIntelLoading] = useState(false);
 
   const updateJob = useUpdateJob({
     mutation: {
@@ -289,6 +321,21 @@ export default function JobDetail() {
       .catch(() => {});
   }, [id, job]);
 
+  // ── Intelligence data ─────────────────────────────────────────────────────
+  const loadIntelligence = async () => {
+    setIntelLoading(true);
+    try {
+      const r = await fetch(`/api/jobs/${id}/intelligence`);
+      if (r.ok) setIntelligence(await r.json());
+    } catch { /* silent */ }
+    finally { setIntelLoading(false); }
+  };
+
+  useEffect(() => {
+    if (!job || !(job as any).completedAt) return;
+    loadIntelligence();
+  }, [id, job]);
+
   const handleUploadDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -301,7 +348,10 @@ export default function JobDetail() {
       if (!r.ok) throw new Error(await r.text());
       const doc = await r.json();
       setProdDocs(prev => [doc, ...prev]);
-      toast({ title: "Document uploaded" });
+      // Refresh intelligence — extraction may have completed synchronously
+      await loadIntelligence();
+      const itemCount = (doc.extractedComponentCount ?? 0) + (doc.extractedInvoiceLineCount ?? 0);
+      toast({ title: itemCount > 0 ? `Document uploaded — ${itemCount} items extracted` : "Document uploaded" });
     } catch {
       toast({ title: "Upload failed", variant: "destructive" });
     } finally {
@@ -315,6 +365,11 @@ export default function JobDetail() {
       const r = await fetch(`/api/jobs/${id}/production-documents/${docId}`, { method: "DELETE" });
       if (!r.ok) throw new Error(await r.text());
       setProdDocs(prev => prev.filter(d => d.id !== docId));
+      // Also remove intelligence rows that came from this doc
+      setIntelligence(prev => ({
+        components: prev.components.filter(c => c.documentId !== docId),
+        invoiceLines: prev.invoiceLines.filter(l => l.documentId !== docId),
+      }));
       setConfirmDeleteId(null);
       toast({ title: "Document removed" });
     } catch {
@@ -365,6 +420,8 @@ export default function JobDetail() {
   const completionPhotos: string[] = (() => {
     try { return JSON.parse(jx.completionPhotoUrls ?? "[]"); } catch { return []; }
   })();
+
+  const hasIntelligence = intelligence.components.length > 0 || intelligence.invoiceLines.length > 0;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-24 animate-in fade-in-0 duration-300">
@@ -427,96 +484,64 @@ export default function JobDetail() {
           </div>
           <CardContent className="p-6 space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Final amount charged */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Final Amount Charged (£)</Label>
-                <Input
-                  type="number" min="0" step="0.01"
-                  placeholder="e.g. 4800"
+                <Input type="number" min="0" step="0.01" placeholder="e.g. 4800"
                   value={completionForm.finalAmountCharged}
                   onChange={(e) => setCompletionForm(f => ({ ...f, finalAmountCharged: e.target.value }))}
-                  className="field-input font-medium h-10"
-                />
+                  className="field-input font-medium h-10" />
               </div>
-              {/* Completion date */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Completion Date</Label>
-                <Input
-                  type="date"
-                  value={completionForm.completedAt}
+                <Input type="date" value={completionForm.completedAt}
                   onChange={(e) => setCompletionForm(f => ({ ...f, completedAt: e.target.value }))}
-                  className="field-input font-medium h-10"
-                />
+                  className="field-input font-medium h-10" />
               </div>
-              {/* Labour hours */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Labour Hours</Label>
-                <Input
-                  type="number" min="0" step="0.5"
-                  placeholder="e.g. 24"
+                <Input type="number" min="0" step="0.5" placeholder="e.g. 24"
                   value={completionForm.actualLabourHours}
                   onChange={(e) => setCompletionForm(f => ({ ...f, actualLabourHours: e.target.value }))}
-                  className="field-input font-medium h-10"
-                />
+                  className="field-input font-medium h-10" />
               </div>
-              {/* Labour cost */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Labour Cost (£) <span className="normal-case font-normal text-muted-foreground/70">optional</span></Label>
-                <Input
-                  type="number" min="0" step="0.01"
-                  placeholder="e.g. 840"
+                <Input type="number" min="0" step="0.01" placeholder="e.g. 840"
                   value={completionForm.actualLabourCost}
                   onChange={(e) => setCompletionForm(f => ({ ...f, actualLabourCost: e.target.value }))}
-                  className="field-input font-medium h-10"
-                />
+                  className="field-input font-medium h-10" />
               </div>
-              {/* Materials cost */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Materials Cost (£)</Label>
-                <Input
-                  type="number" min="0" step="0.01"
-                  placeholder="e.g. 1200"
+                <Input type="number" min="0" step="0.01" placeholder="e.g. 1200"
                   value={completionForm.actualMaterialsCost}
                   onChange={(e) => setCompletionForm(f => ({ ...f, actualMaterialsCost: e.target.value }))}
-                  className="field-input font-medium h-10"
-                />
+                  className="field-input font-medium h-10" />
               </div>
-              {/* Variation amount */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Variation (£) <span className="normal-case font-normal text-muted-foreground/70">+ added / − removed</span></Label>
-                <Input
-                  type="number" step="0.01"
-                  placeholder="e.g. 250 or -150"
+                <Input type="number" step="0.01" placeholder="e.g. 250 or -150"
                   value={completionForm.variationAmount}
                   onChange={(e) => setCompletionForm(f => ({ ...f, variationAmount: e.target.value }))}
-                  className="field-input font-medium h-10"
-                />
+                  className="field-input font-medium h-10" />
               </div>
             </div>
-            {/* Variation note */}
             {completionForm.variationAmount && (
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Variation Reason</Label>
-                <Input
-                  placeholder="e.g. Extra shelf run added on site"
+                <Input placeholder="e.g. Extra shelf run added on site"
                   value={completionForm.variationNote}
                   onChange={(e) => setCompletionForm(f => ({ ...f, variationNote: e.target.value }))}
-                  className="field-input font-medium h-10"
-                />
+                  className="field-input font-medium h-10" />
               </div>
             )}
-            {/* Completion notes */}
             <div className="space-y-1.5">
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Completion Notes <span className="normal-case font-normal text-muted-foreground/70">optional</span></Label>
-              <Textarea
-                rows={3}
-                placeholder="Any notes on how the job went, issues encountered, snagging…"
+              <Textarea rows={3} placeholder="Any notes on how the job went, issues encountered, snagging…"
                 value={completionForm.completionNotes}
                 onChange={(e) => setCompletionForm(f => ({ ...f, completionNotes: e.target.value }))}
-                className="field-input resize-none font-medium"
-              />
+                className="field-input resize-none font-medium" />
             </div>
-            {/* Finished photos */}
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Camera className="w-3.5 h-3.5" /> Finished Photos <span className="normal-case font-normal text-muted-foreground/70">optional — upload one at a time</span>
@@ -539,13 +564,9 @@ export default function JobDetail() {
                 </div>
               )}
             </div>
-            {/* Actions */}
             <div className="flex gap-3 pt-2 border-t border-border/40">
-              <Button
-                onClick={handleCompleteJob}
-                disabled={completionSaving}
-                className="font-bold h-11 rounded-xl bg-green-600 hover:bg-green-700 text-white px-6"
-              >
+              <Button onClick={handleCompleteJob} disabled={completionSaving}
+                className="font-bold h-11 rounded-xl bg-green-600 hover:bg-green-700 text-white px-6">
                 <CheckCircle2 className="w-4 h-4 mr-2" />
                 {completionSaving ? "Saving…" : "Save & Complete Job"}
               </Button>
@@ -608,12 +629,9 @@ export default function JobDetail() {
             <div className="px-6 py-5 border-b border-border/60 flex items-center justify-between">
               <h2 className="text-lg font-bold">Notes</h2>
               {!editingNotes && (
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <Button variant="ghost" size="sm"
                   onClick={() => { setNotesVal(job.notes ?? ""); setEditingNotes(true); }}
-                  className="rounded-lg"
-                >
+                  className="rounded-lg">
                   <Pencil className="w-4 h-4 mr-1" /> Edit
                 </Button>
               )}
@@ -621,13 +639,10 @@ export default function JobDetail() {
             <CardContent className="p-6">
               {editingNotes ? (
                 <div className="space-y-3">
-                  <Textarea
-                    rows={5}
-                    value={notesVal}
+                  <Textarea rows={5} value={notesVal}
                     onChange={(e) => setNotesVal(e.target.value)}
                     className="field-input resize-none font-medium"
-                    placeholder="Job notes, special requirements, access info…"
-                  />
+                    placeholder="Job notes, special requirements, access info…" />
                   <div className="flex gap-2">
                     <Button size="sm" onClick={handleSaveNotes} disabled={updateJob.isPending} className="rounded-xl font-bold">
                       <Check className="w-4 h-4 mr-1" /> Save
@@ -761,7 +776,6 @@ export default function JobDetail() {
                       {grossProfit != null && <ActualBox label="Gross Profit" value={formatCurrency(grossProfit)} highlight />}
                       {grossMarginPct != null && <ActualBox label="Gross Margin" value={`${grossMarginPct.toFixed(1)}%`} highlight />}
                     </div>
-                    {/* Variation */}
                     {jx.variationAmount != null && (
                       <div className="bg-secondary/40 rounded-xl border border-border/40 p-4">
                         <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Variation</p>
@@ -771,14 +785,12 @@ export default function JobDetail() {
                         </p>
                       </div>
                     )}
-                    {/* Completion notes */}
                     {jx.completionNotes && (
                       <div>
                         <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Completion Notes</p>
                         <p className="text-sm font-medium text-muted-foreground whitespace-pre-line">{jx.completionNotes}</p>
                       </div>
                     )}
-                    {/* Finished photos */}
                     {completionPhotos.length > 0 && (
                       <div>
                         <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
@@ -797,7 +809,6 @@ export default function JobDetail() {
                         </div>
                       </div>
                     )}
-                    {/* Add more photos */}
                     {!completingJob && (
                       <label className={cn(
                         "flex items-center gap-2 text-sm font-semibold text-muted-foreground cursor-pointer hover:text-primary transition-colors",
@@ -818,7 +829,6 @@ export default function JobDetail() {
                     <span className="font-normal normal-case text-muted-foreground/60 ml-1">— cutting lists, drawings, invoices, BOMs</span>
                   </p>
 
-                  {/* Doc list */}
                   {prodDocs.length > 0 && (
                     <div className="space-y-2">
                       {prodDocs.map((doc: any) => (
@@ -841,9 +851,15 @@ export default function JobDetail() {
                               className="text-sm font-semibold truncate block hover:text-primary transition-colors">
                               {doc.originalName}
                             </a>
-                            <p className="text-xs text-muted-foreground font-medium">
+                            <p className="text-xs text-muted-foreground font-medium flex items-center gap-2">
                               {DOC_TYPE_LABELS[doc.docType as keyof typeof DOC_TYPE_LABELS] ?? doc.docType}
-                              {doc.fileSizeBytes && <span className="ml-2 opacity-60">· {formatFileSize(doc.fileSizeBytes)}</span>}
+                              {doc.fileSizeBytes && <span className="opacity-60">· {formatFileSize(doc.fileSizeBytes)}</span>}
+                              {doc.extractionStatus === "completed" && (
+                                <span className="text-green-600 dark:text-green-400">· ✓ extracted</span>
+                              )}
+                              {doc.extractionStatus === "failed" && (
+                                <span className="text-amber-600">· extraction failed</span>
+                              )}
                             </p>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
@@ -878,7 +894,6 @@ export default function JobDetail() {
                     </div>
                   )}
 
-                  {/* Upload row */}
                   <div className="flex items-center gap-2 flex-wrap">
                     <Select value={newDocType} onValueChange={setNewDocType}>
                       <SelectTrigger className="h-9 w-[200px] text-sm font-semibold rounded-xl border-border/60">
@@ -895,16 +910,25 @@ export default function JobDetail() {
                       docUploading && "opacity-50 pointer-events-none"
                     )}>
                       <Upload className="w-3.5 h-3.5" />
-                      {docUploading ? "Uploading…" : "Add document"}
+                      {docUploading ? "Uploading & extracting…" : "Add document"}
                       <input
-                        type="file"
-                        className="hidden"
-                        disabled={docUploading}
+                        type="file" className="hidden" disabled={docUploading}
                         accept="image/*,application/pdf,.xlsx,.xls,.csv,.docx,.doc"
                         onChange={handleUploadDoc}
                       />
                     </label>
                   </div>
+                </div>
+
+                {/* ── Extracted Intelligence ────────────────────────────── */}
+                <div className="pt-4 border-t border-border/40">
+                  <IntelligenceSection
+                    jobId={id}
+                    prodDocs={prodDocs}
+                    intelligence={intelligence}
+                    setIntelligence={setIntelligence}
+                    loading={intelLoading}
+                  />
                 </div>
 
               </CardContent>
@@ -922,19 +946,10 @@ export default function JobDetail() {
               <CardContent className="p-6">
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {attachments.map((att: any) => (
-                    <a
-                      key={att.id}
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group relative aspect-square rounded-xl overflow-hidden border border-border/60 bg-secondary/40 hover:border-primary/30 transition-all"
-                    >
+                    <a key={att.id} href={att.url} target="_blank" rel="noopener noreferrer"
+                      className="group relative aspect-square rounded-xl overflow-hidden border border-border/60 bg-secondary/40 hover:border-primary/30 transition-all">
                       {att.mimetype?.startsWith("image/") ? (
-                        <img
-                          src={att.url}
-                          alt={att.filename}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
+                        <img src={att.url} alt={att.filename} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
                         <div className="flex flex-col items-center justify-center h-full gap-2">
                           <FileText className="w-8 h-8 text-muted-foreground" />
@@ -975,20 +990,14 @@ export default function JobDetail() {
                 </SelectContent>
               </Select>
               {statusVal && statusVal !== job.status && (
-                <Button
-                  onClick={handleSaveStatus}
-                  disabled={updateJob.isPending}
-                  className="w-full font-bold hover-elevate h-12 rounded-xl"
-                >
+                <Button onClick={handleSaveStatus} disabled={updateJob.isPending}
+                  className="w-full font-bold hover-elevate h-12 rounded-xl">
                   <Check className="w-4 h-4 mr-2" /> Save Status
                 </Button>
               )}
               {!isCompleted && !completingJob && (
-                <Button
-                  onClick={() => setCompletingJob(true)}
-                  variant="outline"
-                  className="w-full font-bold h-12 rounded-xl border-green-500/40 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30"
-                >
+                <Button onClick={() => setCompletingJob(true)} variant="outline"
+                  className="w-full font-bold h-12 rounded-xl border-green-500/40 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30">
                   <CheckCircle2 className="w-4 h-4 mr-2" /> Complete Job
                 </Button>
               )}
@@ -1000,136 +1009,127 @@ export default function JobDetail() {
             </CardContent>
           </Card>
 
-          {/* Scheduling */}
+          {/* Financial snapshot */}
+          <Card className="shadow-sm border-border/60 rounded-2xl">
+            <div className="px-6 py-5 border-b border-border/60">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <PoundSterling className="w-5 h-5 text-muted-foreground" /> Financial
+              </h2>
+            </div>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-muted-foreground">Total (inc VAT)</span>
+                <span className="text-base font-black">{formatCurrency(job.totalWithVat)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-muted-foreground">Materials</span>
+                <span className="text-sm font-bold">{formatCurrency(job.materialsAllowance)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-muted-foreground">Labour</span>
+                <span className="text-sm font-bold">{formatCurrency(job.labourAllowance)}</span>
+              </div>
+              {isCompleted && finalCharged != null && (
+                <>
+                  <div className="border-t border-border/40 pt-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-muted-foreground">Final Charged</span>
+                      <span className="text-base font-black text-primary">{formatCurrency(finalCharged)}</span>
+                    </div>
+                    {quoteVariance != null && (
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-xs font-semibold text-muted-foreground">Variance</span>
+                        <span className={cn(
+                          "text-xs font-bold",
+                          quoteVariance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500"
+                        )}>
+                          {quoteVariance >= 0 ? "+" : ""}{formatCurrency(quoteVariance)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Scheduling card */}
           <Card className="shadow-sm border-border/60 rounded-2xl">
             <div className="px-6 py-5 border-b border-border/60 flex items-center justify-between">
               <h2 className="text-lg font-bold flex items-center gap-2">
-                <CalendarDays className="w-5 h-5 text-muted-foreground" /> Scheduling
+                <CalendarDays className="w-5 h-5 text-muted-foreground" /> Schedule
               </h2>
               {!editingSchedule && (
                 <Button variant="ghost" size="sm" onClick={handleOpenSchedule} className="rounded-lg">
-                  <Pencil className="w-4 h-4" />
+                  <Pencil className="w-4 h-4 mr-1" /> Edit
                 </Button>
               )}
             </div>
-            <CardContent className="p-6">
+            <CardContent className="p-6 space-y-4">
               {editingSchedule ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-teal-500" />
-                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Site Survey</Label>
-                    </div>
-                    <Input type="date" value={surveyDate} onChange={(e) => setSurveyDate(e.target.value)} className="field-input font-medium h-10" />
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Site Survey</Label>
+                    <Input type="date" value={surveyDate} onChange={e => setSurveyDate(e.target.value)} className="field-input h-10 font-medium" />
                   </div>
                   <div className="space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-green-500" />
-                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Install Start</Label>
-                    </div>
-                    <Input type="date" value={installStartDate} onChange={(e) => setInstallStartDate(e.target.value)} className="field-input font-medium h-10" />
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Install Start</Label>
+                    <Input type="date" value={installStartDate} onChange={e => setInstallStartDate(e.target.value)} className="field-input h-10 font-medium" />
                   </div>
                   <div className="space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-amber-500" />
-                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Install End</Label>
-                    </div>
-                    <Input type="date" value={installEndDate} onChange={(e) => setInstallEndDate(e.target.value)} className="field-input font-medium h-10" />
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Install End</Label>
+                    <Input type="date" value={installEndDate} onChange={e => setInstallEndDate(e.target.value)} className="field-input h-10 font-medium" />
                   </div>
                   <div className="flex gap-2 pt-1">
-                    <Button size="sm" onClick={handleSaveSchedule} disabled={scheduleJobMutation.isPending} className="flex-1 rounded-xl font-bold">
+                    <Button size="sm" onClick={handleSaveSchedule} disabled={scheduleJobMutation.isPending} className="rounded-xl font-bold">
                       <Check className="w-4 h-4 mr-1" /> Save
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setEditingSchedule(false)} className="rounded-xl font-bold">
-                      <X className="w-4 h-4" />
+                      <X className="w-4 h-4 mr-1" /> Cancel
                     </Button>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <ScheduleRow dot="bg-teal-500" label="Survey" value={job.siteSurveyDate} />
-                  <ScheduleRow dot="bg-green-500" label="Install Start" value={job.installationStartDate} />
-                  <ScheduleRow dot="bg-amber-500" label="Install End" value={job.installationEndDate} />
+                  <DateRow icon={Clock} label="Site Survey" value={job.siteSurveyDate} />
+                  <DateRow icon={Calendar} label="Install Start" value={job.installationStartDate} />
+                  <DateRow icon={Calendar} label="Install End" value={job.installationEndDate} />
                   {!job.siteSurveyDate && !job.installationStartDate && !job.installationEndDate && (
-                    <p className="text-sm text-muted-foreground font-medium italic">Not scheduled yet.</p>
+                    <p className="text-sm text-muted-foreground font-medium italic">No dates scheduled yet.</p>
                   )}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Linked enquiry */}
-          <Card className="shadow-sm border-border/60 rounded-2xl">
-            <div className="px-6 py-5 border-b border-border/60">
-              <h2 className="text-lg font-bold">Source Enquiry</h2>
-            </div>
-            <CardContent className="p-6 space-y-3">
-              <p className="text-sm text-muted-foreground font-semibold">ENQ-{job.enquiryId}</p>
-              {enquiry && (
-                <p className="text-xs text-muted-foreground font-medium">
-                  Received {formatDate(enquiry.createdAt)}
-                </p>
-              )}
-              <div className="flex gap-2">
-                <Link href={`/enquiries/${job.enquiryId}`} className="flex-1">
-                  <Button variant="outline" size="sm" className="w-full rounded-xl font-bold">
-                    View Lead
+          {/* Enquiry link */}
+          {enquiry && (
+            <Card className="shadow-sm border-border/60 rounded-2xl">
+              <div className="px-6 py-5 border-b border-border/60">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <User className="w-5 h-5 text-muted-foreground" /> Enquiry
+                </h2>
+              </div>
+              <CardContent className="p-6 space-y-3">
+                <p className="text-sm font-semibold">{enquiry.customerName}</p>
+                {enquiry.customerEmail && (
+                  <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
+                    <Mail className="w-4 h-4 shrink-0" /> {enquiry.customerEmail}
+                  </p>
+                )}
+                {enquiry.description && (
+                  <p className="text-sm text-muted-foreground font-medium line-clamp-3">{enquiry.description}</p>
+                )}
+                <Link href={`/enquiries/${enquiry.id}`}>
+                  <Button variant="outline" size="sm" className="w-full rounded-xl font-bold mt-2">
+                    View Enquiry
                   </Button>
                 </Link>
-                {job.quoteId && (
-                  <Link href={`/quotes/${job.enquiryId}`} className="flex-1">
-                    <Button variant="outline" size="sm" className="w-full rounded-xl font-bold">
-                      View Quote
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Assigned team (future) */}
-          <Card className="shadow-sm border-border/60 rounded-2xl opacity-60">
-            <div className="px-6 py-5 border-b border-border/60">
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                <User className="w-5 h-5 text-muted-foreground" /> Assigned Team
-              </h2>
-            </div>
-            <CardContent className="p-6">
-              <p className="text-sm text-muted-foreground font-medium italic">
-                {job.assignedTeam ?? "Coming soon — team management."}
-              </p>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
-    </div>
-  );
-}
-
-// ── Schedule row ──────────────────────────────────────────────────────────────
-function ScheduleRow({ dot, label, value }: { dot: string; label: string; value?: string | null }) {
-  return (
-    <div className="flex items-center gap-3 text-sm">
-      <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", dot)} />
-      <span className="text-muted-foreground font-semibold w-24 shrink-0">{label}</span>
-      <span className={cn("font-bold", value ? "text-foreground" : "text-muted-foreground/50 italic font-normal")}>
-        {value ?? "Not set"}
-      </span>
-    </div>
-  );
-}
-
-// ── Info box ──────────────────────────────────────────────────────────────────
-function InfoBox({ icon: Icon, label, value }: { icon: any; label: string; value?: string | number | null }) {
-  return (
-    <div className="bg-secondary/40 rounded-xl border border-border/40 p-4">
-      <div className="flex items-center gap-2 mb-1">
-        <Icon className="w-4 h-4 text-muted-foreground" />
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{label}</p>
-      </div>
-      <p className={cn("text-sm font-bold", !value && "text-muted-foreground italic font-medium")}>
-        {value ?? "Not provided"}
-      </p>
     </div>
   );
 }
@@ -1149,26 +1149,28 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-// ── Actual box (job completion actuals) ───────────────────────────────────────
-function ActualBox({
-  label,
-  value,
-  sub,
-  highlight,
-  trend,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  highlight?: boolean;
-  trend?: "up" | "down";
+// ── InfoBox / ActualBox / DateRow ─────────────────────────────────────────────
+function InfoBox({ icon: Icon, label, value }: { icon: any; label: string; value?: string | null }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+        <Icon className="w-3.5 h-3.5" />
+        {label}
+      </div>
+      <p className={cn("text-sm font-bold", !value && "text-muted-foreground italic font-medium")}>
+        {value ?? "Not provided"}
+      </p>
+    </div>
+  );
+}
+
+function ActualBox({ label, value, sub, highlight, trend }: {
+  label: string; value: string; sub?: string; highlight?: boolean; trend?: "up" | "down";
 }) {
   return (
     <div className={cn(
       "rounded-xl border p-4",
-      highlight
-        ? "bg-primary/5 border-primary/20"
-        : "bg-secondary/40 border-border/40"
+      highlight ? "bg-primary/5 border-primary/20" : "bg-secondary/40 border-border/40"
     )}>
       <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
       <p className={cn("text-sm font-bold", highlight && "text-primary")}>{value}</p>
@@ -1182,6 +1184,548 @@ function ActualBox({
           {sub}
         </p>
       )}
+    </div>
+  );
+}
+
+function DateRow({ icon: Icon, label, value }: { icon: any; label: string; value?: string | null }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+        <Icon className="w-4 h-4" /> {label}
+      </span>
+      <span className={cn("text-sm font-bold", !value && "text-muted-foreground italic font-medium")}>
+        {value ?? "—"}
+      </span>
+    </div>
+  );
+}
+
+// ── Intelligence status badge ─────────────────────────────────────────────────
+function IntelStatusBadge({ status, confidence }: { status: string; confidence?: string | null }) {
+  const conf = confidence != null ? Number(confidence) : null;
+  if (status === "reviewed") return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+      <Check className="w-3 h-3" /> Reviewed
+    </span>
+  );
+  if (status === "corrected") return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+      <Pencil className="w-3 h-3" /> Corrected
+    </span>
+  );
+  if (status === "manually_added") return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-secondary text-muted-foreground">
+      Manual
+    </span>
+  );
+  // ai_extracted
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold",
+      conf != null && conf < 0.6
+        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+        : "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400"
+    )}>
+      <Brain className="w-3 h-3" /> AI{conf != null && conf < 0.7 ? ` ${Math.round(conf * 100)}%` : ""}
+    </span>
+  );
+}
+
+// ── Dim formatter ─────────────────────────────────────────────────────────────
+function fmtDim(v: string | null | undefined): string {
+  if (v == null || v === "") return "";
+  const n = Number(v);
+  return isFinite(n) ? String(n % 1 === 0 ? n : n.toFixed(1)) : v;
+}
+
+function fmtFinished(c: IntelComponent): string {
+  const parts = [fmtDim(c.finishedLengthMm), fmtDim(c.finishedWidthMm), fmtDim(c.finishedThicknessMm)].filter(Boolean);
+  return parts.length ? parts.join(" × ") + " mm" : "—";
+}
+
+function fmtSawn(c: IntelComponent): string {
+  const parts = [fmtDim(c.sawnLengthMm), fmtDim(c.sawnWidthMm), fmtDim(c.sawnThicknessMm)].filter(Boolean);
+  return parts.length ? parts.join(" × ") + " mm" : "";
+}
+
+// ── Intelligence Section ──────────────────────────────────────────────────────
+function IntelligenceSection({
+  jobId, prodDocs, intelligence, setIntelligence, loading,
+}: {
+  jobId: number;
+  prodDocs: any[];
+  intelligence: Intelligence;
+  setIntelligence: React.Dispatch<React.SetStateAction<Intelligence>>;
+  loading: boolean;
+}) {
+  const { toast } = useToast();
+  const [expandedRow, setExpandedRow] = useState<{ type: "component" | "invoice"; id: number } | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [confirmDeleteRow, setConfirmDeleteRow] = useState<{ type: "component" | "invoice"; id: number } | null>(null);
+
+  const docById = Object.fromEntries(prodDocs.map(d => [d.id, d]));
+
+  const openEdit = (type: "component" | "invoice", row: any) => {
+    setExpandedRow({ type, id: row.id });
+    // Pre-fill form with current values
+    const form: Record<string, string> = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (v != null && typeof v !== "object") form[k] = String(v);
+    }
+    setEditForm(form);
+  };
+
+  const handleConfirm = async (type: "component" | "invoice", rowId: number) => {
+    const endpoint = type === "component"
+      ? `/api/jobs/${jobId}/intelligence/components/${rowId}`
+      : `/api/jobs/${jobId}/intelligence/invoice-lines/${rowId}`;
+    try {
+      const r = await fetch(endpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extractionStatus: "reviewed" }),
+      });
+      if (!r.ok) throw new Error();
+      const updated = await r.json();
+      setIntelligence(prev => ({
+        components: type === "component"
+          ? prev.components.map(c => c.id === rowId ? updated : c)
+          : prev.components,
+        invoiceLines: type === "invoice"
+          ? prev.invoiceLines.map(l => l.id === rowId ? updated : l)
+          : prev.invoiceLines,
+      }));
+    } catch {
+      toast({ title: "Failed to confirm", variant: "destructive" });
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!expandedRow) return;
+    setSaving(true);
+    const { type, id: rowId } = expandedRow;
+    const endpoint = type === "component"
+      ? `/api/jobs/${jobId}/intelligence/components/${rowId}`
+      : `/api/jobs/${jobId}/intelligence/invoice-lines/${rowId}`;
+    try {
+      const r = await fetch(endpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...editForm, extractionStatus: "corrected" }),
+      });
+      if (!r.ok) throw new Error();
+      const updated = await r.json();
+      setIntelligence(prev => ({
+        components: type === "component"
+          ? prev.components.map(c => c.id === rowId ? updated : c)
+          : prev.components,
+        invoiceLines: type === "invoice"
+          ? prev.invoiceLines.map(l => l.id === rowId ? updated : l)
+          : prev.invoiceLines,
+      }));
+      setExpandedRow(null);
+    } catch {
+      toast({ title: "Failed to save", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (type: "component" | "invoice", rowId: number) => {
+    const endpoint = type === "component"
+      ? `/api/jobs/${jobId}/intelligence/components/${rowId}`
+      : `/api/jobs/${jobId}/intelligence/invoice-lines/${rowId}`;
+    try {
+      const r = await fetch(endpoint, { method: "DELETE" });
+      if (!r.ok) throw new Error();
+      setIntelligence(prev => ({
+        components: type === "component" ? prev.components.filter(c => c.id !== rowId) : prev.components,
+        invoiceLines: type === "invoice" ? prev.invoiceLines.filter(l => l.id !== rowId) : prev.invoiceLines,
+      }));
+      setConfirmDeleteRow(null);
+    } catch {
+      toast({ title: "Failed to delete", variant: "destructive" });
+    }
+  };
+
+  const handleAddComponent = async (documentId: number) => {
+    try {
+      const r = await fetch(`/api/jobs/${jobId}/intelligence/components`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId, extractionStatus: "manually_added" }),
+      });
+      if (!r.ok) throw new Error();
+      const row = await r.json();
+      setIntelligence(prev => ({ ...prev, components: [...prev.components, row] }));
+      openEdit("component", row);
+    } catch {
+      toast({ title: "Failed to add item", variant: "destructive" });
+    }
+  };
+
+  const handleAddInvoiceLine = async (documentId: number) => {
+    try {
+      const r = await fetch(`/api/jobs/${jobId}/intelligence/invoice-lines`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId, extractionStatus: "manually_added" }),
+      });
+      if (!r.ok) throw new Error();
+      const row = await r.json();
+      setIntelligence(prev => ({ ...prev, invoiceLines: [...prev.invoiceLines, row] }));
+      openEdit("invoice", row);
+    } catch {
+      toast({ title: "Failed to add line", variant: "destructive" });
+    }
+  };
+
+  const hasAny = intelligence.components.length > 0 || intelligence.invoiceLines.length > 0;
+
+  // Group by document
+  const componentDocIds = [...new Set(intelligence.components.map(c => c.documentId))];
+  const invoiceDocIds = [...new Set(intelligence.invoiceLines.map(l => l.documentId))];
+
+  const allDocIds = [...new Set([...componentDocIds, ...invoiceDocIds])];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+          <Brain className="w-3.5 h-3.5" /> Extracted Intelligence
+        </p>
+        {loading && <span className="text-xs text-muted-foreground animate-pulse">Extracting…</span>}
+      </div>
+
+      {!hasAny && !loading && (
+        <p className="text-sm text-muted-foreground font-medium italic">
+          Upload a cutting list or supplier invoice above — WorkRate will extract structured component and cost data automatically.
+        </p>
+      )}
+
+      {allDocIds.map(docId => {
+        const doc = docById[docId];
+        const components = intelligence.components.filter(c => c.documentId === docId);
+        const invoiceLines = intelligence.invoiceLines.filter(l => l.documentId === docId);
+        const isInvoice = invoiceLines.length > 0;
+        const docLabel = doc ? (DOC_TYPE_LABELS[doc.docType as keyof typeof DOC_TYPE_LABELS] ?? doc.docType) : "";
+        const docName = doc?.originalName ?? `Document #${docId}`;
+
+        return (
+          <div key={docId} className="rounded-xl border border-border/50 overflow-hidden">
+            {/* Doc header */}
+            <div className="px-4 py-3 bg-secondary/30 border-b border-border/40 flex items-center gap-2">
+              <FileTextIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs font-bold text-foreground/80 truncate">{docName}</span>
+              <span className="text-xs text-muted-foreground shrink-0">· {docLabel}</span>
+              <span className="ml-auto text-xs font-semibold text-muted-foreground shrink-0">
+                {isInvoice ? `${invoiceLines.length} line${invoiceLines.length !== 1 ? "s" : ""}` : `${components.length} item${components.length !== 1 ? "s" : ""}`}
+              </span>
+            </div>
+
+            {/* Components table */}
+            {components.length > 0 && (
+              <div className="divide-y divide-border/30">
+                {/* Header */}
+                <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_3rem_minmax(0,10rem)_minmax(0,8rem)_7rem_5rem] gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground bg-secondary/20">
+                  <span>Item</span><span className="text-center">Qty</span><span>Finished (L×W×T)</span><span>Material</span><span>Status</span><span />
+                </div>
+                {components.map(comp => {
+                  const isExpanded = expandedRow?.type === "component" && expandedRow.id === comp.id;
+                  const isConfirmDelete = confirmDeleteRow?.type === "component" && confirmDeleteRow.id === comp.id;
+                  return (
+                    <div key={comp.id}>
+                      {/* Row */}
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[minmax(0,1fr)_3rem_minmax(0,10rem)_minmax(0,8rem)_7rem_5rem] gap-2 items-center px-4 py-2.5 hover:bg-secondary/20 transition-colors">
+                        <span className="text-sm font-semibold truncate">{comp.itemName ?? <span className="text-muted-foreground italic font-medium">Unnamed</span>}</span>
+                        <span className="text-sm font-medium text-center">{comp.quantity ?? "—"}</span>
+                        <span className="hidden sm:block text-xs font-medium text-muted-foreground">
+                          {fmtFinished(comp)}
+                          {fmtSawn(comp) && <span className="block text-muted-foreground/60 text-xs">sawn: {fmtSawn(comp)}</span>}
+                        </span>
+                        <span className="hidden sm:block text-xs font-medium text-muted-foreground truncate">
+                          {comp.timberSpecies ? `${comp.timberSpecies}${comp.material ? ` (${comp.material})` : ""}` : comp.boardType ?? comp.material ?? "—"}
+                        </span>
+                        <span className="hidden sm:flex">
+                          <IntelStatusBadge status={comp.extractionStatus} confidence={comp.confidenceScore} />
+                        </span>
+                        <div className="flex items-center gap-0.5 justify-end">
+                          {comp.extractionStatus !== "reviewed" && comp.extractionStatus !== "corrected" && (
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-green-600"
+                              title="Confirm" onClick={() => handleConfirm("component", comp.id)}>
+                              <Check className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+                            title="Edit" onClick={() => isExpanded ? setExpandedRow(null) : openEdit("component", comp)}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          {isConfirmDelete ? (
+                            <div className="flex items-center gap-1">
+                              <Button size="sm" variant="destructive" className="h-6 px-1.5 text-xs rounded-lg"
+                                onClick={() => handleDelete("component", comp.id)}>✕</Button>
+                              <Button size="sm" variant="ghost" className="h-6 px-1.5 text-xs rounded-lg"
+                                onClick={() => setConfirmDeleteRow(null)}>Keep</Button>
+                            </div>
+                          ) : (
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-destructive"
+                              onClick={() => setConfirmDeleteRow({ type: "component", id: comp.id })}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Expanded edit form */}
+                      {isExpanded && (
+                        <div className="px-4 pb-4 pt-1 bg-secondary/20 border-t border-border/30 space-y-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div className="space-y-1 col-span-2 sm:col-span-2">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Item Name</Label>
+                              <Input value={editForm.itemName ?? ""} onChange={e => setEditForm(f => ({ ...f, itemName: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Qty</Label>
+                              <Input type="number" value={editForm.quantity ?? ""} onChange={e => setEditForm(f => ({ ...f, quantity: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Material</Label>
+                              <select value={editForm.material ?? ""} onChange={e => setEditForm(f => ({ ...f, material: e.target.value }))}
+                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm font-medium ring-offset-background">
+                                <option value="">—</option>
+                                <option value="timber">Timber</option>
+                                <option value="sheet">Sheet</option>
+                                <option value="hardware">Hardware</option>
+                                <option value="other">Other</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                              Finished dimensions (L × W × T) mm
+                              <span className="ml-1 normal-case font-normal text-muted-foreground/70">— size after machining/planing</span>
+                            </Label>
+                            <div className="grid grid-cols-3 gap-2">
+                              <Input placeholder="Length" type="number" value={editForm.finishedLengthMm ?? ""} onChange={e => setEditForm(f => ({ ...f, finishedLengthMm: e.target.value }))} className="h-9 text-sm" />
+                              <Input placeholder="Width" type="number" value={editForm.finishedWidthMm ?? ""} onChange={e => setEditForm(f => ({ ...f, finishedWidthMm: e.target.value }))} className="h-9 text-sm" />
+                              <Input placeholder="Thickness" type="number" value={editForm.finishedThicknessMm ?? ""} onChange={e => setEditForm(f => ({ ...f, finishedThicknessMm: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                              Sawn / nominal stock dimensions mm
+                              <span className="ml-1 normal-case font-normal text-muted-foreground/70">— leave blank if not in the document</span>
+                            </Label>
+                            <div className="grid grid-cols-3 gap-2">
+                              <Input placeholder="Length" type="number" value={editForm.sawnLengthMm ?? ""} onChange={e => setEditForm(f => ({ ...f, sawnLengthMm: e.target.value }))} className="h-9 text-sm" />
+                              <Input placeholder="Width" type="number" value={editForm.sawnWidthMm ?? ""} onChange={e => setEditForm(f => ({ ...f, sawnWidthMm: e.target.value }))} className="h-9 text-sm" />
+                              <Input placeholder="Thickness" type="number" value={editForm.sawnThicknessMm ?? ""} onChange={e => setEditForm(f => ({ ...f, sawnThicknessMm: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Species</Label>
+                              <Input placeholder="e.g. Accoya" value={editForm.timberSpecies ?? ""} onChange={e => setEditForm(f => ({ ...f, timberSpecies: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Grade</Label>
+                              <Input value={editForm.timberGrade ?? ""} onChange={e => setEditForm(f => ({ ...f, timberGrade: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Board Type</Label>
+                              <Input placeholder="e.g. MDF, plywood" value={editForm.boardType ?? ""} onChange={e => setEditForm(f => ({ ...f, boardType: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Finish</Label>
+                              <Input value={editForm.sheetFinish ?? ""} onChange={e => setEditForm(f => ({ ...f, sheetFinish: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Unit Cost (£)</Label>
+                              <Input type="number" step="0.01" value={editForm.unitCost ?? ""} onChange={e => setEditForm(f => ({ ...f, unitCost: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Cost (£)</Label>
+                              <Input type="number" step="0.01" value={editForm.totalCost ?? ""} onChange={e => setEditForm(f => ({ ...f, totalCost: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1 col-span-2">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Supplier / Hardware Ref</Label>
+                              <Input value={editForm.supplierRef ?? ""} onChange={e => setEditForm(f => ({ ...f, supplierRef: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Notes</Label>
+                            <Input value={editForm.notes ?? ""} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} className="h-9 text-sm" />
+                          </div>
+                          {comp.originalExtractedText && (
+                            <p className="text-xs text-muted-foreground/60 font-medium">
+                              Original AI reading: <span className="italic">{comp.originalExtractedText.slice(0, 120)}{comp.originalExtractedText.length > 120 ? "…" : ""}</span>
+                            </p>
+                          )}
+                          <div className="flex gap-2 pt-1 border-t border-border/30">
+                            <Button size="sm" onClick={handleSaveEdit} disabled={saving} className="rounded-xl font-bold h-8">
+                              <Check className="w-3.5 h-3.5 mr-1" /> {saving ? "Saving…" : "Save as Corrected"}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setExpandedRow(null)} className="rounded-xl font-bold h-8">
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Invoice lines table */}
+            {invoiceLines.length > 0 && (
+              <div className="divide-y divide-border/30">
+                {/* Invoice header info */}
+                {(() => {
+                  const first = invoiceLines[0];
+                  return (first.supplierName || first.invoiceNumber) ? (
+                    <div className="px-4 py-2 text-xs text-muted-foreground font-medium bg-secondary/10">
+                      {first.supplierName && <span className="font-semibold text-foreground/70">{first.supplierName}</span>}
+                      {first.invoiceNumber && <span className="ml-2">· Inv #{first.invoiceNumber}</span>}
+                      {first.invoiceDate && <span className="ml-2">· {first.invoiceDate}</span>}
+                    </div>
+                  ) : null;
+                })()}
+                {/* Column headers */}
+                <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_5.5rem_5.5rem_7rem_5rem] gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground bg-secondary/20">
+                  <span>Description</span><span className="text-center">Qty</span><span>Unit</span>
+                  <span className="text-right">Unit Price</span><span className="text-right">Total</span>
+                  <span>Status</span><span />
+                </div>
+                {invoiceLines.map(line => {
+                  const isExpanded = expandedRow?.type === "invoice" && expandedRow.id === line.id;
+                  const isConfirmDelete = confirmDeleteRow?.type === "invoice" && confirmDeleteRow.id === line.id;
+                  return (
+                    <div key={line.id}>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_5.5rem_5.5rem_7rem_5rem] gap-2 items-center px-4 py-2.5 hover:bg-secondary/20 transition-colors">
+                        <span className="text-sm font-semibold truncate">{line.itemDescription ?? <span className="text-muted-foreground italic font-medium">No description</span>}</span>
+                        <span className="hidden sm:block text-sm font-medium text-center">{line.quantity ?? "—"}</span>
+                        <span className="hidden sm:block text-xs font-medium text-muted-foreground">{line.unit ?? "—"}</span>
+                        <span className="hidden sm:block text-sm font-medium text-right">{line.unitPrice != null ? `£${Number(line.unitPrice).toFixed(2)}` : "—"}</span>
+                        <span className="hidden sm:block text-sm font-semibold text-right">{line.lineTotal != null ? `£${Number(line.lineTotal).toFixed(2)}` : "—"}</span>
+                        <span className="hidden sm:flex"><IntelStatusBadge status={line.extractionStatus} confidence={line.confidenceScore} /></span>
+                        <div className="flex items-center gap-0.5 justify-end">
+                          {line.extractionStatus !== "reviewed" && line.extractionStatus !== "corrected" && (
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-green-600"
+                              title="Confirm" onClick={() => handleConfirm("invoice", line.id)}>
+                              <Check className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+                            onClick={() => isExpanded ? setExpandedRow(null) : openEdit("invoice", line)}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          {isConfirmDelete ? (
+                            <div className="flex items-center gap-1">
+                              <Button size="sm" variant="destructive" className="h-6 px-1.5 text-xs rounded-lg"
+                                onClick={() => handleDelete("invoice", line.id)}>✕</Button>
+                              <Button size="sm" variant="ghost" className="h-6 px-1.5 text-xs rounded-lg"
+                                onClick={() => setConfirmDeleteRow(null)}>Keep</Button>
+                            </div>
+                          ) : (
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-destructive"
+                              onClick={() => setConfirmDeleteRow({ type: "invoice", id: line.id })}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Expanded edit form — invoice line */}
+                      {isExpanded && (
+                        <div className="px-4 pb-4 pt-1 bg-secondary/20 border-t border-border/30 space-y-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div className="space-y-1 col-span-2">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</Label>
+                              <Input value={editForm.itemDescription ?? ""} onChange={e => setEditForm(f => ({ ...f, itemDescription: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Qty</Label>
+                              <Input type="number" value={editForm.quantity ?? ""} onChange={e => setEditForm(f => ({ ...f, quantity: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Unit</Label>
+                              <Input placeholder="each, m, sheet…" value={editForm.unit ?? ""} onChange={e => setEditForm(f => ({ ...f, unit: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Unit Price (£)</Label>
+                              <Input type="number" step="0.01" value={editForm.unitPrice ?? ""} onChange={e => setEditForm(f => ({ ...f, unitPrice: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Line Total (£)</Label>
+                              <Input type="number" step="0.01" value={editForm.lineTotal ?? ""} onChange={e => setEditForm(f => ({ ...f, lineTotal: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">VAT (£)</Label>
+                              <Input type="number" step="0.01" value={editForm.vatAmount ?? ""} onChange={e => setEditForm(f => ({ ...f, vatAmount: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Product Ref</Label>
+                              <Input value={editForm.productRef ?? ""} onChange={e => setEditForm(f => ({ ...f, productRef: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Category</Label>
+                              <Input placeholder="e.g. Timber, Sheet" value={editForm.materialCategory ?? ""} onChange={e => setEditForm(f => ({ ...f, materialCategory: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Supplier</Label>
+                              <Input value={editForm.supplierName ?? ""} onChange={e => setEditForm(f => ({ ...f, supplierName: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Invoice #</Label>
+                              <Input value={editForm.invoiceNumber ?? ""} onChange={e => setEditForm(f => ({ ...f, invoiceNumber: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Invoice Date</Label>
+                              <Input value={editForm.invoiceDate ?? ""} onChange={e => setEditForm(f => ({ ...f, invoiceDate: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                          </div>
+                          {line.originalExtractedText && (
+                            <p className="text-xs text-muted-foreground/60 font-medium">
+                              Original AI reading: <span className="italic">{line.originalExtractedText.slice(0, 120)}{line.originalExtractedText.length > 120 ? "…" : ""}</span>
+                            </p>
+                          )}
+                          <div className="flex gap-2 pt-1 border-t border-border/30">
+                            <Button size="sm" onClick={handleSaveEdit} disabled={saving} className="rounded-xl font-bold h-8">
+                              <Check className="w-3.5 h-3.5 mr-1" /> {saving ? "Saving…" : "Save as Corrected"}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setExpandedRow(null)} className="rounded-xl font-bold h-8">
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Add manually */}
+            <div className="px-4 py-2 bg-secondary/10 border-t border-border/30 flex gap-3">
+              {(components.length > 0 || invoiceLines.length === 0) && (
+                <button onClick={() => handleAddComponent(docId)}
+                  className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors">
+                  <Plus className="w-3 h-3" /> Add component
+                </button>
+              )}
+              {(invoiceLines.length > 0 || components.length === 0) && (
+                <button onClick={() => handleAddInvoiceLine(docId)}
+                  className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors">
+                  <Plus className="w-3 h-3" /> Add invoice line
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
