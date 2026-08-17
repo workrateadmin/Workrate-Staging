@@ -1,0 +1,420 @@
+Extend the EXISTING Job Completion / Actual Costs feature so completed jobs feed a structured WorkRate Cost Intelligence dataset FROM THE START.
+
+IMPORTANT:
+Do NOT redesign the existing job, enquiry, quote, proposal, invoice, or completion flows.
+Do NOT create a second completion system.
+Do NOT overwrite historical quote or invoice data.
+Do NOT build automated pricing recommendations yet.
+
+GOAL:
+When a job is completed, WorkRate should capture:
+1. what was quoted
+2. what was actually charged
+3. what labour/materials were actually used
+4. what was actually manufactured
+5. the source documents that prove it
+6. structured intelligence extracted from those documents
+
+The original source files must always be preserved.
+
+==================================================
+1. KEEP EXISTING JOB ACTUALS
+==================================================
+
+Preserve the existing completed-job fields and behaviour:
+
+- final amount charged
+- actual labour hours
+- actual labour cost
+- actual material cost
+- variation amount
+- variation note
+- completion notes
+- completion date
+- finished photos
+- quoted amount
+- quote variance
+- labour/material variance where available
+- gross profit
+- gross margin
+
+Do not duplicate these fields.
+
+Also add an "Edit Actuals" action so completed-job figures can be corrected later.
+
+Editing actuals must NOT:
+- alter the original quote
+- alter the original proposal
+- alter historical invoices
+- silently rewrite financial history
+
+==================================================
+2. PRODUCTION DOCUMENTS
+==================================================
+
+Add an optional "Production Documents" section to Job Actuals.
+
+Allow one or multiple uploads for:
+
+- Cutting lists
+- Bills of materials / material lists
+- Workshop drawings
+- Manufacturing drawings
+- Supplier/material invoices
+- Final drawings
+- Other relevant production documents
+
+Reuse the EXISTING WorkRate GCS upload/storage architecture.
+
+Do NOT create a separate file-storage system.
+
+Each uploaded document must be linked to:
+
+- business/company ID
+- job ID
+- document type
+- original filename
+- storage URL/reference
+- upload timestamp
+- uploaded by user if available
+
+Allow documents to be:
+- uploaded during completion
+- added later
+- replaced
+- removed with confirmation
+
+==================================================
+3. STRUCTURED INTELLIGENCE EXTRACTION
+==================================================
+
+When a supported production document is uploaded, extract structured data where possible.
+
+Do NOT only save the file.
+
+Store useful extracted data separately so WorkRate can analyse it later.
+
+For cutting lists / BOMs, extract where present:
+
+- component/item name
+- quantity
+- length
+- width
+- thickness
+- material
+- timber species
+- board/sheet type
+- finish
+- hardware
+- supplier/product reference
+- notes
+
+Do not invent values that are not present.
+
+==================================================
+4. IMPORTANT UK TIMBER RULE:
+SAWN / NOMINAL SIZE VS FINISHED / PLANED SIZE
+==================================================
+
+WorkRate must understand that UK timber sizes are NOT interchangeable.
+
+The intelligence layer must store these separately where possible:
+
+- nominal / sawn width
+- nominal / sawn thickness
+- finished / planed width
+- finished / planed thickness
+- length
+- timber species
+- quantity
+
+Never assume the finished size is the same as the purchased/sawn size.
+
+Examples:
+A cutting list may require a finished component at:
+44 x 94 mm
+
+But the actual purchased/sawn stock may be larger before machining.
+
+The system must preserve the distinction between:
+- required finished size
+- purchased/stock/sawn size
+
+If the document only gives finished dimensions:
+- store them as finished dimensions
+- do NOT invent the required sawn stock size
+
+If a supplier invoice or material record later provides the purchased stock size:
+- link that information to the job/material usage separately
+
+This distinction is essential for future cost intelligence.
+
+==================================================
+5. TIMBER / MATERIAL INTELLIGENCE
+==================================================
+
+For timber materials, capture where present:
+
+- species
+- grade
+- sawn/nominal dimensions
+- finished/planed dimensions
+- length
+- quantity
+- merchant/supplier
+- product/reference code
+- unit cost
+- total cost
+- waste/extra allowance if explicitly recorded
+
+Examples of timber species may include:
+- Accoya
+- Oak
+- Sapele
+- Iroko
+- Tulipwood
+- softwood
+- other hardwoods
+
+Do not hardcode these as the only possible values.
+
+For sheet materials, capture where present:
+
+- board type
+- thickness
+- sheet dimensions
+- quantity
+- finish/veneer
+- supplier
+- unit cost
+- total cost
+
+Examples may include:
+- MDF
+- MR MDF
+- plywood
+- veneered board
+- MFC
+
+Again, do not restrict the system to only these examples.
+
+==================================================
+6. SUPPLIER INVOICE EXTRACTION
+==================================================
+
+For supplier/material invoices, extract where possible:
+
+- supplier name
+- invoice number/reference
+- invoice date
+- item description
+- quantity
+- unit
+- unit price
+- line total
+- VAT if present
+- total
+- material/product category
+- product/reference code
+
+Where possible, link invoice line items to materials/components from the same job.
+
+Do NOT guess links if confidence is low.
+
+==================================================
+7. PROVENANCE / AUDITABILITY
+==================================================
+
+Every extracted intelligence record must retain provenance.
+
+Store:
+
+- business ID
+- job ID
+- source document ID
+- source document type
+- extraction timestamp
+- extraction method/version
+- AI confidence score where appropriate
+- original extracted text/value where useful
+- reviewed status
+- corrected status
+
+The future intelligence system must be able to answer:
+"Where did this number come from?"
+
+Do not create an opaque AI dataset with no source trail.
+
+==================================================
+8. HUMAN REVIEW
+==================================================
+
+AI-extracted data must NOT automatically become trusted truth.
+
+After extraction, show a simple review interface.
+
+The tradesperson should be able to:
+
+- confirm extracted values
+- correct dimensions
+- correct material/species
+- correct quantities
+- correct costs
+- remove incorrect extracted items
+- add missing items manually
+
+Record status such as:
+
+- AI extracted
+- Reviewed
+- Corrected
+
+Where practical, preserve the original extracted value for audit/history.
+
+Keep this quick and usable.
+Do not create a giant admin form.
+
+==================================================
+9. LINK INTELLIGENCE TO JOB ACTUALS
+==================================================
+
+The intelligence dataset must link production data with the existing job actuals.
+
+Per completed job, future analysis should be able to access:
+
+- business/company
+- project type
+- original quoted amount
+- final amount charged
+- quote variance
+- labour hours
+- labour cost
+- material cost
+- variations
+- gross profit
+- gross margin
+- completion date
+- finished photos
+- cutting list/components
+- material usage
+- supplier invoice costs
+- sawn stock dimensions where known
+- finished dimensions where known
+
+==================================================
+10. FUTURE COST INTELLIGENCE — DESIGN FOR IT, DO NOT BUILD IT YET
+==================================================
+
+Design the schema so WorkRate can later answer questions such as:
+
+- What does this type of job usually sell for?
+- What does it usually cost to produce?
+- How many labour hours does it typically take?
+- What materials are usually consumed?
+- How much timber/sheet material is typically required?
+- What sawn stock is normally needed to achieve a given finished size?
+- What waste factors are typical?
+- What components/hardware are commonly used?
+- How far do quotes usually vary from final actuals?
+- Which specifications produce the best/worst margins?
+- How did similar completed jobs perform?
+
+Do NOT:
+- automatically price future work
+- change quote prices
+- train customer-facing responses directly from unreviewed data
+- alter business pricing settings
+
+This phase is DATA COLLECTION + STRUCTURING ONLY.
+
+==================================================
+11. BUSINESS / TENANT ISOLATION
+==================================================
+
+All intelligence data must remain isolated by business/company.
+
+One WorkRate business must never be able to access another business's:
+
+- jobs
+- cutting lists
+- supplier invoices
+- costs
+- extracted intelligence
+- pricing history
+
+Preserve the existing tenant isolation architecture.
+
+==================================================
+12. DATA MODEL
+==================================================
+
+Before implementing, inspect the existing schema and propose the SMALLEST SAFE extension.
+
+Prefer structured tables over stuffing all extracted intelligence into one JSON blob if that would limit future analysis.
+
+Likely concepts may include:
+
+- production_documents
+- intelligence_materials
+- intelligence_components
+- intelligence_invoice_lines
+
+But use the existing architecture/naming conventions where possible.
+
+Do NOT duplicate existing job fields.
+
+Every intelligence record should link back to the source job and document.
+
+==================================================
+13. EXISTING PRODUCTION DATA
+==================================================
+
+Existing jobs and completed jobs must continue to work unchanged.
+
+New fields/tables must be optional/nullable where appropriate.
+
+Do NOT mutate existing production jobs during development/testing.
+
+==================================================
+14. TESTING
+==================================================
+
+Use ONE safe test job.
+
+Test:
+
+1. Existing Job Actuals still work.
+2. Edit Actuals works without changing original quote/invoice.
+3. Upload a cutting list.
+4. Original cutting-list file is preserved in GCS.
+5. Structured component/material data is extracted.
+6. Finished dimensions are stored correctly.
+7. Sawn/nominal dimensions are stored separately if present.
+8. The system does NOT invent sawn dimensions when only finished dimensions are supplied.
+9. Upload a supplier invoice.
+10. Invoice lines are extracted.
+11. Costs are linked to the test job.
+12. Tradesperson can review/correct extracted values.
+13. Corrections survive refresh/re-login.
+14. Source provenance remains attached.
+15. Existing job/quote/proposal/invoice flows are unaffected.
+
+==================================================
+15. BEFORE IMPLEMENTING
+==================================================
+
+First report:
+
+1. Current relevant job/completion schema
+2. Existing upload/storage architecture to be reused
+3. Proposed schema additions
+4. How documents will link to jobs
+5. How structured intelligence will be stored
+6. How sawn/nominal vs finished/planed timber sizes will be represented
+7. How provenance/confidence/review status will be stored
+8. The smallest safe implementation plan
+9. Any risks to existing production behaviour
+
+Do not begin a broad refactor.
+
+This is an extension of the EXISTING Job Actuals feature and the foundation for future WorkRate Cost Intelligence.
