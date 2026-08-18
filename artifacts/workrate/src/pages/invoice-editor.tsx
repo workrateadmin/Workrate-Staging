@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InvoiceDocument, InvoiceLine } from "@/components/invoice-document";
+import { ImportedInvoiceDocument } from "@/components/imported-invoice-document";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -608,23 +609,34 @@ export default function InvoiceEditor() {
             </div>
           )}
 
-          {/* Document preview */}
-          <InvoiceDocument
-            invoiceNumber={invoiceNumber || `INV-${id}`}
-            invoiceDate={invoiceDate || "—"}
-            dueDate={dueDate || null}
-            company={company}
-            brandingSnapshot={(invoice as any).brandingSnapshot}
-            customerDetails={customerDetails}
-            projectDescription={projectDesc}
-            lineItems={isItemised ? lines : undefined}
-            subtotal={subtotal}
-            vatRate={vatRate}
-            vatAmount={vatAmount}
-            total={total}
-            notes={notes}
-            status={invoice.status}
-          />
+          {/* Document preview — switches renderer based on documentMode */}
+          {(() => {
+            const snap = (invoice as any).brandingSnapshot;
+            const mode = (() => {
+              try { return snap ? (JSON.parse(snap) as any).documentMode : null; } catch { return null; }
+            })() ?? (company as any)?.documentMode ?? "workrate";
+
+            const docProps = {
+              invoiceNumber: invoiceNumber || `INV-${id}`,
+              invoiceDate: invoiceDate || "—",
+              dueDate: dueDate || null,
+              company,
+              brandingSnapshot: snap,
+              customerDetails,
+              projectDescription: projectDesc,
+              lineItems: isItemised ? lines : undefined,
+              subtotal,
+              vatRate,
+              vatAmount,
+              total,
+              notes,
+              status: invoice.status,
+            };
+
+            return mode === "imported"
+              ? <ImportedInvoiceDocument {...docProps} />
+              : <InvoiceDocument {...docProps} />;
+          })()}
         </div>
       </div>
 

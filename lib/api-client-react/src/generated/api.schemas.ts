@@ -94,6 +94,8 @@ export interface Company {
   /** @nullable */
   invoiceTemplateUrl?: string | null;
   /** @nullable */
+  importedInvoiceTemplate?: string | null;
+  /** @nullable */
   widgetToken?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -135,6 +137,7 @@ export interface CompanyInput {
   enquirySmsEnabled?: boolean;
   enquiryConfirmationMessage?: string;
   proposalEmailEnabled?: boolean;
+  importedInvoiceTemplate?: string;
 }
 
 export interface Enquiry {

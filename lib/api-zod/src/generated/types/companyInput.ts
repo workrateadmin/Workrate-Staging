@@ -42,4 +42,5 @@ export interface CompanyInput {
   enquirySmsEnabled?: boolean;
   enquiryConfirmationMessage?: string;
   proposalEmailEnabled?: boolean;
+  importedInvoiceTemplate?: string;
 }

@@ -55,6 +55,7 @@ async function snapshotBranding(userId: string): Promise<string | null> {
     quoteFooter: (company as any).quoteFooter,
     invoiceFooter: (company as any).invoiceFooter,
     logoUrl: company.logoUrl,
+    importedInvoiceTemplate: (company as any).importedInvoiceTemplate ?? null,
   });
 }
 

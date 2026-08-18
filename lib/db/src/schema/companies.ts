@@ -31,6 +31,8 @@ export const companiesTable = pgTable("companies", {
   documentMode: text("document_mode").notNull().default("workrate"),
   quoteTemplateUrl: text("quote_template_url"),
   invoiceTemplateUrl: text("invoice_template_url"),
+  /** JSON array of TemplateBlock — set when documentMode = "imported" */
+  importedInvoiceTemplate: text("imported_invoice_template"),
 
   // ── Deposit settings ────────────────────────────────────────────────────
   defaultDepositType: text("default_deposit_type").notNull().default("percentage"),  // 'none' | 'percentage' | 'fixed'
