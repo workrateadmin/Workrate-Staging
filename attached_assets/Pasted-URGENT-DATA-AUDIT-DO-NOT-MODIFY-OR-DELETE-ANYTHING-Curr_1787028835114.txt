@@ -1,0 +1,92 @@
+URGENT DATA AUDIT — DO NOT MODIFY OR DELETE ANYTHING.
+
+Current production problem:
+
+- WorkRate now shows 24 enquiries that appear empty/dud.
+- The previous test enquiries that contained proper customer/job data are no longer visible.
+- I need to know whether the data is actually gone or simply not being returned/displayed.
+
+PRODUCTION ONLY.
+Do not inspect or compare against dev unless specifically needed to identify an environment mistake.
+Do not run migrations.
+Do not delete rows.
+Do not repair anything yet.
+
+First take a read-only snapshot/audit of the current production data.
+
+1. Query ALL production enquiries for my business, including rows normally excluded by UI filters.
+
+For each row report:
+- enquiry ID
+- created_at
+- updated_at
+- customer name
+- phone
+- email
+- project type
+- description/summary
+- status
+- channel
+- business/company ID
+- is_test
+- conversation/chat token if present
+- deleted/archived flag if any
+- whether related messages exist
+- whether related attachments exist
+
+2. Specifically identify the 24 current empty/dud enquiries:
+- when were they created?
+- were they created together or over time?
+- which route/channel created them?
+- do they have chat/conversation records?
+- were they created by a test/smoke-test process?
+- are they truly empty in the DB or only empty in the dashboard response?
+
+3. Find the previously populated test enquiries.
+
+Search:
+- all enquiry tables
+- archived/soft-deleted rows
+- related chat/conversation records
+- customer records
+- job records
+- any historical/migration tables if they exist
+
+Report whether the old test data:
+A. still exists and is hidden
+B. exists under a different business ID
+C. exists but lost its enquiry relationship
+D. was overwritten
+E. was actually deleted
+
+4. Audit recent schema/code changes that could have affected enquiry visibility or relationships.
+
+Pay particular attention to:
+- migrations
+- business/company foreign keys
+- enquiry query filters
+- is_test filtering
+- status filtering
+- joins that changed
+- any seed/test scripts
+- any cleanup scripts
+- any code that creates blank enquiries before the AI conversation has useful data
+
+5. Compare the current production business/company ID with the business ID attached to historical populated enquiries.
+
+6. Check whether any recent publish/deploy changed DATABASE_URL or production database target.
+
+7. Check production backups / point-in-time recovery availability.
+Do NOT restore anything yet.
+Just tell me what recovery options exist if rows were genuinely deleted.
+
+8. Report clearly:
+
+A. Are the old populated enquiries still in production? YES/NO
+B. Why are 24 blank enquiries visible?
+C. Were any rows deleted or overwritten?
+D. Is this a UI/query issue or a database/data-loss issue?
+E. Exact safest recovery/fix
+F. What caused it so it cannot happen again
+
+DO NOT MAKE CHANGES UNTIL YOU HAVE SHOWN ME THE EVIDENCE.
