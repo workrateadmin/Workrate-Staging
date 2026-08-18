@@ -1,0 +1,126 @@
+Fix the ghost/dud enquiry creation problem safely.
+
+IMPORTANT:
+Production data is intact.
+Do NOT delete or modify production enquiries.
+Do NOT change the working enquiry flow more than necessary.
+
+Current proven issue:
+- The widget creates an enquiry row as soon as a chat session starts.
+- Abandoned sessions therefore leave empty/Unknown enquiries behind.
+- An automated test created 24 ghost enquiries in DEV.
+- These 24 dev enquiries are not useful customer records.
+
+GOAL:
+Do not create a permanent enquiry until the customer has provided meaningful input.
+
+Please implement the smallest safe fix.
+
+1. WIDGET SESSION FLOW
+When the widget opens:
+- create only a temporary chat/session identifier
+- do NOT create a permanent enquiry row yet
+
+Create the enquiry only after the customer provides meaningful input, for example:
+- first substantive customer message
+- name/contact detail
+- project description
+- other real qualifying information
+
+Do not create an enquiry from:
+- widget open only
+- AI greeting only
+- empty messages
+- obvious automated load-test sessions
+
+2. PRESERVE CURRENT BEHAVIOUR
+Once the first meaningful customer input arrives:
+- create the enquiry
+- attach the existing conversation/session to it
+- continue the current AI enquiry flow normally
+- preserve photo uploads, summaries, CRM, concept visuals and quote flow
+
+The customer should notice no change in the conversation experience.
+
+3. ABANDONED SESSIONS
+Temporary sessions that never become real enquiries should expire safely.
+
+Add a cleanup mechanism for abandoned temporary sessions if needed.
+
+Do NOT delete genuine enquiries simply because some fields are blank.
+
+4. TEST / AUTOMATION FLAGGING
+Automated WorkRate test flows must be explicitly marked as test data.
+
+Make sure:
+- WorkRateAppTesting
+- WorkRateVisualTesting
+- QA/load tests
+
+cannot accidentally create normal real enquiries.
+
+5. DEV CLEANUP
+After the new logic is tested successfully:
+
+Delete ONLY the confirmed dev ghost enquiries:
+IDs 55–78
+
+Before deleting, verify again that:
+- they are in DEV only
+- customer is Unknown
+- there is no meaningful customer data
+- they were created by the automated burst already identified
+- no production rows share these IDs in the target database
+
+Do NOT use a broad delete condition that could remove genuine abandoned/customer enquiries.
+
+6. PRODUCTION SAFETY
+Do not touch production enquiry data during development.
+
+Before publishing, prove:
+- existing production enquiries remain unchanged
+- existing conversations still load
+- existing attachments still load
+- a new real widget enquiry still saves normally
+
+7. ACCEPTANCE TESTS
+Test all of these:
+
+A. Open widget and immediately close it
+Expected:
+NO enquiry created
+
+B. Open widget, AI sends greeting, customer never replies
+Expected:
+NO enquiry created
+
+C. Customer sends a genuine first message
+Expected:
+ONE enquiry created and conversation continues normally
+
+D. Customer completes full enquiry
+Expected:
+ONE enquiry only, with all data/messages/photos attached
+
+E. Run automated test
+Expected:
+test enquiry clearly marked is_test=true
+
+F. Run 8 simultaneous abandoned sessions
+Expected:
+ZERO real enquiry rows created
+
+8. REPORT BEFORE MARKING FIXED
+Tell me:
+- root cause
+- files changed
+- how temporary sessions work
+- exact trigger that creates the permanent enquiry
+- how existing chat tokens are preserved
+- proof production data was untouched
+- proof the 24 dev ghost rows were removed safely
+- results of all acceptance tests
+
+Do not redesign the CRM.
+Do not refactor unrelated enquiry code.
+Keep this fix tightly scoped to preventing ghost enquiries.

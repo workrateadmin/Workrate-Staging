@@ -1169,7 +1169,7 @@ export const StartChatBody = zod.object({
 
 export const StartChatResponse = zod.object({
   "token": zod.string(),
-  "enquiryId": zod.number(),
+  "enquiryId": zod.number().nullable(),
   "tradeType": zod.string(),
   "createdAt": zod.coerce.date()
 })
@@ -1198,12 +1198,12 @@ export const GetChatSessionParams = zod.object({
 
 export const GetChatSessionResponse = zod.object({
   "token": zod.string(),
-  "enquiryId": zod.number(),
+  "enquiryId": zod.number().nullable(),
   "tradeType": zod.string(),
   "createdAt": zod.coerce.date(),
   "messages": zod.array(zod.object({
-  "id": zod.number(),
-  "enquiryId": zod.number(),
+  "id": zod.number().nullable(),
+  "enquiryId": zod.number().nullable(),
   "role": zod.string(),
   "content": zod.string(),
   "createdAt": zod.coerce.date()

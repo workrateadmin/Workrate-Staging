@@ -21,6 +21,69 @@ import { generateAndSaveSummary } from "../utils/generate-summary.js";
 
 const router: IRouter = Router();
 
+// ── Temporary session store ───────────────────────────────────────────────────
+// Holds widget chat sessions that have not yet produced a real customer message.
+// Sessions are promoted to a permanent enquiry row on the FIRST substantive
+// customer interaction (text message or photo upload). Abandoned sessions
+// (widget opened and immediately closed) expire without ever touching the DB.
+type TempSession = {
+  token: string;
+  ownerUserId: string | null;
+  projectType: string;
+  greeting: string;
+  createdAt: Date;
+};
+
+const tempSessions = new Map<string, TempSession>();
+
+// Expire abandoned temp sessions after 30 minutes; sweep every 5 minutes
+setInterval(() => {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  for (const [t, s] of tempSessions) {
+    if (s.createdAt.getTime() < cutoff) tempSessions.delete(t);
+  }
+}, 5 * 60 * 1000).unref();
+
+// ── ensureEnquiry ─────────────────────────────────────────────────────────────
+// Returns the real DB enquiry for a chat token.
+// If the token belongs to a temporary session (widget opened, no customer
+// message sent yet) it promotes it: creates the enquiry row, persists the
+// stored greeting as the first assistant message, and removes the temp entry.
+// Returns null when the token is completely unknown.
+async function ensureEnquiry(token: string) {
+  // 1. Normal path — existing real enquiry (also handles returning sessions)
+  const [existing] = await db
+    .select()
+    .from(enquiriesTable)
+    .where(eq(enquiriesTable.chatToken, token));
+  if (existing) return existing;
+
+  // 2. Promotion path — temp session → real enquiry on first customer action
+  const temp = tempSessions.get(token);
+  if (!temp) return null;
+
+  const [enquiry] = await db
+    .insert(enquiriesTable)
+    .values({
+      customerName: "Unknown",
+      status: "new_enquiry",
+      chatToken: token,
+      projectType: temp.projectType,
+      ownerUserId: temp.ownerUserId,
+    })
+    .returning();
+
+  // Persist the AI greeting the customer already saw
+  await db.insert(enquiryMessagesTable).values({
+    enquiryId: enquiry.id,
+    role: "assistant",
+    content: temp.greeting,
+  });
+
+  tempSessions.delete(token);
+  return enquiry;
+}
+
 // ── File uploads ────────────────────────────────────────────────────────────
 const uploadsDir = path.join(process.cwd(), "uploads");
 mkdirSync(uploadsDir, { recursive: true });
@@ -385,6 +448,10 @@ export async function handleEnquiryCompletion(
 }
 
 // ── POST /chat/start ─────────────────────────────────────────────────────────
+// Creates a TEMPORARY in-memory session only — no DB row yet.
+// The permanent enquiry row is created lazily on the first real customer action
+// (text message or photo upload) via ensureEnquiry(). Abandoned sessions
+// (widget opened then closed) expire from memory after 30 minutes.
 router.post("/chat/start", async (req, res): Promise<void> => {
   const parsed = StartChatBody.safeParse(req.body);
   if (!parsed.success) {
@@ -394,9 +461,9 @@ router.post("/chat/start", async (req, res): Promise<void> => {
 
   const token = randomBytes(24).toString("hex");
 
-  // Resolve businessId: try widgetToken → company → ownerUserId first.
+  // Resolve businessId: widgetToken → company → ownerUserId.
   // Falls back to treating businessId as a literal Clerk userId for backward
-  // compatibility with any widget installs that still use the old user?.id value.
+  // compatibility with widget installs that still pass the old user?.id value.
   const rawBusinessId = parsed.data.businessId ?? null;
   let ownerUserId: string | null = rawBusinessId;
   if (rawBusinessId) {
@@ -410,17 +477,7 @@ router.post("/chat/start", async (req, res): Promise<void> => {
     }
   }
 
-  const [enquiry] = await db
-    .insert(enquiriesTable)
-    .values({
-      customerName: "Unknown",
-      status: "new_enquiry",
-      chatToken: token,
-      projectType: parsed.data.tradeType,
-      ownerUserId,
-    })
-    .returning();
-
+  // Generate greeting (no DB write yet)
   const openai = getOpenAI();
   const systemPrompt = getSystemPrompt(parsed.data.tradeType);
 
@@ -440,20 +497,22 @@ router.post("/chat/start", async (req, res): Promise<void> => {
     completion.choices[0]?.message?.content ??
     "Hi there! I'm WorkRate Assistant. I'm here to help gather the details of your project so we can prepare an accurate quote for you. Could I start by asking your name?";
 
-  await db.insert(enquiryMessagesTable).values({
-    enquiryId: enquiry.id,
-    role: "assistant",
-    content: greeting,
+  // Park in memory — enquiry row is NOT written to the DB yet
+  const now = new Date();
+  tempSessions.set(token, {
+    token,
+    ownerUserId,
+    projectType: parsed.data.tradeType,
+    greeting,
+    createdAt: now,
   });
 
-  res.status(201).json(
-    StartChatResponse.parse({
-      token,
-      enquiryId: enquiry.id,
-      tradeType: parsed.data.tradeType,
-      createdAt: enquiry.createdAt,
-    }),
-  );
+  res.status(201).json({
+    token,
+    enquiryId: null,
+    tradeType: parsed.data.tradeType,
+    createdAt: now.toISOString(),
+  });
 });
 
 // ── GET /chat/:token ─────────────────────────────────────────────────────────
@@ -464,31 +523,45 @@ router.get("/chat/:token", async (req, res): Promise<void> => {
     return;
   }
 
+  // Check real enquiries first (most common path)
   const [enquiry] = await db
     .select()
     .from(enquiriesTable)
     .where(eq(enquiriesTable.chatToken, params.data.token));
 
-  if (!enquiry) {
-    res.status(404).json({ error: "Chat session not found" });
-    return;
-  }
+  if (enquiry) {
+    const messages = await db
+      .select()
+      .from(enquiryMessagesTable)
+      .where(eq(enquiryMessagesTable.enquiryId, enquiry.id))
+      .orderBy(enquiryMessagesTable.createdAt);
 
-  const messages = await db
-    .select()
-    .from(enquiryMessagesTable)
-    .where(eq(enquiryMessagesTable.enquiryId, enquiry.id))
-    .orderBy(enquiryMessagesTable.createdAt);
-
-  res.json(
-    GetChatSessionResponse.parse({
+    res.json({
       token: enquiry.chatToken!,
       enquiryId: enquiry.id,
       tradeType: enquiry.projectType ?? "General",
       createdAt: enquiry.createdAt,
       messages,
-    }),
-  );
+    });
+    return;
+  }
+
+  // Fall back to temp session — widget opened but no customer message sent yet
+  const temp = tempSessions.get(params.data.token);
+  if (!temp) {
+    res.status(404).json({ error: "Chat session not found" });
+    return;
+  }
+
+  res.json({
+    token: temp.token,
+    enquiryId: null,
+    tradeType: temp.projectType,
+    createdAt: temp.createdAt,
+    messages: [
+      { id: null, enquiryId: null, role: "assistant", content: temp.greeting, createdAt: temp.createdAt },
+    ],
+  });
 });
 
 // ── POST /chat/:token/message — SSE streaming ────────────────────────────────
@@ -505,11 +578,8 @@ router.post("/chat/:token/message", async (req, res): Promise<void> => {
     return;
   }
 
-  const [enquiry] = await db
-    .select()
-    .from(enquiriesTable)
-    .where(eq(enquiriesTable.chatToken, params.data.token));
-
+  // Promote temp session → real enquiry on first customer message
+  const enquiry = await ensureEnquiry(params.data.token);
   if (!enquiry) {
     res.status(404).json({ error: "Chat session not found" });
     return;
@@ -702,11 +772,8 @@ router.post(
       return;
     }
 
-    const [enquiry] = await db
-      .select()
-      .from(enquiriesTable)
-      .where(eq(enquiriesTable.chatToken, token));
-
+    // Promote temp session → real enquiry on first customer interaction (photo upload)
+    const enquiry = await ensureEnquiry(token);
     if (!enquiry) {
       res.status(404).json({ error: "Chat session not found" });
       return;

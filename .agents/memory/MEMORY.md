@@ -12,3 +12,4 @@
 - [WhatsApp Business integration](whatsapp-integration.md) — Meta Cloud API webhook, rawBody capture, schema via raw SQL (drizzle-kit push needs TTY for UNIQUE), WAConnectModal, @clerk/react import
 - [WorkRate PWA setup](workrate-pwa-setup.md) — vite-plugin-pwa fix for home-screen stale cache; NetworkOnly for /api/*, SW disabled in dev, prompt-based update toast
 - [WorkRate cost intelligence](workrate-cost-intelligence.md) — migration 0008, two new tables, extractor service, UK timber rule enforcement, intelligence section in job-detail
+- [Ghost enquiry fix — lazy DB creation](workrate-ghost-enquiry-fix.md) — widget open creates in-memory TempSession only; ensureEnquiry() promotes to real DB row on first customer message/upload
