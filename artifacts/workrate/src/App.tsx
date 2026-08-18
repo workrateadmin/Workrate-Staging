@@ -167,11 +167,26 @@ function HomeRedirect() {
 function ProtectedRoute({ component: Component }: { component: any }) {
   const { isSignedIn, isLoaded } = useAuth();
   const [, navigate] = useLocation();
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      navigate("/sign-in");
+    // Cancel any pending redirect first
+    if (redirectTimerRef.current) {
+      clearTimeout(redirectTimerRef.current);
+      redirectTimerRef.current = null;
     }
+
+    if (isLoaded && !isSignedIn) {
+      // Brief grace period before redirecting — Clerk calls routerReplace()
+      // before its isSignedIn state has propagated through the React context,
+      // so a synchronous redirect here fires too early and ejects an
+      // already-authenticated user back to the sign-in page.
+      redirectTimerRef.current = setTimeout(() => navigate("/sign-in"), 300);
+    }
+
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
   }, [isLoaded, isSignedIn, navigate]);
 
   if (!isLoaded) return null;
