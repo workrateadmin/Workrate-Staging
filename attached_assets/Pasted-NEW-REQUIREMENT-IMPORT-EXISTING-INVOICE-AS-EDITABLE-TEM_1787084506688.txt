@@ -1,0 +1,107 @@
+NEW REQUIREMENT — IMPORT EXISTING INVOICE AS EDITABLE TEMPLATE
+
+Current branding/template upload is not enough.
+
+I do NOT want to simply upload a PDF and use it as a static background.
+
+I want WorkRate to take an existing invoice I already use and recreate that layout inside WorkRate so I can edit the text fields for each new invoice.
+
+GOAL:
+Allow a business to upload an existing invoice PDF or image and convert it into an editable WorkRate invoice template.
+
+DESIRED FLOW:
+
+1. User clicks:
+   "Import Existing Invoice"
+
+2. Upload:
+   - PDF
+   - PNG/JPG if needed
+
+3. WorkRate analyses the document layout and identifies:
+   - business name/logo
+   - addresses
+   - invoice number area
+   - customer details
+   - job/reference
+   - invoice date
+   - due date
+   - line-item table
+   - subtotal
+   - VAT
+   - total
+   - payment/bank details
+   - notes/footer
+   - any static branding/text
+
+4. WorkRate recreates the layout as an editable template.
+
+IMPORTANT:
+Do NOT flatten everything into one image.
+
+The result must contain editable fields/blocks.
+
+For example:
+- logo = image block
+- business address = text block
+- customer name/address = dynamic field
+- invoice number = dynamic field
+- line items = dynamic table
+- totals = calculated fields
+- bank details = editable text
+- footer = editable text
+
+5. TEMPLATE EDITOR
+
+After import, show a simple editor where I can:
+- click text and change it
+- move/rescale blocks if needed
+- map fields to WorkRate data
+- choose which text is static vs dynamic
+- edit fonts/alignment/spacing where practical
+- save the result as the company's invoice template
+
+Do not build full Canva-style design software.
+Keep it focused on invoice/document layouts.
+
+6. REUSE
+
+Once saved:
+- every new WorkRate invoice can use this imported layout
+- dynamic values populate automatically
+- I can still edit invoice-specific text before sending
+- original uploaded invoice stays preserved as the source/reference
+
+7. AI / EXTRACTION
+
+AI can suggest the detected fields and layout, but the user must review and correct them.
+
+Do not silently assume mappings.
+
+8. EXISTING FLOWS
+
+Do NOT break:
+- existing WorkRate default invoice template
+- quote/proposal flows
+- invoice calculations
+- VAT logic
+- email sending
+- payment status
+
+This should become another document template option:
+- WorkRate default
+- custom WorkRate branding
+- imported editable invoice template
+
+9. BEFORE IMPLEMENTING
+
+First inspect the current invoice renderer and document-template architecture.
+
+Report:
+A. whether the current renderer supports positioned/editable blocks
+B. what would need to change to support imported editable layouts
+C. whether PDF/image layout extraction can be added safely
+D. smallest practical Phase 1 implementation
+
+Do NOT immediately build a full document editor.
+Propose the smallest safe version that lets me import one existing invoice and edit the fields inside WorkRate.
