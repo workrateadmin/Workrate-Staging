@@ -705,23 +705,29 @@ function DocumentsBrandingCard() {
                   )}
                 </div>
                 <div className="space-y-2 flex-1">
-                  <input
-                    ref={logoInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/svg+xml"
-                    className="hidden"
-                    onChange={handleLogoUpload}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="font-bold rounded-xl border-border/60"
-                    disabled={logoUploading}
-                    onClick={() => logoInputRef.current?.click()}
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    {logoUploading ? "Uploading…" : currentLogoUrl ? "Replace Logo" : "Upload Logo"}
-                  </Button>
+                  {/* Overlay pattern: transparent input sits on top of the button so the
+                      user's click hits the native file input directly — avoids the
+                      programmatic .click() restriction in Replit's preview iframe. */}
+                  <div className="relative inline-block">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn("font-bold rounded-xl border-border/60", !logoUploading && "pointer-events-none")}
+                      disabled={logoUploading}
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {logoUploading ? "Uploading…" : currentLogoUrl ? "Replace Logo" : "Upload Logo"}
+                    </Button>
+                    {!logoUploading && (
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={handleLogoUpload}
+                      />
+                    )}
+                  </div>
                   {currentLogoUrl && (
                     <button
                       type="button"
@@ -1075,24 +1081,27 @@ function DocumentsBrandingCard() {
                     <p className="text-sm font-bold">Quote Template</p>
                   </div>
                   <p className="text-xs text-muted-foreground font-medium">Your current quote template for reference</p>
-                  <input
-                    ref={templateQuoteInputRef}
-                    type="file"
-                    accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    className="hidden"
-                    onChange={(e) => handleTemplateUpload(e, "quote")}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full font-bold rounded-xl border-border/60 text-xs"
-                    disabled={templateQuoteUploading}
-                    onClick={() => templateQuoteInputRef.current?.click()}
-                  >
-                    <Upload className="w-3.5 h-3.5 mr-2" />
-                    {templateQuoteUploading ? "Uploading…" : "Upload PDF or DOCX"}
-                  </Button>
+                  <div className="relative">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={cn("w-full font-bold rounded-xl border-border/60 text-xs", !templateQuoteUploading && "pointer-events-none")}
+                      disabled={templateQuoteUploading}
+                    >
+                      <Upload className="w-3.5 h-3.5 mr-2" />
+                      {templateQuoteUploading ? "Uploading…" : "Upload PDF or DOCX"}
+                    </Button>
+                    {!templateQuoteUploading && (
+                      <input
+                        ref={templateQuoteInputRef}
+                        type="file"
+                        accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e) => handleTemplateUpload(e, "quote")}
+                      />
+                    )}
+                  </div>
                   {quoteTemplateFilename && (
                     <p className="text-[11px] font-semibold text-green-700 flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5">
                       <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
@@ -1108,24 +1117,27 @@ function DocumentsBrandingCard() {
                     <p className="text-sm font-bold">Invoice Template</p>
                   </div>
                   <p className="text-xs text-muted-foreground font-medium">Your current invoice template for reference</p>
-                  <input
-                    ref={templateInvoiceInputRef}
-                    type="file"
-                    accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    className="hidden"
-                    onChange={(e) => handleTemplateUpload(e, "invoice")}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full font-bold rounded-xl border-border/60 text-xs"
-                    disabled={templateInvoiceUploading}
-                    onClick={() => templateInvoiceInputRef.current?.click()}
-                  >
-                    <Upload className="w-3.5 h-3.5 mr-2" />
-                    {templateInvoiceUploading ? "Uploading…" : "Upload PDF or DOCX"}
-                  </Button>
+                  <div className="relative">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={cn("w-full font-bold rounded-xl border-border/60 text-xs", !templateInvoiceUploading && "pointer-events-none")}
+                      disabled={templateInvoiceUploading}
+                    >
+                      <Upload className="w-3.5 h-3.5 mr-2" />
+                      {templateInvoiceUploading ? "Uploading…" : "Upload PDF or DOCX"}
+                    </Button>
+                    {!templateInvoiceUploading && (
+                      <input
+                        ref={templateInvoiceInputRef}
+                        type="file"
+                        accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e) => handleTemplateUpload(e, "invoice")}
+                      />
+                    )}
+                  </div>
                   {invoiceTemplateFilename && (
                     <p className="text-[11px] font-semibold text-green-700 flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5">
                       <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
