@@ -686,6 +686,7 @@ function DocumentsBrandingCard() {
 
         {/* ── Custom branding fields (only shown when mode = custom) ──────── */}
         {documentMode === "custom" && (
+          <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             {/* Logo */}
             <div>
@@ -1148,6 +1149,7 @@ function DocumentsBrandingCard() {
               </Button>
             </div>
           </form>
+          </Form>
         )}
 
         {/* When WorkRate template is selected, show a save button to persist the mode change */}
