@@ -50,6 +50,13 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: false, // only skip waiting after user confirms reload
 
+        // Disable the auto-generated NavigationRoute(createHandlerBoundToURL("index.html"))
+        // that vite-plugin-pwa adds by default. That route intercepts all navigation
+        // requests and serves precached HTML unconditionally, preventing normal browser
+        // visits from receiving updated content without a hard-refresh.
+        // Our custom NetworkFirst runtime rule (below) handles navigation instead.
+        navigateFallback: null,
+
         runtimeCaching: [
           // ── API calls ── never cache; always hit the network ─────────────
           {

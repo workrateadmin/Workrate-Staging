@@ -1,45 +1,30 @@
 ---
 name: WorkRate PWA setup
-description: Service worker, manifest, and cache strategy for WorkRate home-screen PWA. Covers root cause of stale-cache bug and how the fix works.
+description: vite-plugin-pwa config, the NavigationRoute stale-cache trap, SW update flow
 ---
 
-# WorkRate PWA Setup
+## navigateFallback: null is required
 
-## Root cause of the stale-cache bug
-- The workrate web artifact is served as a **Replit static host** (`serve = "static"` in artifact.toml).
-- No service worker existed before this fix.
-- Replit's static host has no configurable HTTP cache-control headers from user code.
-- iOS home-screen web clips apply aggressive heuristic caching (often hours–days) to `index.html`.
-- Stale `index.html` → references old hashed JS bundle filenames → old bundles also cached → old app loads.
-- The API server (`app.ts`) is NOT responsible for serving workrate static files; Replit's infrastructure handles that.
+vite-plugin-pwa silently adds `registerRoute(new NavigationRoute(createHandlerBoundToURL("index.html")))` to the generated sw.js by DEFAULT. This intercepts every browser navigation and serves precached HTML unconditionally — it runs before any custom `runtimeCaching` rules, including NetworkFirst for navigate mode. The result: normal visits always get the stale precached index.html; only Ctrl+Shift+R (which bypasses the SW entirely) gets the current build.
 
-## Fix applied
-- `vite-plugin-pwa` + `workbox-window` added to `artifacts/workrate/package.json`
-- `VitePWA()` configured in `vite.config.ts` with `registerType: 'prompt'`
-- Workbox strategies:
-  - `/api/*` → `NetworkOnly` (never cache authenticated JSON)
-  - `navigate` mode → `NetworkFirst` + precache NavigationRoute (SPA shell)
-  - `/assets/*.js|css` → `CacheFirst` (content-addressed filenames safe to cache 1 year)
-  - images/fonts → `StaleWhileRevalidate` (30 days)
-  - `cleanupOutdatedCaches: true`, `clientsClaim: true`
-- `manifest.webmanifest` auto-generated with `start_url: "/"`, `scope: "/"`, `display: "standalone"`, WorkRate icons
-- Icons generated from `public/logo.svg` via sharp: `icon-192.png`, `icon-512.png`
-- `index.html` — added `apple-touch-icon`, `theme-color`, `apple-mobile-web-app-*` meta tags
-- `src/components/pwa-update-prompt.tsx` — shows "WorkRate has been updated — reload" toast when new SW is waiting
-- `src/App.tsx` — mounts `PwaUpdatePrompt` + `VisibilityRefresher` (invalidates all React Query caches on `visibilitychange: visible`)
-- `src/vite-env.d.ts` — added `/// <reference types="vite-plugin-pwa/client" />` for virtual module types
+**Fix already applied:** `navigateFallback: null` in the `workbox:` section of `VitePWA(...)` in `vite.config.ts`. This removes the auto-generated NavigationRoute. The custom `NetworkFirst` runtime rule then owns all navigation requests.
 
-## How SW updates work
-1. New deploy → new `sw.js` with new precache revision hashes
-2. Browser detects changed `sw.js` → installs new SW (waits because `registerType: 'prompt'`)
-3. `PwaUpdatePrompt` detects `needRefresh: true` → shows toast
-4. User taps "Reload" → `updateServiceWorker(true)` → sends `SKIP_WAITING` → new SW activates → `clientsClaim()` → page reloads
-5. New `index.html` served from new SW's updated precache → new JS bundles → new app
+**Why:** Without this, every production deploy leaves users on the old build until their SW is replaced — but with `registerType: 'prompt'` + `skipWaiting: false`, the new SW waits indefinitely and the PwaUpdatePrompt never fires if the broken page can't render it.
 
-**Why:** `skipWaiting: false` on the workbox side prevents mid-session surprise reloads; user controls when to apply the update.
+**How to apply:** Any time VitePWA is configured with custom `runtimeCaching` that includes a navigate-mode handler, always set `navigateFallback: null` to prevent the default SPA shell from shadowing it.
 
-## Important: SW disabled in dev
-`devOptions: { enabled: false }` — the service worker does NOT run in the Replit dev preview. It only activates in the production build. This prevents confusing cache behaviour during development.
+## Other config decisions
 
-## Re-check polling interval
-`onRegisteredSW` re-runs `registration.update()` every 60 s. This ensures long-lived home-screen sessions detect new deploys within a minute.
+- `registerType: 'prompt'` — user-controlled reload via PwaUpdatePrompt toast
+- `skipWaiting: false` — only skip waiting after user confirms; new SW activates on tab close otherwise
+- `clientsClaim: true` — new SW immediately takes control of all open clients after activation
+- `cleanupOutdatedCaches: true` — removes caches from previous SW versions
+- SW disabled in dev (`devOptions: { enabled: false }`) — avoids confusing cache in Replit preview
+- `/api/*` → NetworkOnly (never cached)
+- navigate mode → NetworkFirst (6s timeout, falls back to cache offline)
+- `/assets/*.{js,css}` → CacheFirst 1 year (safe: hashed filenames)
+- media/fonts → StaleWhileRevalidate 30 days
+
+## PwaUpdatePrompt
+
+Component at `src/components/pwa-update-prompt.tsx`. Uses `useRegisterSW` from `virtual:pwa-register/react`. Polls for updates every 60s. Shows an infinite-duration toast with a Reload button that calls `updateServiceWorker(true)` (sends SKIP_WAITING to new SW then reloads).
