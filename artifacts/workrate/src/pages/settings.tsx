@@ -455,6 +455,8 @@ function DocumentsBrandingCard() {
   const [templateQuoteUploading, setTemplateQuoteUploading] = useLocalState(false);
   const [templateInvoiceUploading, setTemplateInvoiceUploading] = useLocalState(false);
   const [currentLogoUrl, setCurrentLogoUrl] = useLocalState<string | null>(null);
+  const [quoteTemplateFilename, setQuoteTemplateFilename] = useLocalState<string | null>(null);
+  const [invoiceTemplateFilename, setInvoiceTemplateFilename] = useLocalState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const templateQuoteInputRef = useRef<HTMLInputElement>(null);
   const templateInvoiceInputRef = useRef<HTMLInputElement>(null);
@@ -519,6 +521,8 @@ function DocumentsBrandingCard() {
     if (company && !initialized.current) {
       initialized.current = true;
       setCurrentLogoUrl((company as any).logoUrl ?? null);
+      if ((company as any).quoteTemplateUrl) setQuoteTemplateFilename("Previously uploaded");
+      if ((company as any).invoiceTemplateUrl) setInvoiceTemplateFilename("Previously uploaded");
       form.reset({
         documentMode: ((company as any).documentMode as "workrate" | "custom") ?? "workrate",
         brandColourPrimary: (company as any).brandColourPrimary ?? "#1E293B",
@@ -576,12 +580,21 @@ function DocumentsBrandingCard() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${apiBase}/uploads/template`, { method: "POST", body: fd });
-      if (!res.ok) throw new Error("Upload failed");
-      await res.json(); // URL stored server-side for reference
-      toast({ title: `${docType === "quote" ? "Quote" : "Invoice"} template uploaded`, description: "Saved as a reference — your branding settings above are applied to all documents." });
-    } catch {
-      toast({ title: "Template upload failed", variant: "destructive" });
+      // Pass type so the server knows which company column to update
+      const res = await fetch(`${apiBase}/uploads/template?type=${docType}`, { method: "POST", body: fd });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as any).error ?? "Upload failed");
+      }
+      const { filename } = await res.json();
+      // Show the original filename in the UI
+      if (docType === "quote") setQuoteTemplateFilename(filename ?? "Uploaded");
+      else setInvoiceTemplateFilename(filename ?? "Uploaded");
+      // Invalidate company query so the saved URL is reflected on next load
+      queryClient.invalidateQueries({ queryKey: ["/api/company"] });
+      toast({ title: `${docType === "quote" ? "Quote" : "Invoice"} template saved`, description: "Saved as a reference — your branding settings above are applied to all documents." });
+    } catch (err: any) {
+      toast({ title: "Template upload failed", description: err?.message ?? "Unknown error", variant: "destructive" });
     } finally {
       if (docType === "quote") { setTemplateQuoteUploading(false); if (templateQuoteInputRef.current) templateQuoteInputRef.current.value = ""; }
       else { setTemplateInvoiceUploading(false); if (templateInvoiceInputRef.current) templateInvoiceInputRef.current.value = ""; }
@@ -1079,6 +1092,12 @@ function DocumentsBrandingCard() {
                     <Upload className="w-3.5 h-3.5 mr-2" />
                     {templateQuoteUploading ? "Uploading…" : "Upload PDF or DOCX"}
                   </Button>
+                  {quoteTemplateFilename && (
+                    <p className="text-[11px] font-semibold text-green-700 flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5">
+                      <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                      <span className="truncate">{quoteTemplateFilename}</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Invoice template */}
@@ -1106,6 +1125,12 @@ function DocumentsBrandingCard() {
                     <Upload className="w-3.5 h-3.5 mr-2" />
                     {templateInvoiceUploading ? "Uploading…" : "Upload PDF or DOCX"}
                   </Button>
+                  {invoiceTemplateFilename && (
+                    <p className="text-[11px] font-semibold text-green-700 flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5">
+                      <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                      <span className="truncate">{invoiceTemplateFilename}</span>
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

@@ -23,6 +23,8 @@ import IntegrationsPage from "./pages/integrations";
 import ProposalPage from "./pages/proposal";
 import NotFound from "./pages/not-found";
 import DiagnosticsPage from "./pages/diagnostics";
+import InvoicesPage from "./pages/invoices";
+import InvoiceEditor from "./pages/invoice-editor";
 import { DevBanner } from "@/components/dev-banner";
 
 const clerkPubKey = publishableKeyFromHost(
@@ -268,6 +270,8 @@ function ClerkProviderWithRoutes() {
           <Route path="/integrations"><ProtectedRoute component={IntegrationsPage} /></Route>
           <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
           <Route path="/diagnostics"><ProtectedRoute component={DiagnosticsPage} /></Route>
+          <Route path="/invoices"><ProtectedRoute component={InvoicesPage} /></Route>
+          <Route path="/invoices/:id"><ProtectedRoute component={InvoiceEditor} /></Route>
 
           <Route><NotFound /></Route>
         </Switch>

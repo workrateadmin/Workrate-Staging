@@ -71,6 +71,10 @@ export interface Company {
   /** @nullable */
   proposalEmailEnabled?: boolean | null;
   /** @nullable */
+  quoteTemplateUrl?: string | null;
+  /** @nullable */
+  invoiceTemplateUrl?: string | null;
+  /** @nullable */
   widgetToken?: string | null;
   createdAt: Date;
   updatedAt: Date;

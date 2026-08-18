@@ -15,6 +15,7 @@ import diagnosticsRouter from "./diagnostics";
 import conceptVisualsRouter from "./concept-visuals";
 import storageRouter from "./storage";
 import whatsappWebhookRouter from "./webhooks-whatsapp";
+import invoicesRouter from "./invoices";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(diagnosticsRouter);
 router.use(conceptVisualsRouter);
 router.use(storageRouter);
 router.use(whatsappWebhookRouter);
+router.use(invoicesRouter);
 
 export default router;

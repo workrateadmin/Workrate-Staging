@@ -1,0 +1,77 @@
+Add a safe "Standalone Invoice" flow to the EXISTING WorkRate invoicing system.
+
+PROBLEM:
+Sometimes a job has already been agreed outside WorkRate, so there is no WorkRate quote/proposal to convert into an invoice.
+
+I need to be able to invoice that customer without creating a fake quote first.
+
+IMPORTANT:
+Do NOT create a second invoicing system.
+Do NOT redesign the existing quote → invoice flow.
+Reuse the existing invoice schema, PDF/document generation, branding, email sending, payment status and payment logic wherever possible.
+
+GOAL:
+Allow an invoice to be created directly, without requiring an existing WorkRate quote.
+
+Add a clear action such as:
+
+"Create Invoice"
+
+From the invoice area and, where appropriate, from an existing job/customer.
+
+The user should be able to:
+
+1. Select an existing customer OR create a customer
+2. Optionally link the invoice to an existing WorkRate job
+3. Enter:
+   - job/reference/title
+   - site/address if relevant
+   - invoice date
+   - due date / payment terms
+   - line items
+   - quantity
+   - unit price
+   - VAT/tax treatment using the existing WorkRate logic
+   - notes
+4. Or enter a simple agreed total where itemisation is not needed
+5. Preview the existing branded invoice
+6. Send it using the existing invoice email/payment flow
+7. Mark paid manually using the existing logic where applicable
+
+The invoice must clearly distinguish internally between:
+- invoice created from WorkRate quote
+- standalone/direct invoice
+
+But the customer-facing invoice should look the same.
+
+If linked to a job:
+- show the invoice on that job
+- do NOT require a quote/proposal
+- do NOT alter the historical job agreement
+
+If no job exists:
+- invoice can exist against the customer on its own
+
+DATA SAFETY:
+- preserve all current invoices
+- preserve current quote conversion
+- do not alter existing proposal/deposit logic
+- do not duplicate invoice tables unless absolutely necessary
+
+Before implementing:
+1. inspect the current invoice schema and quote-to-invoice flow
+2. identify the smallest safe extension
+3. report which existing invoice functions/components can be reused
+4. confirm whether invoices currently require quote_id/job_id at DB level
+
+TEST:
+Use one safe test customer and prove:
+- standalone invoice can be created without a quote
+- PDF/preview works
+- branding works
+- email send works
+- payment status works
+- it can optionally be linked to an existing job
+- existing quote → invoice flow remains unchanged
+
+Do not refactor unrelated finance features.

@@ -57,8 +57,9 @@ export const GetCompanyResponse = zod.object({
   "enquirySmsEnabled": zod.boolean().nullish(),
   "enquiryConfirmationMessage": zod.string().nullish(),
   "proposalEmailEnabled": zod.boolean().nullish(),
+  "quoteTemplateUrl": zod.string().nullish(),
+  "invoiceTemplateUrl": zod.string().nullish(),
   "widgetToken": zod.string().nullish(),
-  "onboardingDismissed": zod.boolean().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -102,8 +103,7 @@ export const UpdateCompanyBody = zod.object({
   "enquiryEmailEnabled": zod.boolean().optional(),
   "enquirySmsEnabled": zod.boolean().optional(),
   "enquiryConfirmationMessage": zod.string().optional(),
-  "proposalEmailEnabled": zod.boolean().optional(),
-  "onboardingDismissed": zod.boolean().optional()
+  "proposalEmailEnabled": zod.boolean().optional()
 })
 
 export const UpdateCompanyResponse = zod.object({
@@ -143,8 +143,9 @@ export const UpdateCompanyResponse = zod.object({
   "enquirySmsEnabled": zod.boolean().nullish(),
   "enquiryConfirmationMessage": zod.string().nullish(),
   "proposalEmailEnabled": zod.boolean().nullish(),
+  "quoteTemplateUrl": zod.string().nullish(),
+  "invoiceTemplateUrl": zod.string().nullish(),
   "widgetToken": zod.string().nullish(),
-  "onboardingDismissed": zod.boolean().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -176,7 +177,6 @@ export const ListEnquiriesResponseItem = zod.object({
   "confirmationEmailSentAt": zod.coerce.date().nullish(),
   "confirmationSmsStatus": zod.string().optional(),
   "confirmationSmsSentAt": zod.coerce.date().nullish(),
-  "isTest": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -217,7 +217,6 @@ export const CreateEnquiryResponse = zod.object({
   "confirmationEmailSentAt": zod.coerce.date().nullish(),
   "confirmationSmsStatus": zod.string().optional(),
   "confirmationSmsSentAt": zod.coerce.date().nullish(),
-  "isTest": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -249,7 +248,6 @@ export const GetEnquiryResponse = zod.object({
   "confirmationEmailSentAt": zod.coerce.date().nullish(),
   "confirmationSmsStatus": zod.string().optional(),
   "confirmationSmsSentAt": zod.coerce.date().nullish(),
-  "isTest": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -294,7 +292,6 @@ export const UpdateEnquiryResponse = zod.object({
   "confirmationEmailSentAt": zod.coerce.date().nullish(),
   "confirmationSmsStatus": zod.string().optional(),
   "confirmationSmsSentAt": zod.coerce.date().nullish(),
-  "isTest": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -407,7 +404,6 @@ export const GenerateEnquirySummaryResponse = zod.object({
   "confirmationEmailSentAt": zod.coerce.date().nullish(),
   "confirmationSmsStatus": zod.string().optional(),
   "confirmationSmsSentAt": zod.coerce.date().nullish(),
-  "isTest": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1169,7 +1165,7 @@ export const StartChatBody = zod.object({
 
 export const StartChatResponse = zod.object({
   "token": zod.string(),
-  "enquiryId": zod.number().nullable(),
+  "enquiryId": zod.number(),
   "tradeType": zod.string(),
   "createdAt": zod.coerce.date()
 })
@@ -1198,12 +1194,12 @@ export const GetChatSessionParams = zod.object({
 
 export const GetChatSessionResponse = zod.object({
   "token": zod.string(),
-  "enquiryId": zod.number().nullable(),
+  "enquiryId": zod.number(),
   "tradeType": zod.string(),
   "createdAt": zod.coerce.date(),
   "messages": zod.array(zod.object({
-  "id": zod.number().nullable(),
-  "enquiryId": zod.number().nullable(),
+  "id": zod.number(),
+  "enquiryId": zod.number(),
   "role": zod.string(),
   "content": zod.string(),
   "createdAt": zod.coerce.date()
@@ -1482,6 +1478,265 @@ export const CompleteDemoCallResponse = zod.object({
   "followUpNotes": zod.string().nullish(),
   "providerId": zod.string().nullish(),
   "providerData": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List all invoices for the authenticated user
+ */
+export const ListInvoicesResponseItem = zod.object({
+  "id": zod.number(),
+  "documentType": zod.string(),
+  "enquiryId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "invoiceNumber": zod.string().nullish(),
+  "invoiceDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "customerDetails": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "estimatedTotal": zod.number(),
+  "vatAmount": zod.number(),
+  "vatRate": zod.number(),
+  "totalWithVat": zod.number(),
+  "lineItems": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListInvoicesResponse = zod.array(ListInvoicesResponseItem)
+
+
+/**
+ * @summary Create a standalone invoice
+ */
+export const CreateInvoiceBody = zod.object({
+  "customerDetails": zod.string().optional(),
+  "customerEmail": zod.string().optional(),
+  "projectDescription": zod.string().optional(),
+  "invoiceNumber": zod.string().optional(),
+  "invoiceDate": zod.string().optional(),
+  "dueDate": zod.string().optional(),
+  "jobId": zod.number().optional(),
+  "materialsAllowance": zod.number().optional(),
+  "vatRate": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "totalWithVat": zod.number().optional(),
+  "lineItems": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const CreateInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "documentType": zod.string(),
+  "enquiryId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "invoiceNumber": zod.string().nullish(),
+  "invoiceDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "customerDetails": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "estimatedTotal": zod.number(),
+  "vatAmount": zod.number(),
+  "vatRate": zod.number(),
+  "totalWithVat": zod.number(),
+  "lineItems": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get invoice by ID
+ */
+export const GetInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "documentType": zod.string(),
+  "enquiryId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "invoiceNumber": zod.string().nullish(),
+  "invoiceDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "customerDetails": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "estimatedTotal": zod.number(),
+  "vatAmount": zod.number(),
+  "vatRate": zod.number(),
+  "totalWithVat": zod.number(),
+  "lineItems": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update an invoice
+ */
+export const UpdateInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateInvoiceBody = zod.object({
+  "customerDetails": zod.string().optional(),
+  "customerEmail": zod.string().optional(),
+  "projectDescription": zod.string().optional(),
+  "invoiceNumber": zod.string().optional(),
+  "invoiceDate": zod.string().optional(),
+  "dueDate": zod.string().optional(),
+  "jobId": zod.number().optional(),
+  "materialsAllowance": zod.number().optional(),
+  "estimatedTotal": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "vatRate": zod.number().optional(),
+  "totalWithVat": zod.number().optional(),
+  "lineItems": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "status": zod.string().optional()
+})
+
+export const UpdateInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "documentType": zod.string(),
+  "enquiryId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "invoiceNumber": zod.string().nullish(),
+  "invoiceDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "customerDetails": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "estimatedTotal": zod.number(),
+  "vatAmount": zod.number(),
+  "vatRate": zod.number(),
+  "totalWithVat": zod.number(),
+  "lineItems": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Send invoice email to customer and mark as sent
+ */
+export const SendInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SendInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "documentType": zod.string(),
+  "enquiryId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "invoiceNumber": zod.string().nullish(),
+  "invoiceDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "customerDetails": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "estimatedTotal": zod.number(),
+  "vatAmount": zod.number(),
+  "vatRate": zod.number(),
+  "totalWithVat": zod.number(),
+  "lineItems": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Mark invoice as paid
+ */
+export const MarkInvoicePaidParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const MarkInvoicePaidBody = zod.object({
+  "amount": zod.number()
+})
+
+export const MarkInvoicePaidResponse = zod.object({
+  "id": zod.number(),
+  "documentType": zod.string(),
+  "enquiryId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "invoiceNumber": zod.string().nullish(),
+  "invoiceDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "customerDetails": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "estimatedTotal": zod.number(),
+  "vatAmount": zod.number(),
+  "vatRate": zod.number(),
+  "totalWithVat": zod.number(),
+  "lineItems": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

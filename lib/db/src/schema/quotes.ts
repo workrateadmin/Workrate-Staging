@@ -4,7 +4,18 @@ import { z } from "zod/v4";
 
 export const quotesTable = pgTable("quotes", {
   id: serial("id").primaryKey(),
-  enquiryId: integer("enquiry_id").notNull(),
+  enquiryId: integer("enquiry_id"),  // nullable — standalone invoices don't require an enquiry
+  // ── Invoice / document type ────────────────────────────────────────────
+  documentType: text("document_type").notNull().default("quote"),  // 'quote' | 'invoice'
+  invoiceNumber: text("invoice_number"),
+  invoiceDate: text("invoice_date"),
+  dueDate: text("due_date"),
+  jobId: integer("job_id"),          // optional link to a job (invoices)
+  vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).notNull().default("20"),
+  lineItems: text("line_items"),     // JSON: InvoiceLine[] — null means simple total mode
+  ownerUserId: text("owner_user_id"), // direct ownership for standalone invoices
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  // ── Core document fields ───────────────────────────────────────────────
   customerDetails: text("customer_details"),
   projectDescription: text("project_description"),
   materialsAllowance: numeric("materials_allowance", { precision: 10, scale: 2 }).notNull().default("0"),
@@ -17,13 +28,13 @@ export const quotesTable = pgTable("quotes", {
   status: text("status").notNull().default("draft"),
   brandingSnapshot: text("branding_snapshot"),
 
-  // ── Proposal fields ────────────────────────────────────────────────────
+  // ── Proposal fields (quotes only) ─────────────────────────────────────
   proposalStatus: text("proposal_status").notNull().default("draft"),
-  proposalToken: text("proposal_token"),      // unique public-facing URL token
-  depositType: text("deposit_type"),          // 'none' | 'percentage' | 'fixed'
+  proposalToken: text("proposal_token"),
+  depositType: text("deposit_type"),
   depositPercent: numeric("deposit_percent", { precision: 5, scale: 2 }),
   depositFixed: numeric("deposit_fixed", { precision: 10, scale: 2 }),
-  depositAmount: numeric("deposit_amount", { precision: 10, scale: 2 }),    // calculated
+  depositAmount: numeric("deposit_amount", { precision: 10, scale: 2 }),
   remainingBalance: numeric("remaining_balance", { precision: 10, scale: 2 }),
   depositPaidAt: timestamp("deposit_paid_at", { withTimezone: true }),
   depositPaidAmount: numeric("deposit_paid_amount", { precision: 10, scale: 2 }),
@@ -31,13 +42,12 @@ export const quotesTable = pgTable("quotes", {
   acceptedByName: text("accepted_by_name"),
   acceptedByEmail: text("accepted_by_email"),
   viewedAt: timestamp("viewed_at", { withTimezone: true }),
-  acceptanceSnapshot: text("acceptance_snapshot"),  // JSON snapshot at acceptance
+  acceptanceSnapshot: text("acceptance_snapshot"),
   customerQuestion: text("customer_question"),
 
-  // ── Proposal email tracking ─────────────────────────────────────────────
+  // ── Email tracking ─────────────────────────────────────────────────────
   emailRecipient: text("email_recipient"),
   emailDeliveryStatus: text("email_delivery_status"),
-  // 'sent' | 'failed' | 'not_configured' | 'no_recipient'
   emailSentAt: timestamp("email_sent_at", { withTimezone: true }),
   emailError: text("email_error"),
 

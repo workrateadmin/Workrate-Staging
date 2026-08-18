@@ -18,7 +18,7 @@ export * from './chatSessionWithMessages';
 export * from './chatStartInput';
 export * from './company';
 export * from './companyInput';
-// ConnectIntegrationBody is exported from generated/api.ts as a Zod schema; skip here to avoid duplicate export
+export * from './connectIntegrationBody';
 export * from './dashboardStats';
 export * from './demoCompleteRequest';
 export * from './demoCompleteRequestMessagesItem';
@@ -31,17 +31,21 @@ export * from './enquiryMessage';
 export * from './enquiryUpdate';
 export * from './healthStatus';
 export * from './integrationStatus';
+export * from './invoice';
+export * from './invoiceCreate';
+export * from './invoiceMarkPaidBody';
+export * from './invoiceUpdate';
 export * from './job';
 export * from './jobCreate';
 export * from './jobScheduleUpdate';
 export * from './jobUpdate';
 export * from './listAiCallsParams';
 export * from './listEnquiriesParams';
-// MarkDepositPaidBody is exported from generated/api.ts as a Zod schema; skip here to avoid duplicate export
+export * from './markDepositPaidBody';
 export * from './proposal';
 export * from './proposalCompany';
 export * from './proposalResponse';
 export * from './quote';
 export * from './quoteUpdate';
 export * from './recordProposalView200';
-// UploadEnquiryAttachmentBody is exported from generated/api.ts as a Zod schema; skip here to avoid duplicate export
+export * from './uploadEnquiryAttachmentBody';

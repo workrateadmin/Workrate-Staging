@@ -33,6 +33,8 @@ interface CompanyBranding {
   enquirySmsEnabled?: boolean | null;
   enquiryConfirmationMessage?: string | null;
   proposalEmailEnabled?: boolean | null;
+  bankPaymentDetails?: string | null;
+  paymentTerms?: string | null;
 }
 
 // ── Email provider ────────────────────────────────────────────────────────────
@@ -368,6 +370,109 @@ export async function sendProposalEmail(
   if (emailStatus === "sent") updates.emailSentAt = new Date();
 
   await db.update(quotesTable).set(updates).where(eq(quotesTable.id, quoteId));
+
+  return { emailStatus, emailError };
+}
+
+// ── Invoice email ─────────────────────────────────────────────────────────────
+
+export async function sendInvoiceEmail(
+  invoiceId: number,
+  params: {
+    customerEmail: string | null;
+    customerName: string | null;
+    invoiceNumber: string;
+    invoiceDate: string | null;
+    dueDate: string | null;
+    totalWithVat: number;
+    projectDescription: string | null;
+  },
+  company: CompanyBranding
+): Promise<{ emailStatus: CommStatus; emailError?: string }> {
+  let emailStatus: CommStatus;
+  let emailError: string | undefined;
+
+  if (!params.customerEmail) {
+    emailStatus = "no_recipient";
+  } else if (!process.env.RESEND_API_KEY) {
+    emailStatus = "not_configured";
+  } else {
+    const colour = primaryColour(company);
+    const fmt = (n: number) =>
+      new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
+    const firstName = params.customerName?.split(" ")[0] ?? "there";
+
+    const body = `
+      <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#111827;">Hi ${firstName},</p>
+      <p style="margin:0 0 20px;font-size:15px;color:#374151;line-height:1.6;">
+        Please find your invoice from <strong>${company.name}</strong> below.
+      </p>
+      ${params.projectDescription ? `<div style="background:#f9fafb;border-left:4px solid ${colour};border-radius:4px;padding:10px 16px;margin:0 0 20px;">
+        <p style="margin:0;font-size:13px;color:#374151;">${params.projectDescription}</p>
+      </div>` : ""}
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+        <tr>
+          <td style="padding:14px 18px;background:#f9fafb;border-bottom:1px solid #e5e7eb;">
+            <p style="margin:0;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Invoice Number</p>
+            <p style="margin:4px 0 0;font-size:16px;font-weight:800;color:#111827;font-family:monospace;">${params.invoiceNumber}</p>
+          </td>
+        </tr>
+        ${params.invoiceDate ? `<tr>
+          <td style="padding:12px 18px;border-bottom:1px solid #e5e7eb;">
+            <p style="margin:0;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Invoice Date</p>
+            <p style="margin:4px 0 0;font-size:14px;color:#374151;">${params.invoiceDate}</p>
+          </td>
+        </tr>` : ""}
+        ${params.dueDate ? `<tr>
+          <td style="padding:12px 18px;border-bottom:1px solid #e5e7eb;">
+            <p style="margin:0;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Payment Due</p>
+            <p style="margin:4px 0 0;font-size:14px;font-weight:700;color:#dc2626;">${params.dueDate}</p>
+          </td>
+        </tr>` : ""}
+        <tr>
+          <td style="padding:14px 18px;">
+            <p style="margin:0;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Amount Due</p>
+            <p style="margin:4px 0 0;font-size:26px;font-weight:900;color:#111827;">${fmt(params.totalWithVat)}</p>
+          </td>
+        </tr>
+      </table>
+      ${company.bankPaymentDetails ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 20px;margin:0 0 24px;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Payment Details</p>
+        <p style="margin:0;font-size:13px;color:#166534;white-space:pre-line;line-height:1.6;">${company.bankPaymentDetails}</p>
+      </div>` : ""}
+      ${company.paymentTerms ? `<p style="margin:0 0 20px;font-size:13px;color:#6b7280;line-height:1.5;">${company.paymentTerms}</p>` : ""}
+      <p style="margin:0;font-size:13px;color:#9ca3af;text-align:center;line-height:1.5;">
+        If you have any questions, please reply to this email.
+        ${company.email ? `<br/>Contact us: <a href="mailto:${company.email}" style="color:${colour};">${company.email}</a>` : ""}
+      </p>
+    `;
+
+    const html = buildEmailShell({
+      company,
+      preheader: `Invoice ${params.invoiceNumber} from ${company.name} — ${fmt(params.totalWithVat)} due${params.dueDate ? ` ${params.dueDate}` : ""}`,
+      body,
+    });
+
+    const sent = await sendViaResend({
+      to: params.customerEmail,
+      fromName: `${company.name} via WorkRate`,
+      replyTo: company.email ?? undefined,
+      subject: `Invoice ${params.invoiceNumber} from ${company.name} — ${fmt(params.totalWithVat)}`,
+      html,
+    });
+
+    emailStatus = sent.ok ? "sent" : "failed";
+    if (!sent.ok) emailError = sent.error;
+  }
+
+  // Persist email status to DB
+  const updates: Record<string, any> = {
+    emailDeliveryStatus: emailStatus,
+    emailRecipient: params.customerEmail,
+    emailError: emailError ?? null,
+  };
+  if (emailStatus === "sent") updates.emailSentAt = new Date();
+  await db.update(quotesTable).set(updates).where(eq(quotesTable.id, invoiceId));
 
   return { emailStatus, emailError };
 }

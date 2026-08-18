@@ -90,9 +90,11 @@ export interface Company {
   /** @nullable */
   proposalEmailEnabled?: boolean | null;
   /** @nullable */
-  widgetToken?: string | null;
+  quoteTemplateUrl?: string | null;
   /** @nullable */
-  onboardingDismissed?: boolean | null;
+  invoiceTemplateUrl?: string | null;
+  /** @nullable */
+  widgetToken?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -133,7 +135,6 @@ export interface CompanyInput {
   enquirySmsEnabled?: boolean;
   enquiryConfirmationMessage?: string;
   proposalEmailEnabled?: boolean;
-  onboardingDismissed?: boolean;
 }
 
 export interface Enquiry {
@@ -275,6 +276,90 @@ export interface QuoteUpdate {
   notes?: string;
   assumptions?: string;
   status?: string;
+}
+
+export interface Invoice {
+  id: number;
+  documentType: string;
+  /** @nullable */
+  enquiryId?: number | null;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  invoiceNumber?: string | null;
+  /** @nullable */
+  invoiceDate?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  customerDetails?: string | null;
+  /** @nullable */
+  projectDescription?: string | null;
+  /** @nullable */
+  emailRecipient?: string | null;
+  /** @nullable */
+  emailDeliveryStatus?: string | null;
+  /** @nullable */
+  emailSentAt?: string | null;
+  /** @nullable */
+  emailError?: string | null;
+  materialsAllowance: number;
+  labourAllowance: number;
+  estimatedTotal: number;
+  vatAmount: number;
+  vatRate: number;
+  totalWithVat: number;
+  /** @nullable */
+  lineItems?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  status: string;
+  /** @nullable */
+  brandingSnapshot?: string | null;
+  /** @nullable */
+  paidAt?: string | null;
+  /** @nullable */
+  depositPaidAmount?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvoiceCreate {
+  customerDetails?: string;
+  customerEmail?: string;
+  projectDescription?: string;
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  dueDate?: string;
+  jobId?: number;
+  materialsAllowance?: number;
+  vatRate?: number;
+  vatAmount?: number;
+  totalWithVat?: number;
+  lineItems?: string;
+  notes?: string;
+}
+
+export interface InvoiceUpdate {
+  customerDetails?: string;
+  customerEmail?: string;
+  projectDescription?: string;
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  dueDate?: string;
+  jobId?: number;
+  materialsAllowance?: number;
+  estimatedTotal?: number;
+  vatAmount?: number;
+  vatRate?: number;
+  totalWithVat?: number;
+  lineItems?: string;
+  notes?: string;
+  status?: string;
+}
+
+export interface InvoiceMarkPaidBody {
+  amount: number;
 }
 
 export type ProposalCompany = {

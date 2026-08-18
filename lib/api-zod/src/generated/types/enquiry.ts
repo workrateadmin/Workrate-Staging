@@ -37,7 +37,6 @@ export interface Enquiry {
   confirmationSmsStatus?: string;
   /** @nullable */
   confirmationSmsSentAt?: Date | null;
-  isTest?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

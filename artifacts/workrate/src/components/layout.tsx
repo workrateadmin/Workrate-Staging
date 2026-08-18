@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Settings, LogOut, Menu, Bell, Hammer,
   Plug, Briefcase, CalendarDays, PhoneCall, Search, Plus,
-  ChevronDown, Inbox, Users, Activity,
+  ChevronDown, Inbox, Users, Activity, FileText,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ const pipelineNav = [
   { name: "Dashboard",       href: "/dashboard",       icon: LayoutDashboard },
   { name: "Enquiries",       href: "/enquiries",       icon: Inbox },
   { name: "Jobs",            href: "/jobs",            icon: Briefcase },
+  { name: "Invoices",        href: "/invoices",        icon: FileText },
   { name: "Schedule",        href: "/schedule",        icon: CalendarDays },
   { name: "AI Receptionist", href: "/ai-receptionist", icon: PhoneCall },
 ];
