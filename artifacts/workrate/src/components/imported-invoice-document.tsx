@@ -11,7 +11,7 @@
 import {
   TemplateBlock,
   FieldMapping,
-  parseImportedInvoiceTemplate,
+  parseImportedInvoiceTemplate, DEFAULT_ARTWORK_POSITION,
 } from "@/types/template-blocks";
 import { InvoiceLine } from "./invoice-document";
 
@@ -129,6 +129,7 @@ export function ImportedInvoiceDocument(props: ImportedInvoiceDocProps) {
   const templateRaw = b.importedInvoiceTemplate ?? (props.company as any)?.importedInvoiceTemplate;
   const template = parseImportedInvoiceTemplate(templateRaw);
   const blocks: TemplateBlock[] = template.blocks;
+  const artwork = template.artwork ?? DEFAULT_ARTWORK_POSITION;
 
   if (blocks.length === 0) {
     return (
@@ -163,19 +164,28 @@ export function ImportedInvoiceDocument(props: ImportedInvoiceDocProps) {
       }}
     >
       {template.backgroundUrl && (
-        <img
-          src={template.backgroundUrl}
-          alt=""
+        <div
           aria-hidden="true"
           style={{
             position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "fill",
-            pointerEvents: "none",
+            left: `${artwork.x}%`,
+            top: `${artwork.y}%`,
+            width: `${artwork.w}%`,
+            height: `${artwork.h}%`,
+            zIndex: 0,
           }}
-        />
+        >
+          <img
+            src={template.backgroundUrl}
+            alt=""
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "fill",
+              pointerEvents: "none",
+            }}
+          />
+        </div>
       )}
       {blocks.map((block) => {
         const style: React.CSSProperties = {

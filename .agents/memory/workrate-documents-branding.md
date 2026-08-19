@@ -12,6 +12,10 @@ description: Architecture decisions for the Documents & Branding feature — tem
 
 **How to apply:** An imported invoice template must retain the source artwork as a durable background and place editable live fields over it. Reconstructing only AI-detected text blocks loses logos, colours, borders, and typography.
 
+The source artwork must itself be a selectable, draggable, and resizable editor layer — not a fixed background — while every detected live field remains independently movable.
+
+**Why:** A faithful import is only useful when tradespeople can adjust every visible layer to match their document.
+
 ## Branding snapshot on send
 When a quote's status first changes to `'sent'` or `'accepted'`, the server snapshots the current company branding into `quotes.branding_snapshot` (JSON text). The `QuoteDocument` component reads this snapshot so historical quotes always render with the design they had at send time.
 

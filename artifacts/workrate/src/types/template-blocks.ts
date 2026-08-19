@@ -102,7 +102,23 @@ export interface ImportedInvoiceTemplate {
   blocks: TemplateBlock[];
   /** Original imported PDF/image rendered to a durable image URL. */
   backgroundUrl?: string;
+  /** Position and size of the original artwork layer on the A4 canvas. */
+  artwork?: TemplateArtworkPosition;
 }
+
+export interface TemplateArtworkPosition {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export const DEFAULT_ARTWORK_POSITION: TemplateArtworkPosition = {
+  x: 0,
+  y: 0,
+  w: 100,
+  h: 100,
+};
 
 /** Parse importedInvoiceTemplate JSON safely, including legacy block arrays. */
 export function parseImportedInvoiceTemplate(
@@ -116,6 +132,14 @@ export function parseImportedInvoiceTemplate(
       return {
         blocks: parsed.blocks,
         backgroundUrl: typeof parsed.backgroundUrl === "string" ? parsed.backgroundUrl : undefined,
+        artwork: parsed.artwork && typeof parsed.artwork === "object"
+          ? {
+              x: Number(parsed.artwork.x) || 0,
+              y: Number(parsed.artwork.y) || 0,
+              w: Number(parsed.artwork.w) || 100,
+              h: Number(parsed.artwork.h) || 100,
+            }
+          : undefined,
       };
     }
   } catch {

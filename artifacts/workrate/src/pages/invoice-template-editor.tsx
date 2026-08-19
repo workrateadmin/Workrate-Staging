@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import {
   TemplateBlock, FieldMapping,
   FIELD_MAPPING_LABELS, FIELD_MAPPING_COLOURS,
-  parseImportedInvoiceTemplate,
+  parseImportedInvoiceTemplate, DEFAULT_ARTWORK_POSITION, TemplateArtworkPosition,
 } from "@/types/template-blocks";
 
 // ── A4 canvas dimensions in the editor (px) ─────────────────────────────────
@@ -223,6 +223,9 @@ export default function InvoiceTemplateEditor() {
   const [backgroundUrl, setBackgroundUrl] = useState<string | undefined>(
     () => pendingTemplate.backgroundUrl,
   );
+  const [artwork, setArtwork] = useState<TemplateArtworkPosition>(
+    () => pendingTemplate.artwork ?? DEFAULT_ARTWORK_POSITION,
+  );
 
   // Once company loads, populate blocks if sessionStorage was empty
   useEffect(() => {
@@ -231,6 +234,7 @@ export default function InvoiceTemplateEditor() {
       const savedTemplate = parseImportedInvoiceTemplate(raw);
       setBlocks(savedTemplate.blocks);
       setBackgroundUrl(savedTemplate.backgroundUrl);
+      setArtwork(savedTemplate.artwork ?? DEFAULT_ARTWORK_POSITION);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company]);
@@ -276,7 +280,7 @@ export default function InvoiceTemplateEditor() {
       await updateCompany.mutateAsync({
         data: {
           documentMode: "imported",
-          importedInvoiceTemplate: JSON.stringify({ blocks, backgroundUrl }),
+          importedInvoiceTemplate: JSON.stringify({ blocks, backgroundUrl, artwork }),
         } as any,
       });
       toast({ title: "Invoice template saved" });
@@ -302,7 +306,7 @@ export default function InvoiceTemplateEditor() {
         <div className="order-3 basis-full sm:order-none sm:basis-auto sm:flex-1 text-center">
           <span className="font-black text-base">Invoice Template Editor</span>
           <span className="text-xs text-muted-foreground ml-3 font-medium">
-            Drag to reposition · Resize from corners · Click to edit mapping
+            Drag to reposition · Resize from corners · Click any layer to edit
           </span>
         </div>
 
@@ -350,20 +354,58 @@ export default function InvoiceTemplateEditor() {
             onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
           >
             {backgroundUrl && (
-              <img
-                src={backgroundUrl}
-                alt="Imported invoice artwork"
-                draggable={false}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "fill",
-                  pointerEvents: "none",
-                  userSelect: "none",
+              <Rnd
+                bounds="parent"
+                position={{
+                  x: (artwork.x / 100) * CANVAS_W,
+                  y: (artwork.y / 100) * CANVAS_H,
                 }}
-              />
+                size={{
+                  width: (artwork.w / 100) * CANVAS_W,
+                  height: (artwork.h / 100) * CANVAS_H,
+                }}
+                style={{
+                  zIndex: selectedId === "__artwork__" ? 10 : 0,
+                  border: selectedId === "__artwork__" ? "2px solid #3b82f6" : "1px dashed #94a3b840",
+                  boxSizing: "border-box",
+                }}
+                onDragStop={(_, d) => {
+                  setArtwork((prev) => ({
+                    ...prev,
+                    x: Math.max(0, Math.min(100 - prev.w, (d.x / CANVAS_W) * 100)),
+                    y: Math.max(0, Math.min(100 - prev.h, (d.y / CANVAS_H) * 100)),
+                  }));
+                }}
+                onResizeStop={(_, __, ref, ___, pos) => {
+                  setArtwork((prev) => {
+                    const w = Math.min(100, (parseFloat(ref.style.width) / CANVAS_W) * 100);
+                    const h = Math.min(100, (parseFloat(ref.style.height) / CANVAS_H) * 100);
+                    return {
+                      x: Math.max(0, Math.min(100 - w, (pos.x / CANVAS_W) * 100)),
+                      y: Math.max(0, Math.min(100 - h, (pos.y / CANVAS_H) * 100)),
+                      w,
+                      h,
+                    };
+                  });
+                }}
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  setSelectedId("__artwork__");
+                }}
+              >
+                <img
+                  src={backgroundUrl}
+                  alt="Imported invoice artwork"
+                  draggable={false}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "fill",
+                    pointerEvents: "none",
+                    userSelect: "none",
+                  }}
+                />
+              </Rnd>
             )}
             {/* Empty state */}
             {blocks.length === 0 && (
@@ -498,7 +540,20 @@ export default function InvoiceTemplateEditor() {
 
         {/* ── Controls panel ────────────────────────────────────────────────── */}
         <div className="w-full lg:w-72 max-h-[60vh] lg:max-h-none border-t lg:border-t-0 lg:border-l bg-white overflow-y-auto shrink-0">
-          {selectedBlock ? (
+          {selectedId === "__artwork__" ? (
+            <div className="p-5 space-y-4">
+              <span className="inline-flex items-center rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">
+                Source artwork
+              </span>
+              <p className="text-sm font-bold">Original design layer</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                This is the original uploaded invoice artwork. Drag it or resize it from any corner. Every detected WorkRate field remains independently movable above it.
+              </p>
+              <p className="text-[10px] leading-relaxed text-muted-foreground">
+                Click a coloured field block to select and reposition that field.
+              </p>
+            </div>
+          ) : selectedBlock ? (
             <BlockControls
               block={selectedBlock}
               onUpdate={(patch) => updateBlock(selectedBlock.id, patch)}
