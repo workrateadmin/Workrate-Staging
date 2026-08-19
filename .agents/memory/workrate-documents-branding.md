@@ -6,9 +6,11 @@ description: Architecture decisions for the Documents & Branding feature — tem
 # Documents & Branding Feature
 
 ## Template modes
-`companies.document_mode` is either `'workrate'` (default, professionally styled) or `'custom'` (applies company branding settings).
+`companies.document_mode` supports `'workrate'` (default, professionally styled), `'custom'` (applies company branding settings), and `'imported'` for an invoice layout based on an existing document.
 
-**Why:** User wanted two explicit choices rather than always-on branding, and new accounts should default to WorkRate template with no setup required.
+**Why:** New accounts should default to WorkRate with no setup, while established trades can retain their existing identity.
+
+**How to apply:** An imported invoice template must retain the source artwork as a durable background and place editable live fields over it. Reconstructing only AI-detected text blocks loses logos, colours, borders, and typography.
 
 ## Branding snapshot on send
 When a quote's status first changes to `'sent'` or `'accepted'`, the server snapshots the current company branding into `quotes.branding_snapshot` (JSON text). The `QuoteDocument` component reads this snapshot so historical quotes always render with the design they had at send time.
@@ -21,9 +23,9 @@ When a quote's status first changes to `'sent'` or `'accepted'`, the server snap
 `website`, `company_reg_number`, `vat_number`, `bank_payment_details`, `brand_colour_primary`, `brand_colour_secondary`, `payment_terms`, `terms_and_conditions`, `quote_footer`, `invoice_footer`, `document_mode`. Added in migration `0003_documents_branding`.
 
 ## File uploads
-`POST /api/uploads/logo` and `POST /api/uploads/template` — use multer/disk pattern identical to `attachments.ts`. Logo is saved immediately via `PUT /company { logoUrl }`. Template files are stored as reference only (explained clearly in UI with amber warning).
+`POST /api/uploads/logo` and `POST /api/uploads/template` store branding assets in GCS. Generic quote/invoice uploads remain references; the dedicated invoice-import flow retains the source image as the visual template background.
 
-**Why:** Object storage skill requires Replit Auth (app uses Clerk). Reusing the existing multer pattern was simpler and consistent.
+**Why:** A visual reference alone cannot reproduce a client's established document identity accurately.
 
 ## Custom branding in QuoteDocument
 When `documentMode === 'custom'`:

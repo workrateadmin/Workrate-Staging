@@ -212,7 +212,9 @@ const invoiceImportUpload = multer({
 
 // ── POST /uploads/import-invoice ──────────────────────────────────────────────
 // Client converts PDF→PNG before uploading (pdf.js in browser).
-// We send the PNG to gpt-4o vision and return detected layout blocks.
+// We send the PNG to gpt-4o vision and return detected layout blocks. The
+// original artwork is also stored so colours, logos, borders and type treatment
+// remain faithful when live invoice values are overlaid.
 router.post(
   "/uploads/import-invoice",
   requireAuth,
@@ -268,8 +270,11 @@ router.post(
         id: b.id ?? `block_${i + 1}`,
       }));
 
+      const { objectPath } = await uploadBufferToStorage(file.buffer, mimeType);
+      const backgroundUrl = storageServingUrl(req, objectPath);
+
       req.log?.info({ blockCount: blocks.length }, "Invoice layout extracted successfully");
-      res.json({ blocks });
+      res.json({ blocks, backgroundUrl });
     } catch (err: any) {
       req.log?.error({ err }, "Invoice import AI analysis failed");
       res.status(500).json({ error: "AI analysis failed. Please try again." });

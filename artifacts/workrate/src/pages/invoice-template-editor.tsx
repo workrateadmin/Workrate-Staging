@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import {
   TemplateBlock, FieldMapping,
   FIELD_MAPPING_LABELS, FIELD_MAPPING_COLOURS,
-  parseTemplateBlocks,
+  parseImportedInvoiceTemplate,
 } from "@/types/template-blocks";
 
 // ── A4 canvas dimensions in the editor (px) ─────────────────────────────────
@@ -206,25 +206,31 @@ export default function InvoiceTemplateEditor() {
   // ── Block state ─────────────────────────────────────────────────────────────
   // Prefer fresh blocks from sessionStorage (new import), then fall back to
   // company.importedInvoiceTemplate (editing existing template).
-  const [blocks, setBlocks] = useState<TemplateBlock[]>(() => {
+  const [pendingTemplate] = useState(() => {
     const stored = sessionStorage.getItem("importedBlocks");
     if (stored) {
       try {
-        const parsed = JSON.parse(stored);
+        const parsed = parseImportedInvoiceTemplate(stored);
         sessionStorage.removeItem("importedBlocks");
-        return Array.isArray(parsed) ? parsed : [];
+        return parsed;
       } catch {
         sessionStorage.removeItem("importedBlocks");
       }
     }
-    return [];
+    return { blocks: [] };
   });
+  const [blocks, setBlocks] = useState<TemplateBlock[]>(() => pendingTemplate.blocks);
+  const [backgroundUrl, setBackgroundUrl] = useState<string | undefined>(
+    () => pendingTemplate.backgroundUrl,
+  );
 
   // Once company loads, populate blocks if sessionStorage was empty
   useEffect(() => {
     if (blocks.length === 0 && company) {
       const raw = (company as any).importedInvoiceTemplate;
-      setBlocks(parseTemplateBlocks(raw));
+      const savedTemplate = parseImportedInvoiceTemplate(raw);
+      setBlocks(savedTemplate.blocks);
+      setBackgroundUrl(savedTemplate.backgroundUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company]);
@@ -270,7 +276,7 @@ export default function InvoiceTemplateEditor() {
       await updateCompany.mutateAsync({
         data: {
           documentMode: "imported",
-          importedInvoiceTemplate: JSON.stringify(blocks),
+          importedInvoiceTemplate: JSON.stringify({ blocks, backgroundUrl }),
         } as any,
       });
       toast({ title: "Invoice template saved" });
@@ -284,7 +290,7 @@ export default function InvoiceTemplateEditor() {
   return (
     <div className="flex flex-col h-[calc(100vh-0px)]" style={{ minHeight: 0 }}>
       {/* ── Header bar ───────────────────────────────────────────────────────── */}
-      <div className="border-b bg-white px-4 py-3 flex items-center gap-4 shrink-0">
+      <div className="border-b bg-white px-4 py-3 flex flex-wrap items-center gap-3 shrink-0">
         <Link
           to="/settings"
           className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -293,14 +299,14 @@ export default function InvoiceTemplateEditor() {
           Back
         </Link>
 
-        <div className="flex-1 text-center">
+        <div className="order-3 basis-full sm:order-none sm:basis-auto sm:flex-1 text-center">
           <span className="font-black text-base">Invoice Template Editor</span>
           <span className="text-xs text-muted-foreground ml-3 font-medium">
             Drag to reposition · Resize from corners · Click to edit mapping
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-auto">
           <Button
             type="button"
             variant="outline"
@@ -325,10 +331,10 @@ export default function InvoiceTemplateEditor() {
       </div>
 
       {/* ── Main area ─────────────────────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-auto lg:overflow-hidden">
         {/* Canvas area */}
         <div
-          className="flex-1 overflow-auto bg-slate-100 p-8 flex justify-center items-start"
+            className="flex-1 min-h-[56vh] lg:min-h-0 overflow-auto bg-slate-100 p-4 sm:p-8 flex justify-center items-start"
           onClick={() => setSelectedId(null)}
         >
           <div
@@ -341,8 +347,24 @@ export default function InvoiceTemplateEditor() {
                 "0 0 0 1px rgba(0,0,0,0.06), 0 4px 24px rgba(0,0,0,0.10)",
               flexShrink: 0,
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
           >
+            {backgroundUrl && (
+              <img
+                src={backgroundUrl}
+                alt="Imported invoice artwork"
+                draggable={false}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "fill",
+                  pointerEvents: "none",
+                  userSelect: "none",
+                }}
+              />
+            )}
             {/* Empty state */}
             {blocks.length === 0 && (
               <div
@@ -421,7 +443,7 @@ export default function InvoiceTemplateEditor() {
                       ),
                     });
                   }}
-                  onClick={(e) => {
+                  onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
                     setSelectedId(block.id);
                   }}
@@ -475,7 +497,7 @@ export default function InvoiceTemplateEditor() {
         </div>
 
         {/* ── Controls panel ────────────────────────────────────────────────── */}
-        <div className="w-72 border-l bg-white overflow-y-auto shrink-0">
+        <div className="w-full lg:w-72 max-h-[60vh] lg:max-h-none border-t lg:border-t-0 lg:border-l bg-white overflow-y-auto shrink-0">
           {selectedBlock ? (
             <BlockControls
               block={selectedBlock}

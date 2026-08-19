@@ -8,7 +8,11 @@
  * This is the third document mode: "workrate" | "custom" | "imported".
  */
 
-import { TemplateBlock, FieldMapping, parseTemplateBlocks } from "@/types/template-blocks";
+import {
+  TemplateBlock,
+  FieldMapping,
+  parseImportedInvoiceTemplate,
+} from "@/types/template-blocks";
 import { InvoiceLine } from "./invoice-document";
 
 // A4 at 96 DPI
@@ -121,9 +125,10 @@ export function ImportedInvoiceDocument(props: ImportedInvoiceDocProps) {
     return (props.company as BrandingData) ?? {};
   })();
 
-  // Prefer snapshot template (historical), fall back to live company template
+  // Prefer snapshot template (historical), fall back to the live company template.
   const templateRaw = b.importedInvoiceTemplate ?? (props.company as any)?.importedInvoiceTemplate;
-  const blocks: TemplateBlock[] = parseTemplateBlocks(templateRaw);
+  const template = parseImportedInvoiceTemplate(templateRaw);
+  const blocks: TemplateBlock[] = template.blocks;
 
   if (blocks.length === 0) {
     return (
@@ -157,6 +162,21 @@ export function ImportedInvoiceDocument(props: ImportedInvoiceDocProps) {
         overflow: "hidden",
       }}
     >
+      {template.backgroundUrl && (
+        <img
+          src={template.backgroundUrl}
+          alt=""
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "fill",
+            pointerEvents: "none",
+          }}
+        />
+      )}
       {blocks.map((block) => {
         const style: React.CSSProperties = {
           position: "absolute",
@@ -166,6 +186,10 @@ export function ImportedInvoiceDocument(props: ImportedInvoiceDocProps) {
           height: `${block.h}%`,
           overflow: "hidden",
         };
+
+        // The original image already contains static artwork and labels. Only
+        // render live WorkRate data on top so it is never duplicated.
+        if (template.backgroundUrl && block.fieldMapping === "static") return null;
 
         if (block.fieldMapping === "logo") {
           const logoUrl = b.logoUrl ?? (props.company as any)?.logoUrl;
@@ -196,6 +220,7 @@ export function ImportedInvoiceDocument(props: ImportedInvoiceDocProps) {
             key={block.id}
             style={{
               ...style,
+              zIndex: 1,
               fontSize: block.fontSize ? `${block.fontSize}pt` : "10pt",
               fontWeight: block.fontWeight ?? "normal",
               textAlign: block.textAlign ?? "left",
@@ -203,6 +228,10 @@ export function ImportedInvoiceDocument(props: ImportedInvoiceDocProps) {
               lineHeight: 1.45,
               color: "#1e293b",
               padding: "1px 2px",
+              // Imported artwork contains the original invoice values. A soft
+              // mask keeps those values from showing through live content while
+              // retaining the rest of the original visual design.
+              backgroundColor: template.backgroundUrl ? "rgba(255,255,255,0.92)" : undefined,
             }}
           >
             {text}

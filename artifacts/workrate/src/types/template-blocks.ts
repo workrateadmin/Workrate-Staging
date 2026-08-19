@@ -1,7 +1,9 @@
 /**
  * Shared type definitions for imported invoice template blocks.
  *
- * Blocks are stored as a JSON array in companies.importedInvoiceTemplate.
+ * Templates are stored as JSON in companies.importedInvoiceTemplate. Legacy
+ * templates use a blocks array; current templates also retain the imported
+ * artwork as a background image for high-fidelity rendering.
  * All positions/sizes are expressed as percentages of the A4 page (0–100)
  * so the layout is resolution-independent across preview and print.
  *
@@ -96,13 +98,33 @@ export interface TemplateBlock {
   textAlign?: "left" | "center" | "right";
 }
 
-/** Parse importedInvoiceTemplate JSON safely */
-export function parseTemplateBlocks(raw: string | null | undefined): TemplateBlock[] {
-  if (!raw) return [];
+export interface ImportedInvoiceTemplate {
+  blocks: TemplateBlock[];
+  /** Original imported PDF/image rendered to a durable image URL. */
+  backgroundUrl?: string;
+}
+
+/** Parse importedInvoiceTemplate JSON safely, including legacy block arrays. */
+export function parseImportedInvoiceTemplate(
+  raw: string | null | undefined,
+): ImportedInvoiceTemplate {
+  if (!raw) return { blocks: [] };
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (Array.isArray(parsed)) return { blocks: parsed };
+    if (parsed && Array.isArray(parsed.blocks)) {
+      return {
+        blocks: parsed.blocks,
+        backgroundUrl: typeof parsed.backgroundUrl === "string" ? parsed.backgroundUrl : undefined,
+      };
+    }
   } catch {
-    return [];
+    // A malformed saved template should never prevent a user opening an invoice.
   }
+  return { blocks: [] };
+}
+
+/** Parse just the layout blocks, retained for existing callers. */
+export function parseTemplateBlocks(raw: string | null | undefined): TemplateBlock[] {
+  return parseImportedInvoiceTemplate(raw).blocks;
 }

@@ -517,8 +517,8 @@ function DocumentsBrandingCard() {
         const err = await res.json().catch(() => ({ error: "Upload failed" }));
         throw new Error((err as any).error ?? "Upload failed");
       }
-      const { blocks } = await res.json();
-      sessionStorage.setItem("importedBlocks", JSON.stringify(blocks));
+      const { blocks, backgroundUrl } = await res.json();
+      sessionStorage.setItem("importedBlocks", JSON.stringify({ blocks, backgroundUrl }));
       navigate("/settings/invoice-template-editor");
     } catch (err: any) {
       const msg = err?.message ?? "Import failed. Please try again.";
@@ -1289,7 +1289,7 @@ function DocumentsBrandingCard() {
             ) : (
               <div className="p-3 bg-secondary/30 border border-border/50 rounded-xl">
                 <p className="text-sm font-medium text-muted-foreground">
-                  Upload your existing invoice PDF or image. WorkRate will detect its layout with AI so you can drag, resize and label each field.
+                  Upload your existing invoice PDF or image. WorkRate preserves its visual artwork, then detects the live fields you can drag, resize and label.
                 </p>
               </div>
             )}
@@ -1337,7 +1337,7 @@ function DocumentsBrandingCard() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-1.5 font-medium">
-                PDF, PNG, or JPG — first page only. AI detects the layout automatically.
+                PDF, PNG, or JPG — first page only. Your original design stays as the template background.
               </p>
             </div>
 
