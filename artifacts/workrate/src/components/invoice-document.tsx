@@ -181,7 +181,7 @@ export function InvoiceDocument({
         {projectDescription && (
           <div className="px-10 py-4 border-b border-gray-100">
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Description</p>
-            <p className="text-sm text-gray-700">{projectDescription}</p>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{projectDescription}</p>
           </div>
         )}
 
@@ -201,7 +201,11 @@ export function InvoiceDocument({
               <tbody>
                 {lineItems!.map((line, i) => (
                   <tr key={line.id ?? i} className="border-b border-gray-100">
-                    <td className="py-2.5 pr-4 text-gray-800 font-medium">{line.description || <span className="italic text-gray-400">—</span>}</td>
+                    <td className="py-2.5 pr-4 text-gray-800 font-medium">
+                      {line.description
+                        ? <span className="whitespace-pre-wrap">{line.description}</span>
+                        : <span className="italic text-gray-400">—</span>}
+                    </td>
                     <td className="py-2.5 text-center text-gray-600">{line.quantity ?? "—"}</td>
                     <td className="py-2.5 text-gray-400 text-xs">{line.unit ?? "—"}</td>
                     <td className="py-2.5 text-right text-gray-600">{line.unitPrice != null ? fmt(line.unitPrice) : "—"}</td>

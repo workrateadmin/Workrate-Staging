@@ -381,8 +381,9 @@ export default function InvoiceEditor() {
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description / Reference</label>
-              <Input
-                className="h-10 font-medium"
+              <textarea
+                rows={3}
+                className="w-full min-h-[88px] resize-y border border-border/60 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background disabled:opacity-60 disabled:cursor-not-allowed"
                 placeholder="e.g. Kitchen refit — 14 Elm St"
                 value={projectDesc}
                 onChange={(e) => { setProjectDesc(e.target.value); setDirty(true); }}
@@ -418,7 +419,7 @@ export default function InvoiceEditor() {
                       : "bg-background text-muted-foreground border-border/60 hover:border-primary/30",
                   )}
                 >
-                  Itemised
+                  Line items
                 </button>
               </div>
             )}
@@ -426,15 +427,19 @@ export default function InvoiceEditor() {
             {/* Itemised: line items table */}
             {isItemised ? (
               <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium">
+                  Add each job or product as a separate line with its own quantity and price.
+                </p>
                 <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_3.5rem_3.5rem_5.5rem_5.5rem_2rem] gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1">
-                  <span>Description</span><span className="text-center">Qty</span><span>Unit</span>
+                  <span>Job / Product</span><span className="text-center">Qty</span><span>Unit</span>
                   <span className="text-right">Unit Price</span><span className="text-right">Total</span><span />
                 </div>
                 {lines.map((line, i) => (
-                  <div key={line.id} className="grid grid-cols-[minmax(0,1fr)_3.5rem_3.5rem_5.5rem_5.5rem_2rem] gap-2 items-center">
-                    <Input
-                      className="h-9 text-sm font-medium"
-                      placeholder="Description"
+                  <div key={line.id} className="grid grid-cols-[minmax(0,1fr)_3.5rem_3.5rem_5.5rem_5.5rem_2rem] gap-2 items-start">
+                    <textarea
+                      rows={2}
+                      className="min-h-9 resize-y border border-border/60 rounded-lg px-2.5 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background disabled:opacity-60 disabled:cursor-not-allowed"
+                      placeholder="Job or product description"
                       value={line.description}
                       onChange={(e) => updateLine(i, "description", e.target.value)}
                       disabled={isSent}
@@ -467,6 +472,8 @@ export default function InvoiceEditor() {
                     {!isSent && (
                       <button
                         onClick={() => removeLine(i)}
+                        aria-label={`Remove line ${i + 1}`}
+                        title={`Remove line ${i + 1}`}
                         className="h-9 w-9 flex items-center justify-center text-muted-foreground hover:text-destructive rounded-lg transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -479,7 +486,7 @@ export default function InvoiceEditor() {
                     onClick={addLine}
                     className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary transition-colors mt-1"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Add line
+                    <Plus className="w-3.5 h-3.5" /> Add job or product line
                   </button>
                 )}
               </div>

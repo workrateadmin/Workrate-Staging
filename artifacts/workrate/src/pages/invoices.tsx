@@ -255,8 +255,9 @@ export default function InvoicesPage() {
 
             <div>
               <label className="block text-sm font-bold mb-1.5">Description / Reference</label>
-              <Input
-                className="h-11 font-medium"
+              <textarea
+                rows={3}
+                className="w-full min-h-[88px] resize-y border border-border/60 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background"
                 placeholder="e.g. Kitchen refit — 14 Elm St"
                 value={form.projectDescription}
                 onChange={(e) => setForm((f) => ({ ...f, projectDescription: e.target.value }))}
