@@ -10,60 +10,9 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { getAuth } from "@clerk/express";
 import multer from "multer";
-import OpenAI from "openai";
 import { db, companiesTable } from "@workspace/db";
 import { eq, isNull } from "drizzle-orm";
 import { uploadBufferToStorage, storageServingUrl } from "../lib/storageUpload";
-
-// ── OpenAI extraction prompt for invoice layout analysis ──────────────────────
-const INVOICE_EXTRACTION_PROMPT = `You are an invoice layout extractor. Analyse the invoice image and extract its visual layout as a JSON object with a "blocks" array.
-
-Use a 0-100 coordinate space where (0,0) is the top-left corner and (100,100) is the bottom-right of the page.
-
-For each distinct visual element return an object:
-{
-  "id": "block_N",
-  "type": "text" | "image" | "table",
-  "x": <left edge % of page width, 0-100>,
-  "y": <top edge % of page height, 0-100>,
-  "w": <width % of page width, 0-100>,
-  "h": <height % of page height, 0-100>,
-  "content": "<detected text, or empty string for dynamic/image blocks>",
-  "fieldMapping": "<see values below>",
-  "fontSize": <estimated pt, integer>,
-  "fontWeight": "normal" | "bold",
-  "textAlign": "left" | "center" | "right"
-}
-
-fieldMapping values:
-- "businessName" — company/trade name (usually prominent near top)
-- "businessAddress" — company full address block
-- "businessPhone" — phone number
-- "businessEmail" — email address
-- "businessWebsite" — website URL
-- "logo" — company logo graphic (type must be "image")
-- "invoiceNumber" — invoice reference/ID
-- "invoiceDate" — invoice issue date
-- "dueDate" — payment due date
-- "customerDetails" — customer/client name and address
-- "projectDescription" — job description or project name
-- "lineItemsTable" — the line items table (type must be "table")
-- "subtotal" — subtotal amount before VAT
-- "vatAmount" — VAT or tax amount
-- "total" — grand total amount due
-- "bankDetails" — bank account/sort code/payment instructions
-- "paymentTerms" — payment terms text
-- "notes" — notes or instructions
-- "footer" — footer text at bottom of page
-- "static" — fixed labels ("Invoice Number:", "Date:", "To:", "VAT No:", column headers, decorative lines)
-
-Rules:
-- Group related text lines into one block (all address lines = one block)
-- Use "static" for labels/headers that never change between invoices
-- Subtotal, VAT, and total are separate blocks each
-- Line items table = one block with type "table"
-- Be generous with h (height) to avoid clipping multi-line text
-- Return only a JSON object { "blocks": [...] } — no markdown, no code fences`;
 
 const router: IRouter = Router();
 
@@ -199,85 +148,6 @@ router.post(
     } catch (err: any) {
       req.log?.error({ err }, "Template upload to object storage failed");
       res.status(500).json({ error: "Storage upload failed. Please try again." });
-    }
-  }
-);
-
-// ── Multer: invoice import image ──────────────────────────────────────────────
-const invoiceImportUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
-  fileFilter: (_req, _file, cb) => cb(null, true), // client validates type
-});
-
-// ── POST /uploads/import-invoice ──────────────────────────────────────────────
-// Client converts PDF→PNG before uploading (pdf.js in browser).
-// We send the PNG to gpt-4o vision and return detected layout blocks. The
-// original artwork is also stored so colours, logos, borders and type treatment
-// remain faithful when live invoice values are overlaid.
-router.post(
-  "/uploads/import-invoice",
-  requireAuth,
-  invoiceImportUpload.single("file"),
-  multerErrorHandler,
-  async (req: Request, res: Response): Promise<void> => {
-    const file = req.file;
-    if (!file) { res.status(400).json({ error: "No file provided" }); return; }
-
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      res.status(500).json({ error: "AI analysis not configured — OPENAI_API_KEY missing" });
-      return;
-    }
-
-    try {
-      const openai = new OpenAI({ apiKey });
-      const base64 = file.buffer.toString("base64");
-      const mimeType = file.mimetype.startsWith("image/") ? file.mimetype : "image/png";
-
-      req.log?.info({ bytes: file.size, mime: mimeType }, "Analysing invoice image with gpt-4o");
-
-      const aiResponse = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: INVOICE_EXTRACTION_PROMPT },
-              {
-                type: "image_url",
-                image_url: { url: `data:${mimeType};base64,${base64}`, detail: "high" },
-              },
-            ],
-          },
-        ],
-        response_format: { type: "json_object" },
-        max_tokens: 4096,
-      });
-
-      const content = aiResponse.choices[0].message.content ?? "{}";
-      let blocks: any[] = [];
-      try {
-        const parsed = JSON.parse(content);
-        blocks = Array.isArray(parsed) ? parsed : (parsed.blocks ?? []);
-      } catch {
-        req.log?.warn({ content }, "Failed to parse AI response as JSON");
-      }
-
-      // Ensure every block has a stable ID
-      blocks = blocks.map((b: any, i: number) => ({
-        ...b,
-        id: b.id ?? `block_${i + 1}`,
-      }));
-
-      const { objectPath } = await uploadBufferToStorage(file.buffer, mimeType);
-      const backgroundUrl = storageServingUrl(req, objectPath);
-
-      req.log?.info({ blockCount: blocks.length }, "Invoice layout extracted successfully");
-      res.json({ blocks, backgroundUrl });
-    } catch (err: any) {
-      req.log?.error({ err }, "Invoice import AI analysis failed");
-      res.status(500).json({ error: "AI analysis failed. Please try again." });
     }
   }
 );

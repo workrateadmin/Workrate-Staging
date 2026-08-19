@@ -210,6 +210,15 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    name: "0008_remove_imported_invoice_template",
+    sql: `
+      UPDATE "companies"
+      SET "document_mode" = 'workrate'
+      WHERE "document_mode" = 'imported';
+      ALTER TABLE "companies" DROP COLUMN IF EXISTS "imported_invoice_template";
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

@@ -15,7 +15,6 @@ import {
   Save, Building2, MapPin, PoundSterling, Brain, Users, Clock, Package, Wrench,
   TrendingUp, Sparkles, Code2, Copy, ExternalLink, CheckCheck, AlertTriangle,
   Palette, FileText, Upload, X, ImageIcon, CheckCircle2, Globe,
-  ScanLine, Wand2,
 } from "lucide-react";
 import { useState as useLocalState } from "react";
 import { z } from "zod";
@@ -23,7 +22,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { CustomerCommsCard } from "@/components/customer-comms-card";
-import { useLocation, Link } from "wouter";
 
 type FormValues = z.infer<typeof companySchema>;
 
@@ -463,10 +461,6 @@ function DocumentsBrandingCard() {
   const templateQuoteInputRef = useRef<HTMLInputElement>(null);
   const templateInvoiceInputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
-  const [, navigate] = useLocation();
-  const [importing, setImporting] = useLocalState(false);
-  const [importError, setImportError] = useLocalState<string | null>(null);
-  const importInputRef = useRef<HTMLInputElement>(null);
 
   const updateCompany = useUpdateCompany({
     mutation: {
@@ -480,58 +474,8 @@ function DocumentsBrandingCard() {
     },
   });
 
-  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImporting(true);
-    setImportError(null);
-    try {
-      let imageBlob: Blob;
-      if (file.type === "application/pdf") {
-        const pdfjsLib = await import("pdfjs-dist");
-        (pdfjsLib as any).GlobalWorkerOptions.workerSrc =
-          `https://unpkg.com/pdfjs-dist@${(pdfjsLib as any).version}/build/pdf.worker.min.mjs`;
-        const ab = await file.arrayBuffer();
-        const pdf = await (pdfjsLib as any).getDocument({ data: new Uint8Array(ab) }).promise;
-        const page = await pdf.getPage(1);
-        const vp = page.getViewport({ scale: 2.0 });
-        const canvas = document.createElement("canvas");
-        canvas.width = vp.width;
-        canvas.height = vp.height;
-        const ctx = canvas.getContext("2d")!;
-        await page.render({ canvasContext: ctx, viewport: vp }).promise;
-        imageBlob = await new Promise<Blob>((resolve) =>
-          canvas.toBlob((b) => resolve(b!), "image/png")
-        );
-      } else {
-        imageBlob = file;
-      }
-      const fd = new FormData();
-      fd.append("file", imageBlob, "invoice.png");
-      const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
-      const res = await fetch(`${base}/api/uploads/import-invoice`, {
-        method: "POST",
-        body: fd,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Upload failed" }));
-        throw new Error((err as any).error ?? "Upload failed");
-      }
-      const { blocks, backgroundUrl } = await res.json();
-      sessionStorage.setItem("importedBlocks", JSON.stringify({ blocks, backgroundUrl }));
-      navigate("/settings/invoice-template-editor");
-    } catch (err: any) {
-      const msg = err?.message ?? "Import failed. Please try again.";
-      setImportError(msg);
-      toast({ title: "Import failed", description: msg, variant: "destructive" });
-    } finally {
-      setImporting(false);
-      if (importInputRef.current) importInputRef.current.value = "";
-    }
-  }
-
   const brandingSchema = z.object({
-    documentMode: z.enum(["workrate", "custom", "imported"]),
+    documentMode: z.enum(["workrate", "custom"]),
     brandColourPrimary: z.string().optional().default("#1E293B"),
     brandColourSecondary: z.string().optional().default("#0d9488"),
     website: z.string().optional().default(""),
@@ -681,7 +625,7 @@ function DocumentsBrandingCard() {
         {/* ── Template Mode Toggle ────────────────────────────────────────── */}
         <div>
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Document template</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* WorkRate Template */}
             <button
               type="button"
@@ -738,33 +682,6 @@ function DocumentsBrandingCard() {
               )}
             </button>
 
-            {/* Imported Invoice Layout */}
-            <button
-              type="button"
-              onClick={() => form.setValue("documentMode", "imported")}
-              className={cn(
-                "relative rounded-2xl border-2 p-5 text-left transition-all",
-                documentMode === "imported"
-                  ? "border-primary bg-primary/5 shadow-md"
-                  : "border-border/50 hover:border-border bg-secondary/20"
-              )}
-            >
-              {documentMode === "imported" && (
-                <CheckCircle2 className="absolute top-3 right-3 w-4 h-4 text-primary" />
-              )}
-              <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center mb-3">
-                <ScanLine className="w-4 h-4 text-white" />
-              </div>
-              <p className="font-bold text-sm">Imported Layout</p>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Upload your existing invoice and AI will recreate it as an editable template.
-              </p>
-              {documentMode === "imported" && (
-                <span className="inline-block mt-2 text-[10px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full uppercase tracking-widest">
-                  Active
-                </span>
-              )}
-            </button>
           </div>
         </div>
 
@@ -1264,101 +1181,6 @@ function DocumentsBrandingCard() {
           </div>
         )}
 
-        {/* ── Imported invoice layout section ─────────────────────────────── */}
-        {documentMode === "imported" && (
-          <div className="space-y-5">
-            <div className="border-t border-border/40" />
-            <div className="flex items-center gap-2">
-              <ScanLine className="w-4 h-4 text-primary" />
-              <p className="font-bold text-sm">Imported Invoice Layout</p>
-            </div>
-
-            {(company as any)?.importedInvoiceTemplate ? (
-              <div className="flex items-start gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
-                <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-green-800">Invoice template saved</p>
-                  <p className="text-xs text-green-600 font-medium mt-0.5">All new invoices will use your imported layout</p>
-                </div>
-                <Link to="/settings/invoice-template-editor">
-                  <Button type="button" variant="outline" size="sm" className="text-xs rounded-xl shrink-0 font-bold">
-                    Edit Layout
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <div className="p-3 bg-secondary/30 border border-border/50 rounded-xl">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Upload your existing invoice PDF or image. WorkRate preserves its visual artwork, then detects the live fields you can drag, resize and label.
-                </p>
-              </div>
-            )}
-
-            <div>
-              <p className="text-xs font-bold text-muted-foreground mb-2">
-                {(company as any)?.importedInvoiceTemplate
-                  ? "Re-import a different invoice"
-                  : "Import your existing invoice"}
-              </p>
-              {importError && (
-                <p className="text-xs text-destructive font-semibold mb-2">{importError}</p>
-              )}
-              <div className="relative">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "w-full font-bold rounded-xl border-border/60",
-                    !importing && "pointer-events-none"
-                  )}
-                  disabled={importing}
-                >
-                  {importing ? (
-                    <>
-                      <Sparkles className="w-4 h-4 mr-2 animate-pulse text-primary" />
-                      Analysing with AI…
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="w-4 h-4 mr-2" />
-                      Import Invoice (PDF or Image)
-                    </>
-                  )}
-                </Button>
-                {!importing && (
-                  <input
-                    ref={importInputRef}
-                    type="file"
-                    accept=".pdf,image/png,image/jpeg,image/jpg,image/webp"
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    onChange={handleImport}
-                  />
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1.5 font-medium">
-                PDF, PNG, or JPG — first page only. Your original design stays as the template background.
-              </p>
-            </div>
-
-            {(company as any)?.importedInvoiceTemplate && (
-              <div className="flex justify-end pt-2">
-                <Button
-                  type="button"
-                  size="lg"
-                  className="font-bold shadow-xl h-14 px-10 text-base rounded-2xl"
-                  disabled={updateCompany.isPending}
-                  onClick={() =>
-                    updateCompany.mutate({ data: { documentMode: "imported" } as any })
-                  }
-                >
-                  <Save className="w-5 h-5 mr-3" />
-                  {updateCompany.isPending ? "Saving…" : "Save Template Choice"}
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
       </CardContent>
     </Card>
   );

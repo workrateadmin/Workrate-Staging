@@ -75,8 +75,6 @@ export interface Company {
   /** @nullable */
   invoiceTemplateUrl?: string | null;
   /** @nullable */
-  importedInvoiceTemplate?: string | null;
-  /** @nullable */
   widgetToken?: string | null;
   createdAt: Date;
   updatedAt: Date;

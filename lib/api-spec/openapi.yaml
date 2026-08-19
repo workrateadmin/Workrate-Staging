@@ -1349,8 +1349,6 @@ components:
           type: ["string", "null"]
         invoiceTemplateUrl:
           type: ["string", "null"]
-        importedInvoiceTemplate:
-          type: ["string", "null"]
         widgetToken:
           type: ["string", "null"]
         createdAt:
@@ -1446,8 +1444,6 @@ components:
           type: string
         proposalEmailEnabled:
           type: boolean
-        importedInvoiceTemplate:
-          type: string
 
     Enquiry:
       type: object

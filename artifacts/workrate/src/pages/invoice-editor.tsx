@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InvoiceDocument, InvoiceLine } from "@/components/invoice-document";
-import { ImportedInvoiceDocument } from "@/components/imported-invoice-document";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -609,13 +608,9 @@ export default function InvoiceEditor() {
             </div>
           )}
 
-          {/* Document preview — switches renderer based on documentMode */}
+          {/* Document preview — WorkRate controls the layout; branding applies within it. */}
           {(() => {
             const snap = (invoice as any).brandingSnapshot;
-            const mode = (() => {
-              try { return snap ? (JSON.parse(snap) as any).documentMode : null; } catch { return null; }
-            })() ?? (company as any)?.documentMode ?? "workrate";
-
             const docProps = {
               invoiceNumber: invoiceNumber || `INV-${id}`,
               invoiceDate: invoiceDate || "—",
@@ -633,9 +628,7 @@ export default function InvoiceEditor() {
               status: invoice.status,
             };
 
-            return mode === "imported"
-              ? <ImportedInvoiceDocument {...docProps} />
-              : <InvoiceDocument {...docProps} />;
+            return <InvoiceDocument {...docProps} />;
           })()}
         </div>
       </div>

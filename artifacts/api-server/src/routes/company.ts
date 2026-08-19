@@ -183,7 +183,6 @@ router.put("/company", requireAuth, async (req, res): Promise<void> => {
     ...(d.quoteFooter !== undefined && { quoteFooter: d.quoteFooter }),
     ...(d.invoiceFooter !== undefined && { invoiceFooter: d.invoiceFooter }),
     ...(d.documentMode !== undefined && { documentMode: d.documentMode }),
-    ...(d.importedInvoiceTemplate !== undefined && { importedInvoiceTemplate: d.importedInvoiceTemplate }),
     ...(d.defaultDepositType !== undefined && { defaultDepositType: d.defaultDepositType }),
     ...(d.defaultDepositPercent !== undefined && { defaultDepositPercent: d.defaultDepositPercent.toString() }),
     ...(d.defaultDepositFixed !== undefined && { defaultDepositFixed: d.defaultDepositFixed !== null ? d.defaultDepositFixed.toString() : null }),

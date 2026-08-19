@@ -1,20 +1,16 @@
 ---
 name: WorkRate Documents & Branding
-description: Architecture decisions for the Documents & Branding feature — template modes, branding snapshot, upload routes.
+description: Architecture decisions for WorkRate-controlled document layouts, branding snapshots, and durable uploads.
 ---
 
 # Documents & Branding Feature
 
 ## Template modes
-`companies.document_mode` supports `'workrate'` (default, professionally styled), `'custom'` (applies company branding settings), and `'imported'` for an invoice layout based on an existing document.
+`companies.document_mode` supports `'workrate'` (default, professionally styled) and `'custom'` (applies company branding settings).
 
-**Why:** New accounts should default to WorkRate with no setup, while established trades can retain their existing identity.
+**Why:** WorkRate owns the document layout while tradespeople retain their business identity through colours, logo, details, and footer content.
 
-**How to apply:** An imported invoice template must retain the source artwork as a durable background and place editable live fields over it. Reconstructing only AI-detected text blocks loses logos, colours, borders, and typography.
-
-The source artwork must itself be a selectable, draggable, and resizable editor layer — not a fixed background — while every detected live field remains independently movable.
-
-**Why:** A faithful import is only useful when tradespeople can adjust every visible layer to match their document.
+**How to apply:** Keep document renderers on the WorkRate layout. Only apply the custom-branding values when the selected mode is `'custom'`.
 
 ## Branding snapshot on send
 When a quote's status first changes to `'sent'` or `'accepted'`, the server snapshots the current company branding into `quotes.branding_snapshot` (JSON text). The `QuoteDocument` component reads this snapshot so historical quotes always render with the design they had at send time.
@@ -27,9 +23,9 @@ When a quote's status first changes to `'sent'` or `'accepted'`, the server snap
 `website`, `company_reg_number`, `vat_number`, `bank_payment_details`, `brand_colour_primary`, `brand_colour_secondary`, `payment_terms`, `terms_and_conditions`, `quote_footer`, `invoice_footer`, `document_mode`. Added in migration `0003_documents_branding`.
 
 ## File uploads
-`POST /api/uploads/logo` and `POST /api/uploads/template` store branding assets in GCS. Generic quote/invoice uploads remain references; the dedicated invoice-import flow retains the source image as the visual template background.
+`POST /api/uploads/logo` and `POST /api/uploads/template` store branding assets in GCS. Generic quote/invoice uploads remain reference files; WorkRate does not reproduce their layouts.
 
-**Why:** A visual reference alone cannot reproduce a client's established document identity accurately.
+**Why:** Durable upload storage still supports legitimate logo and reference-document branding features without changing the WorkRate-controlled document layout.
 
 ## Custom branding in QuoteDocument
 When `documentMode === 'custom'`:

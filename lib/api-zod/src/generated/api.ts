@@ -59,7 +59,6 @@ export const GetCompanyResponse = zod.object({
   "proposalEmailEnabled": zod.boolean().nullish(),
   "quoteTemplateUrl": zod.string().nullish(),
   "invoiceTemplateUrl": zod.string().nullish(),
-  "importedInvoiceTemplate": zod.string().nullish(),
   "widgetToken": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -104,8 +103,7 @@ export const UpdateCompanyBody = zod.object({
   "enquiryEmailEnabled": zod.boolean().optional(),
   "enquirySmsEnabled": zod.boolean().optional(),
   "enquiryConfirmationMessage": zod.string().optional(),
-  "proposalEmailEnabled": zod.boolean().optional(),
-  "importedInvoiceTemplate": zod.string().optional()
+  "proposalEmailEnabled": zod.boolean().optional()
 })
 
 export const UpdateCompanyResponse = zod.object({
@@ -147,7 +145,6 @@ export const UpdateCompanyResponse = zod.object({
   "proposalEmailEnabled": zod.boolean().nullish(),
   "quoteTemplateUrl": zod.string().nullish(),
   "invoiceTemplateUrl": zod.string().nullish(),
-  "importedInvoiceTemplate": zod.string().nullish(),
   "widgetToken": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
