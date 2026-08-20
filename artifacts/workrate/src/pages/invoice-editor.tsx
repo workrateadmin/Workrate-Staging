@@ -435,39 +435,59 @@ export default function InvoiceEditor() {
                   <span className="text-right">Unit Price</span><span className="text-right">Total</span><span />
                 </div>
                 {lines.map((line, i) => (
-                  <div key={line.id} className="grid grid-cols-[minmax(0,1fr)_3.5rem_3.5rem_5.5rem_5.5rem_2rem] gap-2 items-start">
+                  <div key={line.id} className="grid grid-cols-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_3.5rem_5.5rem_5.5rem_2rem] gap-2 items-start min-w-0">
                     <textarea
                       rows={2}
-                      className="min-h-9 resize-y border border-border/60 rounded-lg px-2.5 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="col-span-2 sm:col-span-1 min-w-0 min-h-9 resize-y border border-border/60 rounded-lg px-2.5 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background disabled:opacity-60 disabled:cursor-not-allowed"
                       placeholder="Job or product description"
                       value={line.description}
                       onChange={(e) => updateLine(i, "description", e.target.value)}
                       disabled={isSent}
                     />
-                    <Input
-                      type="number"
-                      className="h-9 text-sm text-center"
-                      value={String(line.quantity)}
-                      onChange={(e) => updateLine(i, "quantity", e.target.value)}
-                      disabled={isSent}
-                    />
-                    <Input
-                      className="h-9 text-xs"
-                      placeholder="each"
-                      value={line.unit}
-                      onChange={(e) => updateLine(i, "unit", e.target.value)}
-                      disabled={isSent}
-                    />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      className="h-9 text-sm text-right font-mono"
-                      value={String(line.unitPrice)}
-                      onChange={(e) => updateLine(i, "unitPrice", e.target.value)}
-                      disabled={isSent}
-                    />
-                    <div className="h-9 flex items-center justify-end text-sm font-semibold text-right px-2 bg-secondary/40 rounded-lg">
-                      £{Number(line.lineTotal).toFixed(2)}
+                    <div className="min-w-0">
+                      <span className="sm:hidden block mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Quantity
+                      </span>
+                      <Input
+                        type="number"
+                        className="h-9 text-sm text-center"
+                        value={String(line.quantity)}
+                        onChange={(e) => updateLine(i, "quantity", e.target.value)}
+                        disabled={isSent}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="sm:hidden block mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Unit
+                      </span>
+                      <Input
+                        className="h-9 text-xs"
+                        placeholder="each"
+                        value={line.unit}
+                        onChange={(e) => updateLine(i, "unit", e.target.value)}
+                        disabled={isSent}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="sm:hidden block mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Unit price
+                      </span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="h-9 text-sm text-right font-mono"
+                        value={String(line.unitPrice)}
+                        onChange={(e) => updateLine(i, "unitPrice", e.target.value)}
+                        disabled={isSent}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="sm:hidden block mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Total
+                      </span>
+                      <div className="h-9 flex items-center justify-end text-sm font-semibold text-right px-2 bg-secondary/40 rounded-lg">
+                        £{Number(line.lineTotal).toFixed(2)}
+                      </div>
                     </div>
                     {!isSent && (
                       <button
