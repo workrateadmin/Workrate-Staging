@@ -174,21 +174,6 @@ export default function JobDetail() {
     },
   });
 
-  if (isLoading || !job) {
-    return (
-      <div className="space-y-4 max-w-5xl mx-auto">
-        <Skeleton className="h-8 w-48 rounded-lg" />
-        <Skeleton className="h-64 w-full rounded-2xl" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Skeleton className="h-48 rounded-2xl lg:col-span-2" />
-          <Skeleton className="h-48 rounded-2xl" />
-        </div>
-      </div>
-    );
-  }
-
-  const currentStatus = statusVal ?? job.status;
-
   const handleSaveStatus = () => {
     if (!statusVal || statusVal === job.status) return;
     updateJob.mutate({ id, data: { status: statusVal } });
@@ -335,6 +320,21 @@ export default function JobDetail() {
     if (!job || !(job as any).completedAt) return;
     loadIntelligence();
   }, [id, job]);
+
+  if (isLoading || !job) {
+    return (
+      <div className="space-y-4 max-w-5xl mx-auto">
+        <Skeleton className="h-8 w-48 rounded-lg" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Skeleton className="h-48 rounded-2xl lg:col-span-2" />
+          <Skeleton className="h-48 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  const currentStatus = statusVal ?? job.status;
 
   const handleUploadDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
