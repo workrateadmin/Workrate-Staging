@@ -64,7 +64,7 @@ function getProposalBaseUrl(): string {
   if (configuredUrl) return configuredUrl.replace(/\/+$/, "");
 
   const devDomain = process.env.REPLIT_DEV_DOMAIN?.trim();
-  return devDomain ? `https://${devDomain}/workrate` : "";
+  return devDomain ? `https://${devDomain}` : "";
 }
 
 /** Calculate deposit amount from company settings and total */
