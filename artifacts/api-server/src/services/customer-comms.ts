@@ -322,7 +322,7 @@ export async function sendProposalEmail(
     totalWithVat: number;
     depositAmount: number | null;
     proposalToken: string;
-    proposalBaseUrl: string; // e.g. https://example.replit.app/workrate
+    proposalBaseUrl: string; // e.g. https://example.replit.app
   },
   company: CompanyBranding
 ): Promise<{ emailStatus: CommStatus; emailError?: string }> {

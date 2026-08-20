@@ -1,0 +1,85 @@
+BUG FIX — “VIEW PROPOSAL” LINK IN CUSTOMER EMAIL GOES TO A DUD REPLIT PAGE
+
+Current problem:
+
+The tradesperson creates a quote/proposal in WorkRate and sends it to the customer.
+
+The customer receives the proposal email successfully.
+
+But when the customer clicks:
+
+“View Proposal”
+
+the link does NOT open the actual public proposal.
+
+Instead, it opens a dud Replit page / incorrect destination.
+
+IMPORTANT:
+Do NOT redesign the proposal system.
+Do NOT change quote calculations.
+Do NOT change proposal acceptance logic.
+Do NOT touch production customer data except for safe testing.
+
+Trace the existing proposal email link end-to-end.
+
+Please check:
+
+1. Where the “View Proposal” URL is generated
+2. What base URL is being used
+3. Whether the production URL is being used:
+   https://work-rate-manager.replit.app
+4. Whether the proposal/public token is included correctly
+5. What the final customer-facing proposal URL should be
+6. Whether the frontend route for public proposals actually exists
+7. Whether the API/public proposal endpoint exists
+8. Whether the email is accidentally using:
+   - a Replit dev URL
+   - a Replit workspace URL
+   - an old preview URL
+   - an incorrect fallback URL
+   - a missing token
+9. Whether environment variables used for the public app/base URL are correct in PRODUCTION
+10. Whether the proposal token stored in the database matches the token in the email link
+
+Then identify the exact root cause.
+
+FIX:
+Make the smallest safe change so the email button always opens the correct public proposal page.
+
+The customer must NOT need to:
+- log into WorkRate
+- have a WorkRate account
+- see Replit
+- see a dev/preview environment
+
+Acceptance test:
+
+Use ONE safe test proposal in production.
+
+Test this exact flow:
+
+WorkRate quote
+→ send proposal email
+→ receive email
+→ click “View Proposal”
+→ public proposal opens
+→ correct business/customer/project details shown
+→ correct quote amount shown
+→ proposal acceptance works
+→ deposit/payment action still works if enabled
+
+Also test:
+- link works on desktop
+- link works on mobile
+- link works while logged OUT of WorkRate
+
+Before marking fixed, report:
+
+A. Exact bad URL currently being generated
+B. Exact correct URL format
+C. Root cause
+D. Files/config changed
+E. Full end-to-end test result
+
+Do not mark fixed just because the URL “looks right” in code.
+Actually send a test proposal email and click the real email button.

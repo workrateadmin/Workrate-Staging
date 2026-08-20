@@ -53,6 +53,20 @@ function generateProposalToken(): string {
   return randomBytes(20).toString("base64url");
 }
 
+/**
+ * Public URL used in customer proposal emails.
+ *
+ * A configured public URL must win over REPLIT_DEV_DOMAIN: the latter is only
+ * suitable for workspace previews and creates broken links in production email.
+ */
+function getProposalBaseUrl(): string {
+  const configuredUrl = process.env.PROPOSAL_BASE_URL?.trim();
+  if (configuredUrl) return configuredUrl.replace(/\/+$/, "");
+
+  const devDomain = process.env.REPLIT_DEV_DOMAIN?.trim();
+  return devDomain ? `https://${devDomain}/workrate` : "";
+}
+
 /** Calculate deposit amount from company settings and total */
 function calcDeposit(
   total: number,
@@ -394,11 +408,7 @@ router.post("/enquiries/:id/quote/approve-and-send", requireAuth, async (req, re
   // Send proposal email to customer (fire-and-forget — never fails the request)
   Promise.resolve().then(async () => {
     try {
-      // Derive proposal base URL from env (dev domain or configured domain)
-      const devDomain = process.env.REPLIT_DEV_DOMAIN;
-      const proposalBaseUrl = devDomain
-        ? `https://${devDomain}/workrate`
-        : (process.env.PROPOSAL_BASE_URL ?? "");
+      const proposalBaseUrl = getProposalBaseUrl();
 
       await sendProposalEmail(
         updated.id,
@@ -452,10 +462,7 @@ router.post("/enquiries/:id/quote/resend-proposal-email", requireAuth, async (re
     .where(eq(companiesTable.ownerUserId, userId!))
     .limit(1);
 
-  const devDomain = process.env.REPLIT_DEV_DOMAIN;
-  const proposalBaseUrl = devDomain
-    ? `https://${devDomain}/workrate`
-    : (process.env.PROPOSAL_BASE_URL ?? "");
+  const proposalBaseUrl = getProposalBaseUrl();
 
   // Clear previous error before resend
   await db.update(quotesTable)
