@@ -286,7 +286,8 @@ export default function InvoiceEditor() {
   }
 
   const isPaid = invoice.status === "paid";
-  const isSent = invoice.status === "sent" || isPaid;
+  const isSent = invoice.status === "sent";
+  const isReadOnly = isPaid;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -331,7 +332,7 @@ export default function InvoiceEditor() {
                   className="h-10 font-mono font-bold"
                   value={invoiceNumber}
                   onChange={(e) => { setInvoiceNumber(e.target.value); setDirty(true); }}
-                  disabled={isSent}
+                  disabled={isReadOnly}
                 />
               </div>
               <div className="space-y-1.5">
@@ -341,7 +342,7 @@ export default function InvoiceEditor() {
                   className="h-10 font-medium"
                   value={invoiceDate}
                   onChange={(e) => { setInvoiceDate(e.target.value); setDirty(true); }}
-                  disabled={isSent}
+                  disabled={isReadOnly}
                 />
               </div>
               <div className="col-span-2 space-y-1.5">
@@ -351,7 +352,7 @@ export default function InvoiceEditor() {
                   className="h-10 font-medium"
                   value={dueDate}
                   onChange={(e) => { setDueDate(e.target.value); setDirty(true); }}
-                  disabled={isSent}
+                  disabled={isReadOnly}
                 />
               </div>
             </div>
@@ -366,7 +367,7 @@ export default function InvoiceEditor() {
                 placeholder={"John Smith\n42 Oak Lane, Bristol, BS1 1AB"}
                 value={customerDetails}
                 onChange={(e) => { setCustomerDetails(e.target.value); setDirty(true); }}
-                disabled={isSent}
+                disabled={isReadOnly}
               />
             </div>
             <div className="space-y-1.5">
@@ -387,7 +388,7 @@ export default function InvoiceEditor() {
                 placeholder="e.g. Kitchen refit — 14 Elm St"
                 value={projectDesc}
                 onChange={(e) => { setProjectDesc(e.target.value); setDirty(true); }}
-                disabled={isSent}
+                disabled={isReadOnly}
               />
             </div>
           </SectionCard>
@@ -395,7 +396,7 @@ export default function InvoiceEditor() {
           {/* Line items / totals */}
           <SectionCard label="Charges">
             {/* Mode toggle */}
-            {!isSent && (
+            {!isReadOnly && (
               <div className="flex gap-2 mb-2">
                 <button
                   type="button"
@@ -442,7 +443,7 @@ export default function InvoiceEditor() {
                       placeholder="Job or product description"
                       value={line.description}
                       onChange={(e) => updateLine(i, "description", e.target.value)}
-                      disabled={isSent}
+                      disabled={isReadOnly}
                     />
                     <div className="min-w-0">
                       <span className="sm:hidden block mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -453,7 +454,7 @@ export default function InvoiceEditor() {
                         className="h-9 text-sm text-center"
                         value={String(line.quantity)}
                         onChange={(e) => updateLine(i, "quantity", e.target.value)}
-                        disabled={isSent}
+                        disabled={isReadOnly}
                       />
                     </div>
                     <div className="min-w-0">
@@ -465,7 +466,7 @@ export default function InvoiceEditor() {
                         placeholder="each"
                         value={line.unit}
                         onChange={(e) => updateLine(i, "unit", e.target.value)}
-                        disabled={isSent}
+                        disabled={isReadOnly}
                       />
                     </div>
                     <div className="min-w-0">
@@ -478,7 +479,7 @@ export default function InvoiceEditor() {
                         className="h-9 text-sm text-right font-mono"
                         value={String(line.unitPrice)}
                         onChange={(e) => updateLine(i, "unitPrice", e.target.value)}
-                        disabled={isSent}
+                        disabled={isReadOnly}
                       />
                     </div>
                     <div className="min-w-0">
@@ -489,7 +490,7 @@ export default function InvoiceEditor() {
                         £{Number(line.lineTotal).toFixed(2)}
                       </div>
                     </div>
-                    {!isSent && (
+                    {!isReadOnly && (
                       <button
                         onClick={() => removeLine(i)}
                         aria-label={`Remove line ${i + 1}`}
@@ -501,7 +502,7 @@ export default function InvoiceEditor() {
                     )}
                   </div>
                 ))}
-                {!isSent && (
+                {!isReadOnly && (
                   <button
                     onClick={addLine}
                     className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary transition-colors mt-1"
@@ -522,7 +523,7 @@ export default function InvoiceEditor() {
                   className="h-11 font-mono font-bold text-lg"
                   value={simpleTotal || ""}
                   onChange={(e) => { setSimpleTotal(Number(e.target.value) || 0); setDirty(true); }}
-                  disabled={isSent}
+                  disabled={isReadOnly}
                 />
               </div>
             )}
@@ -535,7 +536,7 @@ export default function InvoiceEditor() {
                   <button
                     key={opt.value}
                     type="button"
-                    disabled={isSent}
+                    disabled={isReadOnly}
                     onClick={() => { setVatRate(opt.value); setDirty(true); }}
                     className={cn(
                       "flex-1 py-2 rounded-xl text-xs font-bold border transition-all",
@@ -571,6 +572,7 @@ export default function InvoiceEditor() {
               placeholder="Any additional notes for the customer…"
               value={notes}
               onChange={(e) => { setNotes(e.target.value); setDirty(true); }}
+              disabled={isReadOnly}
             />
           </SectionCard>
 
