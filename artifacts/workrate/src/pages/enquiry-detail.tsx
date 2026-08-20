@@ -360,13 +360,15 @@ export default function EnquiryDetail() {
               ) : quote ? (
                 <div className="space-y-4">
                   <div className="text-center p-6 bg-secondary/50 rounded-xl border border-border/50 shadow-inner">
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Estimated Total</p>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Customer Proposal Total</p>
                     <p className="text-4xl font-black text-foreground tracking-tight">{formatCurrency(quote.totalWithVat || 0)}</p>
-                    <div className="flex items-center justify-center gap-4 mt-4 text-sm font-semibold text-muted-foreground bg-background px-3 py-1.5 rounded-md border border-border/40 inline-flex mx-auto">
-                      <span>Mats: {formatCurrency(quote.materialsAllowance || 0)}</span>
+                    <p className="mt-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Internal estimate breakdown</p>
+                    <div className="flex items-center justify-center gap-4 mt-2 text-sm font-semibold text-muted-foreground bg-background px-3 py-1.5 rounded-md border border-border/40 inline-flex mx-auto">
+                      <span>Materials allowance: {formatCurrency(quote.materialsAllowance || 0)}</span>
                       <span className="w-1.5 h-1.5 rounded-full bg-border" />
-                      <span>Lab: {formatCurrency(quote.labourAllowance || 0)}</span>
+                      <span>Labour allowance: {formatCurrency(quote.labourAllowance || 0)}</span>
                     </div>
+                    <p className="mt-2 text-xs font-medium text-muted-foreground">Visible to your team only — customers see the total and payment schedule.</p>
                     {quote.status && (
                       <div className="mt-3 flex justify-center">
                         <span className={cn(

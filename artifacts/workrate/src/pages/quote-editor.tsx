@@ -438,7 +438,7 @@ export default function QuoteEditor() {
               </SectionCard>
 
               {/* Financials */}
-              <SectionCard label="Financial Breakdown">
+              <SectionCard label="Internal Cost Breakdown">
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
@@ -446,7 +446,7 @@ export default function QuoteEditor() {
                       name="materialsAllowance"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="field-label">Materials (£)</FormLabel>
+                          <FormLabel className="field-label">Materials Allowance (£)</FormLabel>
                           <FormControl>
                             <div className="relative">
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm">£</span>
@@ -468,7 +468,7 @@ export default function QuoteEditor() {
                       name="labourAllowance"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="field-label">Labour (£)</FormLabel>
+                          <FormLabel className="field-label">Labour Allowance (£)</FormLabel>
                           <FormControl>
                             <div className="relative">
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm">£</span>
@@ -512,8 +512,8 @@ export default function QuoteEditor() {
                   {/* Live totals */}
                   <div className="bg-secondary/50 rounded-xl border border-border/40 p-4 space-y-2">
                     {[
-                      { label: "Materials", value: materials },
-                      { label: "Labour", value: labour },
+                      { label: "Materials Allowance", value: materials },
+                      { label: "Labour Allowance", value: labour },
                     ].map(({ label, value }) => (
                       <div key={label} className="flex justify-between text-sm font-semibold text-muted-foreground">
                         <span>{label}</span>
@@ -613,12 +613,11 @@ export default function QuoteEditor() {
             brandingSnapshot={(quote as any).brandingSnapshot}
             customerDetails={form.watch("customerDetails") ?? ""}
             projectDescription={form.watch("projectDescription") ?? ""}
-            materials={materials}
-            labour={labour}
-            subtotal={subtotal}
-            vatRate={vatRate}
-            vatAmount={vatAmount}
             total={total}
+            depositType={(quote as any).depositType ?? null}
+            depositPercent={(quote as any).depositPercent != null ? Number((quote as any).depositPercent) : null}
+            depositAmount={(quote as any).depositAmount != null ? Number((quote as any).depositAmount) : null}
+            remainingBalance={(quote as any).remainingBalance != null ? Number((quote as any).remainingBalance) : null}
             notes={form.watch("notes") ?? ""}
             assumptions={form.watch("assumptions") ?? ""}
             status={form.watch("status") ?? "draft"}
@@ -749,12 +748,11 @@ export default function QuoteEditor() {
         quoteRef={`ENQ-${id}`}
         customerDetails={form.watch("customerDetails") ?? ""}
         projectDescription={form.watch("projectDescription") ?? ""}
-        materials={materials}
-        labour={labour}
-        subtotal={subtotal}
-        vatRate={vatRate}
-        vatAmount={vatAmount}
         total={total}
+        depositType={(quote as any).depositType ?? null}
+        depositPercent={(quote as any).depositPercent != null ? Number((quote as any).depositPercent) : null}
+        depositAmount={(quote as any).depositAmount != null ? Number((quote as any).depositAmount) : null}
+        remainingBalance={(quote as any).remainingBalance != null ? Number((quote as any).remainingBalance) : null}
         notes={form.watch("notes") ?? ""}
         assumptions={form.watch("assumptions") ?? ""}
         isSent={isSent}
@@ -773,12 +771,11 @@ interface SendDialogProps {
   quoteRef: string;
   customerDetails: string;
   projectDescription: string;
-  materials: number;
-  labour: number;
-  subtotal: number;
-  vatRate: number;
-  vatAmount: number;
   total: number;
+  depositType: string | null;
+  depositPercent: number | null;
+  depositAmount: number | null;
+  remainingBalance: number | null;
   notes: string;
   assumptions: string;
   isSent: boolean;
@@ -793,12 +790,11 @@ function SendQuoteDialog({
   quoteRef,
   customerDetails,
   projectDescription,
-  materials,
-  labour,
-  subtotal,
-  vatRate,
-  vatAmount,
   total,
+  depositType,
+  depositPercent,
+  depositAmount,
+  remainingBalance,
   notes,
   assumptions,
   isSent,
@@ -832,13 +828,16 @@ function SendQuoteDialog({
       lines.push(projectDescription);
     }
     lines.push("");
-    lines.push("COST BREAKDOWN");
-    lines.push(`Materials: ${formatCurrency(materials)}`);
-    lines.push(`Labour:    ${formatCurrency(labour)}`);
-    lines.push(`Subtotal:  ${formatCurrency(subtotal)}`);
-    lines.push(`VAT (${vatRate}%): ${formatCurrency(vatAmount)}`);
-    lines.push(`─────────────────────────`);
-    lines.push(`TOTAL (inc. VAT): ${formatCurrency(total)}`);
+    lines.push(`PROJECT TOTAL: ${formatCurrency(total)}`);
+    if (depositAmount != null && depositAmount > 0) {
+      const depositLabel = depositType === "percentage" && depositPercent
+        ? `Deposit due on acceptance (${depositPercent}%)`
+        : "Deposit due on acceptance";
+      lines.push("");
+      lines.push("PAYMENT SCHEDULE");
+      lines.push(`${depositLabel}: ${formatCurrency(depositAmount)}`);
+      lines.push(`Remaining balance due on completion: ${formatCurrency(remainingBalance ?? Math.max(0, total - depositAmount))}`);
+    }
     if (notes) {
       lines.push("");
       lines.push("NOTES");
@@ -1003,12 +1002,11 @@ interface DocProps {
   brandingSnapshot?: string | null;
   customerDetails: string;
   projectDescription: string;
-  materials: number;
-  labour: number;
-  subtotal: number;
-  vatRate: number;
-  vatAmount: number;
   total: number;
+  depositType: string | null;
+  depositPercent: number | null;
+  depositAmount: number | null;
+  remainingBalance: number | null;
   notes: string;
   assumptions: string;
   status: string;
@@ -1021,12 +1019,11 @@ function QuoteDocument({
   brandingSnapshot,
   customerDetails,
   projectDescription,
-  materials,
-  labour,
-  subtotal,
-  vatRate,
-  vatAmount,
   total,
+  depositType,
+  depositPercent,
+  depositAmount,
+  remainingBalance,
   notes,
   assumptions,
   status,
@@ -1063,6 +1060,11 @@ function QuoteDocument({
   const footerText = isCustom && b.quoteFooter
     ? b.quoteFooter
     : "This quotation is valid for 30 days from the date of issue. All prices are in GBP.";
+  const hasDeposit = depositAmount != null && depositAmount > 0;
+  const depositLabel = depositType === "percentage" && depositPercent
+    ? `Deposit due on acceptance (${depositPercent}%)`
+    : "Deposit due on acceptance";
+  const remaining = remainingBalance ?? (hasDeposit ? Math.max(0, total - (depositAmount ?? 0)) : 0);
 
   return (
     <div className="print-doc">
@@ -1163,43 +1165,36 @@ function QuoteDocument({
             </div>
           )}
 
-          {/* ── Cost Breakdown ───────────────────────────────────────── */}
+          {/* ── Customer-facing proposal total ───────────────────────── */}
           <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Cost Breakdown</p>
-            <div className="border border-gray-200 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="text-left px-5 py-3 font-bold text-gray-600 text-xs uppercase tracking-widest">Item</th>
-                    <th className="text-right px-5 py-3 font-bold text-gray-600 text-xs uppercase tracking-widest">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <CostRow label="Materials Allowance" value={materials} />
-                  <CostRow label="Labour Allowance" value={labour} />
-                  <tr className="border-t border-gray-200 bg-gray-50/50">
-                    <td className="px-5 py-3 text-gray-600 font-semibold">Subtotal (ex. VAT)</td>
-                    <td className="px-5 py-3 text-right font-bold text-gray-900">{formatCurrency(subtotal)}</td>
-                  </tr>
-                  <tr>
-                    <td className="px-5 py-3 text-gray-600 font-semibold">VAT ({vatRate}%)</td>
-                    <td className="px-5 py-3 text-right font-bold text-gray-900">{formatCurrency(vatAmount)}</td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr style={{ backgroundColor: headerBg }}>
-                    <td className={`px-5 py-4 font-black text-sm uppercase tracking-wide ${headerTextClass}`}>Total (inc. VAT)</td>
-                    <td
-                      className="px-5 py-4 text-right font-black text-xl"
-                      style={{ color: isLight(headerBg) ? accentColour : "#2dd4bf" }}
-                    >
-                      {formatCurrency(total)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Project Total</p>
+            <div className="rounded-xl px-5 py-5 flex items-center justify-between gap-6" style={{ backgroundColor: headerBg }}>
+              <p className={`font-black text-sm uppercase tracking-wide ${headerTextClass}`}>Total (inc. VAT)</p>
+              <p
+                className="text-right font-black text-2xl"
+                style={{ color: isLight(headerBg) ? accentColour : "#2dd4bf" }}
+              >
+                {formatCurrency(total)}
+              </p>
             </div>
           </div>
+
+          {/* ── Payment schedule ─────────────────────────────────────── */}
+          {hasDeposit && (
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Payment Schedule</p>
+              <div className="border border-gray-200 rounded-xl overflow-hidden text-sm">
+                <div className="px-5 py-3 flex items-center justify-between gap-4 border-b border-gray-100">
+                  <span className="font-semibold text-gray-700">{depositLabel}</span>
+                  <span className="font-black text-gray-900">{formatCurrency(depositAmount ?? 0)}</span>
+                </div>
+                <div className="px-5 py-3 flex items-center justify-between gap-4">
+                  <span className="font-semibold text-gray-700">Remaining balance due on completion</span>
+                  <span className="font-black text-gray-900">{formatCurrency(remaining)}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── Notes ────────────────────────────────────────────────── */}
           {notes && (
@@ -1227,16 +1222,6 @@ function QuoteDocument({
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Payment Terms</p>
               <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4">
                 <p className="text-sm text-gray-700 leading-relaxed">{b.paymentTerms}</p>
-              </div>
-            </div>
-          )}
-
-          {/* ── Bank / Payment Details (custom branding) ─────────────── */}
-          {isCustom && b.bankPaymentDetails && (
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Bank &amp; Payment Details</p>
-              <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4">
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line font-medium">{b.bankPaymentDetails}</p>
               </div>
             </div>
           )}
@@ -1279,14 +1264,5 @@ function QuoteDocument({
         </div>
       </div>
     </div>
-  );
-}
-
-function CostRow({ label, value }: { label: string; value: number }) {
-  return (
-    <tr className="border-b border-gray-100">
-      <td className="px-5 py-3 text-gray-700 font-medium">{label}</td>
-      <td className="px-5 py-3 text-right font-semibold text-gray-900">{formatCurrency(value)}</td>
-    </tr>
   );
 }

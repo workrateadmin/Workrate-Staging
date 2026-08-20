@@ -402,6 +402,9 @@ export type ProposalCompany = {
   depositPaymentInstructions?: string | null;
 };
 
+/**
+ * Customer-safe public proposal. Internal estimating breakdowns are never returned.
+ */
 export interface Proposal {
   id: number;
   enquiryId: number;
@@ -409,10 +412,6 @@ export interface Proposal {
   customerDetails?: string | null;
   /** @nullable */
   projectDescription?: string | null;
-  materialsAllowance: number;
-  labourAllowance: number;
-  estimatedTotal: number;
-  vatAmount: number;
   totalWithVat: number;
   /** @nullable */
   notes?: string | null;
@@ -430,13 +429,13 @@ export interface Proposal {
   /** @nullable */
   remainingBalance?: number | null;
   /** @nullable */
+  depositPaidAt?: string | null;
+  /** @nullable */
+  depositPaidAmount?: number | null;
+  /** @nullable */
   acceptedAt?: string | null;
   /** @nullable */
-  acceptedByName?: string | null;
-  /** @nullable */
   viewedAt?: string | null;
-  /** @nullable */
-  customerQuestion?: string | null;
   company?: ProposalCompany;
   createdAt: string;
 }

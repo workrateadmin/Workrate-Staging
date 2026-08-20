@@ -8,19 +8,55 @@ import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-function parseQuoteNumerics(q: any) {
+/**
+ * Proposal links are intentionally public. Keep their response allow-listed so
+ * internal estimating data can never leak through a newly-added quote column.
+ */
+function toPublicProposal(quote: any, company?: any) {
+  const paymentStepAvailable = ["accepted", "deposit_awaiting_payment", "deposit_paid"]
+    .includes(quote.proposalStatus);
+
+  const publicCompany = company
+    ? {
+        name: company.name,
+        logoUrl: company.logoUrl ?? null,
+        email: company.email ?? null,
+        phone: company.phone ?? null,
+        address: company.address ?? null,
+        website: company.website ?? null,
+        vatNumber: company.vatNumber ?? null,
+        brandColourPrimary: company.brandColourPrimary ?? null,
+        paymentTerms: company.paymentTerms ?? null,
+        termsAndConditions: company.termsAndConditions ?? null,
+        ...(paymentStepAvailable
+          ? {
+              bankPaymentDetails: company.bankPaymentDetails ?? null,
+              depositPaymentInstructions: company.depositPaymentInstructions ?? null,
+            }
+          : {}),
+      }
+    : undefined;
+
   return {
-    ...q,
-    materialsAllowance: Number(q.materialsAllowance ?? 0),
-    labourAllowance: Number(q.labourAllowance ?? 0),
-    estimatedTotal: Number(q.estimatedTotal ?? 0),
-    vatAmount: Number(q.vatAmount ?? 0),
-    totalWithVat: Number(q.totalWithVat ?? 0),
-    depositPercent: q.depositPercent != null ? Number(q.depositPercent) : null,
-    depositFixed: q.depositFixed != null ? Number(q.depositFixed) : null,
-    depositAmount: q.depositAmount != null ? Number(q.depositAmount) : null,
-    remainingBalance: q.remainingBalance != null ? Number(q.remainingBalance) : null,
-    depositPaidAmount: q.depositPaidAmount != null ? Number(q.depositPaidAmount) : null,
+    id: quote.id,
+    enquiryId: quote.enquiryId,
+    customerDetails: quote.customerDetails ?? null,
+    projectDescription: quote.projectDescription ?? null,
+    totalWithVat: Number(quote.totalWithVat ?? 0),
+    notes: quote.notes ?? null,
+    assumptions: quote.assumptions ?? null,
+    proposalStatus: quote.proposalStatus,
+    depositType: quote.depositType ?? null,
+    depositPercent: quote.depositPercent != null ? Number(quote.depositPercent) : null,
+    depositFixed: quote.depositFixed != null ? Number(quote.depositFixed) : null,
+    depositAmount: quote.depositAmount != null ? Number(quote.depositAmount) : null,
+    remainingBalance: quote.remainingBalance != null ? Number(quote.remainingBalance) : null,
+    depositPaidAt: quote.depositPaidAt ?? null,
+    depositPaidAmount: quote.depositPaidAmount != null ? Number(quote.depositPaidAmount) : null,
+    acceptedAt: quote.acceptedAt ?? null,
+    viewedAt: quote.viewedAt ?? null,
+    createdAt: quote.createdAt,
+    ...(publicCompany ? { company: publicCompany } : {}),
   };
 }
 
@@ -41,6 +77,11 @@ router.get("/proposals/:token", async (req, res): Promise<void> => {
   // Only expose proposals that have been approved/sent
   const visibleStatuses = ["sent", "viewed", "accepted", "deposit_awaiting_payment", "deposit_paid", "declined"];
   if (!visibleStatuses.includes(quote.proposalStatus)) {
+    res.status(404).json({ error: "Proposal not found" });
+    return;
+  }
+  if (quote.enquiryId == null) {
+    req.log.warn({ quoteId: quote.id }, "Public proposal is missing an enquiry");
     res.status(404).json({ error: "Proposal not found" });
     return;
   }
@@ -80,24 +121,7 @@ router.get("/proposals/:token", async (req, res): Promise<void> => {
     }
   }
 
-  const paymentStepAvailable = ["accepted", "deposit_awaiting_payment", "deposit_paid"]
-    .includes(quote.proposalStatus);
-  if (!paymentStepAvailable) {
-    const { bankPaymentDetails, depositPaymentInstructions, ...publicCompanyData } = companyData;
-    companyData = publicCompanyData;
-  }
-
-  const parsed = parseQuoteNumerics(quote);
-
-  res.json({
-    ...parsed,
-    company: companyData,
-    // Don't expose internal fields
-    proposalToken: undefined,
-    brandingSnapshot: undefined,
-    ownerUserId: undefined,
-    acceptanceSnapshot: undefined,
-  });
+  res.json(toPublicProposal(quote, companyData));
 });
 
 /** POST /proposals/:token/view — record first view */
@@ -155,6 +179,12 @@ router.post("/proposals/:token/respond", async (req, res): Promise<void> => {
   const updates: Record<string, any> = {};
 
   if (action === "accept") {
+    if (quote.enquiryId == null) {
+      req.log.warn({ quoteId: quote.id }, "Proposal acceptance attempted without an enquiry");
+      res.status(400).json({ error: "This proposal cannot be accepted" });
+      return;
+    }
+
     updates.proposalStatus = "accepted";
     updates.status = "accepted";
     updates.acceptedAt = now;
@@ -196,7 +226,8 @@ router.post("/proposals/:token/respond", async (req, res): Promise<void> => {
     .where(eq(quotesTable.proposalToken, token))
     .returning();
 
-  res.json(parseQuoteNumerics(updated));
+  // Do not return the full updated database row: this endpoint is public too.
+  res.json(toPublicProposal(updated));
 });
 
 export default router;

@@ -1881,6 +1881,7 @@ components:
 
     Proposal:
       type: object
+      description: Customer-safe public proposal. Internal estimating breakdowns are never returned.
       properties:
         id:
           type: number
@@ -1890,14 +1891,6 @@ components:
           type: ["string", "null"]
         projectDescription:
           type: ["string", "null"]
-        materialsAllowance:
-          type: number
-        labourAllowance:
-          type: number
-        estimatedTotal:
-          type: number
-        vatAmount:
-          type: number
         totalWithVat:
           type: number
         notes:
@@ -1916,16 +1909,17 @@ components:
           type: ["number", "null"]
         remainingBalance:
           type: ["number", "null"]
+        depositPaidAt:
+          type: ["string", "null"]
+          format: date-time
+        depositPaidAmount:
+          type: ["number", "null"]
         acceptedAt:
           type: ["string", "null"]
           format: date-time
-        acceptedByName:
-          type: ["string", "null"]
         viewedAt:
           type: ["string", "null"]
           format: date-time
-        customerQuestion:
-          type: ["string", "null"]
         company:
           type: object
           properties:
@@ -1960,10 +1954,6 @@ components:
       required:
         - id
         - enquiryId
-        - materialsAllowance
-        - labourAllowance
-        - estimatedTotal
-        - vatAmount
         - totalWithVat
         - proposalStatus
         - createdAt

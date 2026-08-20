@@ -421,10 +421,6 @@ export const GetProposalResponse = zod.object({
   "enquiryId": zod.number(),
   "customerDetails": zod.string().nullish(),
   "projectDescription": zod.string().nullish(),
-  "materialsAllowance": zod.number(),
-  "labourAllowance": zod.number(),
-  "estimatedTotal": zod.number(),
-  "vatAmount": zod.number(),
   "totalWithVat": zod.number(),
   "notes": zod.string().nullish(),
   "assumptions": zod.string().nullish(),
@@ -434,10 +430,10 @@ export const GetProposalResponse = zod.object({
   "depositFixed": zod.number().nullish(),
   "depositAmount": zod.number().nullish(),
   "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
   "acceptedAt": zod.coerce.date().nullish(),
-  "acceptedByName": zod.string().nullish(),
   "viewedAt": zod.coerce.date().nullish(),
-  "customerQuestion": zod.string().nullish(),
   "company": zod.object({
   "name": zod.string(),
   "logoUrl": zod.string().nullish(),
@@ -453,7 +449,7 @@ export const GetProposalResponse = zod.object({
   "depositPaymentInstructions": zod.string().nullish()
 }).optional(),
   "createdAt": zod.coerce.date()
-})
+}).describe('Customer-safe public proposal. Internal estimating breakdowns are never returned.')
 
 
 /**
@@ -487,10 +483,6 @@ export const RespondToProposalResponse = zod.object({
   "enquiryId": zod.number(),
   "customerDetails": zod.string().nullish(),
   "projectDescription": zod.string().nullish(),
-  "materialsAllowance": zod.number(),
-  "labourAllowance": zod.number(),
-  "estimatedTotal": zod.number(),
-  "vatAmount": zod.number(),
   "totalWithVat": zod.number(),
   "notes": zod.string().nullish(),
   "assumptions": zod.string().nullish(),
@@ -500,10 +492,10 @@ export const RespondToProposalResponse = zod.object({
   "depositFixed": zod.number().nullish(),
   "depositAmount": zod.number().nullish(),
   "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
   "acceptedAt": zod.coerce.date().nullish(),
-  "acceptedByName": zod.string().nullish(),
   "viewedAt": zod.coerce.date().nullish(),
-  "customerQuestion": zod.string().nullish(),
   "company": zod.object({
   "name": zod.string(),
   "logoUrl": zod.string().nullish(),
@@ -519,7 +511,7 @@ export const RespondToProposalResponse = zod.object({
   "depositPaymentInstructions": zod.string().nullish()
 }).optional(),
   "createdAt": zod.coerce.date()
-})
+}).describe('Customer-safe public proposal. Internal estimating breakdowns are never returned.')
 
 
 /**

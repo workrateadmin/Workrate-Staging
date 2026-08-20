@@ -25,10 +25,6 @@ type ProposalData = {
   enquiryId: number;
   customerDetails?: string | null;
   projectDescription?: string | null;
-  materialsAllowance: number;
-  labourAllowance: number;
-  estimatedTotal: number;
-  vatAmount: number;
   totalWithVat: number;
   notes?: string | null;
   assumptions?: string | null;
@@ -170,7 +166,6 @@ export default function ProposalPage() {
     );
   }
 
-  const subtotal = proposal.materialsAllowance + proposal.labourAllowance;
   const depositAmt = proposal.depositAmount ?? 0;
   const remaining = proposal.remainingBalance ?? (proposal.totalWithVat - depositAmt);
   const hasDeposit = proposal.depositType !== "none" && depositAmt > 0;
@@ -419,48 +414,21 @@ export default function ProposalPage() {
           </div>
         </div>
 
-        {/* Line items */}
+        {/* Proposal total */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           <div className="px-8 py-5 border-b border-gray-100">
-            <h2 className="text-lg font-black text-gray-900">Scope of Works &amp; Pricing</h2>
+            <h2 className="text-lg font-black text-gray-900">Project Total</h2>
           </div>
           <div className="px-8 py-6">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left font-bold text-gray-500 uppercase tracking-wider text-xs pb-3">Description</th>
-                  <th className="text-right font-bold text-gray-500 uppercase tracking-wider text-xs pb-3">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-gray-50">
-                  <td className="py-4 font-semibold text-gray-800">Materials Allowance</td>
-                  <td className="py-4 text-right font-bold text-gray-900">{formatCurrency(proposal.materialsAllowance)}</td>
-                </tr>
-                <tr className="border-b border-gray-50">
-                  <td className="py-4 font-semibold text-gray-800">Labour</td>
-                  <td className="py-4 text-right font-bold text-gray-900">{formatCurrency(proposal.labourAllowance)}</td>
-                </tr>
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-gray-200">
-                  <td className="py-3 text-sm font-semibold text-gray-500">Subtotal</td>
-                  <td className="py-3 text-right font-bold text-gray-700">{formatCurrency(subtotal)}</td>
-                </tr>
-                {proposal.vatAmount > 0 && (
-                  <tr>
-                    <td className="py-2 text-sm font-semibold text-gray-500">VAT</td>
-                    <td className="py-2 text-right font-bold text-gray-700">{formatCurrency(proposal.vatAmount)}</td>
-                  </tr>
-                )}
-                <tr>
-                  <td className="pt-4 pb-2 text-xl font-black text-gray-900">Total</td>
-                  <td className="pt-4 pb-2 text-right text-2xl font-black" style={{ color: primaryColor }}>
-                    {formatCurrency(proposal.totalWithVat)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+            <div className="flex items-end justify-between gap-6 rounded-xl bg-gray-50 border border-gray-100 px-5 py-5">
+              <div>
+                <p className="text-sm font-bold text-gray-800">Your quoted project total</p>
+                <p className="text-sm text-gray-500 font-medium mt-1">Includes all agreed work and applicable VAT.</p>
+              </div>
+              <p className="shrink-0 text-3xl font-black" style={{ color: primaryColor }}>
+                {formatCurrency(proposal.totalWithVat)}
+              </p>
+            </div>
           </div>
         </div>
 
