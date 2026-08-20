@@ -35,6 +35,7 @@ interface CompanyBranding {
   proposalEmailEnabled?: boolean | null;
   bankPaymentDetails?: string | null;
   paymentTerms?: string | null;
+  depositPaymentInstructions?: string | null;
 }
 
 // ── Email provider ────────────────────────────────────────────────────────────
@@ -385,6 +386,9 @@ export async function sendInvoiceEmail(
     invoiceDate: string | null;
     dueDate: string | null;
     totalWithVat: number;
+    depositAmount: number | null;
+    remainingBalance: number | null;
+    depositPaidAmount: number | null;
     projectDescription: string | null;
   },
   company: CompanyBranding
@@ -400,6 +404,14 @@ export async function sendInvoiceEmail(
     const colour = primaryColour(company);
     const fmt = (n: number) =>
       new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
+    const depositOutstanding = Boolean(
+      params.depositAmount &&
+      params.depositAmount > 0 &&
+      (!params.depositPaidAmount || params.depositPaidAmount <= 0),
+    );
+    const paymentInstructions = depositOutstanding
+      ? company.depositPaymentInstructions || company.bankPaymentDetails
+      : company.bankPaymentDetails;
     const firstName = params.customerName?.split(" ")[0] ?? "there";
 
     const body = `
@@ -431,14 +443,21 @@ export async function sendInvoiceEmail(
         </tr>` : ""}
         <tr>
           <td style="padding:14px 18px;">
-            <p style="margin:0;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Amount Due</p>
+            <p style="margin:0;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">${params.depositAmount && params.depositAmount > 0 ? "Invoice Total" : "Amount Due"}</p>
             <p style="margin:4px 0 0;font-size:26px;font-weight:900;color:#111827;">${fmt(params.totalWithVat)}</p>
           </td>
         </tr>
+        ${params.depositAmount && params.depositAmount > 0 ? `<tr>
+          <td style="padding:14px 18px;background:#f0fdfa;border-top:1px solid #ccfbf1;">
+            <p style="margin:0;font-size:11px;font-weight:700;color:#0f766e;text-transform:uppercase;letter-spacing:0.05em;">${params.depositPaidAmount && params.depositPaidAmount > 0 ? "Deposit Received" : "Deposit Due Now"}</p>
+            <p style="margin:4px 0 0;font-size:22px;font-weight:900;color:#0f766e;">${fmt(params.depositAmount)}</p>
+            ${params.remainingBalance != null ? `<p style="margin:6px 0 0;font-size:13px;color:#374151;">Remaining balance ${params.depositPaidAmount && params.depositPaidAmount > 0 ? "due" : "after deposit"}: <strong>${fmt(params.remainingBalance)}</strong></p>` : ""}
+          </td>
+        </tr>` : ""}
       </table>
-      ${company.bankPaymentDetails ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 20px;margin:0 0 24px;">
+      ${paymentInstructions ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 20px;margin:0 0 24px;">
         <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Payment Details</p>
-        <p style="margin:0;font-size:13px;color:#166534;white-space:pre-line;line-height:1.6;">${company.bankPaymentDetails}</p>
+        <p style="margin:0;font-size:13px;color:#166534;white-space:pre-line;line-height:1.6;">${paymentInstructions}</p>
       </div>` : ""}
       ${company.paymentTerms ? `<p style="margin:0 0 20px;font-size:13px;color:#6b7280;line-height:1.5;">${company.paymentTerms}</p>` : ""}
       <p style="margin:0;font-size:13px;color:#9ca3af;text-align:center;line-height:1.5;">
@@ -449,7 +468,7 @@ export async function sendInvoiceEmail(
 
     const html = buildEmailShell({
       company,
-      preheader: `Invoice ${params.invoiceNumber} from ${company.name} — ${fmt(params.totalWithVat)} due${params.dueDate ? ` ${params.dueDate}` : ""}`,
+      preheader: `Invoice ${params.invoiceNumber} from ${company.name} — ${params.depositAmount && params.depositAmount > 0 ? (params.depositPaidAmount && params.depositPaidAmount > 0 ? `${fmt(params.remainingBalance ?? 0)} balance due` : `${fmt(params.depositAmount)} deposit due now`) : `${fmt(params.totalWithVat)} due`}${params.dueDate ? ` ${params.dueDate}` : ""}`,
       body,
     });
 
@@ -457,7 +476,7 @@ export async function sendInvoiceEmail(
       to: params.customerEmail,
       fromName: `${company.name} via WorkRate`,
       replyTo: company.email ?? undefined,
-      subject: `Invoice ${params.invoiceNumber} from ${company.name} — ${fmt(params.totalWithVat)}`,
+      subject: `Invoice ${params.invoiceNumber} from ${company.name} — ${params.depositAmount && params.depositAmount > 0 ? (params.depositPaidAmount && params.depositPaidAmount > 0 ? `${fmt(params.remainingBalance ?? 0)} balance due` : `${fmt(params.depositAmount)} deposit due`) : fmt(params.totalWithVat)}`,
       html,
     });
 

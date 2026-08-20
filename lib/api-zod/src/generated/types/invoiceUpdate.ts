@@ -22,4 +22,6 @@ export interface InvoiceUpdate {
   lineItems?: string;
   notes?: string;
   status?: string;
+  depositType?: string;
+  depositPercent?: number;
 }

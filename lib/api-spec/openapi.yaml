@@ -1226,6 +1226,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /invoices/{id}/mark-deposit-paid:
+    post:
+      operationId: markInvoiceDepositPaid
+      tags: [invoices]
+      summary: Record the requested invoice deposit as received
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Updated invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "400":
+          description: Invoice does not have an outstanding deposit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -1736,6 +1767,17 @@ components:
         paidAt:
           type: ["string", "null"]
           format: date-time
+        depositType:
+          type: ["string", "null"]
+        depositPercent:
+          type: ["number", "null"]
+        depositAmount:
+          type: ["number", "null"]
+        remainingBalance:
+          type: ["number", "null"]
+        depositPaidAt:
+          type: ["string", "null"]
+          format: date-time
         depositPaidAmount:
           type: ["number", "null"]
         createdAt:
@@ -1786,6 +1828,10 @@ components:
           type: string
         notes:
           type: string
+        depositType:
+          type: string
+        depositPercent:
+          type: number
 
     InvoiceUpdate:
       type: object
@@ -1820,6 +1866,10 @@ components:
           type: string
         status:
           type: string
+        depositType:
+          type: string
+        depositPercent:
+          type: number
 
     InvoiceMarkPaidBody:
       type: object

@@ -319,6 +319,16 @@ export interface Invoice {
   /** @nullable */
   paidAt?: string | null;
   /** @nullable */
+  depositType?: string | null;
+  /** @nullable */
+  depositPercent?: number | null;
+  /** @nullable */
+  depositAmount?: number | null;
+  /** @nullable */
+  remainingBalance?: number | null;
+  /** @nullable */
+  depositPaidAt?: string | null;
+  /** @nullable */
   depositPaidAmount?: number | null;
   createdAt: string;
   updatedAt: string;
@@ -338,6 +348,8 @@ export interface InvoiceCreate {
   totalWithVat?: number;
   lineItems?: string;
   notes?: string;
+  depositType?: string;
+  depositPercent?: number;
 }
 
 export interface InvoiceUpdate {
@@ -356,6 +368,8 @@ export interface InvoiceUpdate {
   lineItems?: string;
   notes?: string;
   status?: string;
+  depositType?: string;
+  depositPercent?: number;
 }
 
 export interface InvoiceMarkPaidBody {

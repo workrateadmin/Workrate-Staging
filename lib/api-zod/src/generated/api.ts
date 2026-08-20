@@ -1511,6 +1511,11 @@ export const ListInvoicesResponseItem = zod.object({
   "status": zod.string(),
   "brandingSnapshot": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
   "depositPaidAmount": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1534,7 +1539,9 @@ export const CreateInvoiceBody = zod.object({
   "vatAmount": zod.number().optional(),
   "totalWithVat": zod.number().optional(),
   "lineItems": zod.string().optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "depositType": zod.string().optional(),
+  "depositPercent": zod.number().optional()
 })
 
 export const CreateInvoiceResponse = zod.object({
@@ -1562,6 +1569,11 @@ export const CreateInvoiceResponse = zod.object({
   "status": zod.string(),
   "brandingSnapshot": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
   "depositPaidAmount": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1600,6 +1612,11 @@ export const GetInvoiceResponse = zod.object({
   "status": zod.string(),
   "brandingSnapshot": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
   "depositPaidAmount": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1628,7 +1645,9 @@ export const UpdateInvoiceBody = zod.object({
   "totalWithVat": zod.number().optional(),
   "lineItems": zod.string().optional(),
   "notes": zod.string().optional(),
-  "status": zod.string().optional()
+  "status": zod.string().optional(),
+  "depositType": zod.string().optional(),
+  "depositPercent": zod.number().optional()
 })
 
 export const UpdateInvoiceResponse = zod.object({
@@ -1656,6 +1675,11 @@ export const UpdateInvoiceResponse = zod.object({
   "status": zod.string(),
   "brandingSnapshot": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
   "depositPaidAmount": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1694,6 +1718,11 @@ export const SendInvoiceResponse = zod.object({
   "status": zod.string(),
   "brandingSnapshot": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
   "depositPaidAmount": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1736,6 +1765,54 @@ export const MarkInvoicePaidResponse = zod.object({
   "status": zod.string(),
   "brandingSnapshot": zod.string().nullish(),
   "paidAt": zod.coerce.date().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
+  "depositPaidAmount": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Record the requested invoice deposit as received
+ */
+export const MarkInvoiceDepositPaidParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const MarkInvoiceDepositPaidResponse = zod.object({
+  "id": zod.number(),
+  "documentType": zod.string(),
+  "enquiryId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "invoiceNumber": zod.string().nullish(),
+  "invoiceDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "customerDetails": zod.string().nullish(),
+  "projectDescription": zod.string().nullish(),
+  "emailRecipient": zod.string().nullish(),
+  "emailDeliveryStatus": zod.string().nullish(),
+  "emailSentAt": zod.coerce.date().nullish(),
+  "emailError": zod.string().nullish(),
+  "materialsAllowance": zod.number(),
+  "labourAllowance": zod.number(),
+  "estimatedTotal": zod.number(),
+  "vatAmount": zod.number(),
+  "vatRate": zod.number(),
+  "totalWithVat": zod.number(),
+  "lineItems": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "status": zod.string(),
+  "brandingSnapshot": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "depositType": zod.string().nullish(),
+  "depositPercent": zod.number().nullish(),
+  "depositAmount": zod.number().nullish(),
+  "remainingBalance": zod.number().nullish(),
+  "depositPaidAt": zod.coerce.date().nullish(),
   "depositPaidAmount": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()

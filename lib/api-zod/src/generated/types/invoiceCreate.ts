@@ -20,4 +20,6 @@ export interface InvoiceCreate {
   totalWithVat?: number;
   lineItems?: string;
   notes?: string;
+  depositType?: string;
+  depositPercent?: number;
 }

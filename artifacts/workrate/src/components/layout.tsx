@@ -161,8 +161,9 @@ export function TopNav({ onMenuClick }: { onMenuClick: () => void }) {
 
         {/* New Enquiry */}
         <Link href="/enquiries">
-          <Button size="sm" className="h-[34px] px-3.5 text-[12.5px] font-bold gap-1.5 shadow-none rounded-lg">
-            <Plus className="w-[14px] h-[14px]" /> New Enquiry
+          <Button size="sm" className="h-[34px] px-2.5 sm:px-3.5 text-[12.5px] font-bold gap-1.5 shadow-none rounded-lg">
+            <Plus className="w-[14px] h-[14px]" />
+            <span className="hidden sm:inline">New Enquiry</span>
           </Button>
         </Link>
 

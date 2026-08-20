@@ -24,6 +24,7 @@ interface BrandingData {
   companyRegNumber?: string | null;
   vatNumber?: string | null;
   bankPaymentDetails?: string | null;
+  depositPaymentInstructions?: string | null;
   brandColourPrimary?: string | null;
   brandColourSecondary?: string | null;
   paymentTerms?: string | null;
@@ -45,6 +46,11 @@ interface InvoiceDocProps {
   vatRate: number;
   vatAmount: number;
   total: number;
+  depositType?: string | null;
+  depositPercent?: number | null;
+  depositAmount?: number | null;
+  remainingBalance?: number | null;
+  depositPaidAmount?: number | null;
   notes: string;
   status: string;
 }
@@ -75,6 +81,11 @@ export function InvoiceDocument({
   vatRate,
   vatAmount,
   total,
+  depositType,
+  depositPercent,
+  depositAmount,
+  remainingBalance,
+  depositPaidAmount,
   notes,
   status,
 }: InvoiceDocProps) {
@@ -99,6 +110,13 @@ export function InvoiceDocument({
     : "Payment is due by the date stated above. Thank you for your business.";
 
   const hasLineItems = lineItems && lineItems.length > 0;
+  const hasDeposit = Number(depositAmount ?? 0) > 0;
+  const depositReceived = Number(depositPaidAmount ?? 0) > 0;
+  const paymentInstructions = hasDeposit
+    ? (depositReceived ? b.bankPaymentDetails : b.depositPaymentInstructions || b.bankPaymentDetails)
+    : isCustom
+      ? b.bankPaymentDetails
+      : null;
 
   return (
     <div className="print-doc">
@@ -239,6 +257,21 @@ export function InvoiceDocument({
               <span>Total</span>
               <span>{fmt(total)}</span>
             </div>
+            {hasDeposit && (
+              <div className="mt-3 rounded-lg border border-teal-200 bg-teal-50 p-3 space-y-1.5">
+                <div className="flex justify-between font-bold text-teal-900">
+                  <span>
+                    {depositReceived ? "Deposit received" : "Deposit due now"}
+                    {depositType === "percentage" && depositPercent ? ` (${depositPercent}%)` : ""}
+                  </span>
+                  <span>{fmt(depositAmount!)}</span>
+                </div>
+                <div className="flex justify-between text-xs font-semibold text-gray-600">
+                  <span>Remaining balance</span>
+                  <span>{fmt(remainingBalance ?? total - Number(depositAmount))}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -251,10 +284,10 @@ export function InvoiceDocument({
         )}
 
         {/* ── Payment details ─────────────────────────────────────────────── */}
-        {isCustom && b.bankPaymentDetails && (
+        {paymentInstructions && (
           <div className="px-10 py-4 border-t border-gray-100">
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Payment Details</p>
-            <p className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">{b.bankPaymentDetails}</p>
+            <p className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">{paymentInstructions}</p>
           </div>
         )}
 

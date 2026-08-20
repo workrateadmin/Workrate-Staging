@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useGetInvoice, useUpdateInvoice, useSendInvoice, useMarkInvoicePaid,
+  useGetInvoice, useUpdateInvoice, useSendInvoice, useMarkInvoicePaid, useMarkInvoiceDepositPaid,
   useGetCompany, getGetInvoiceQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,6 +51,12 @@ const VAT_OPTS = [
   { label: "5%", value: 5 },
   { label: "20%", value: 20 },
 ];
+
+type DepositChoice = "none" | "fifty" | "custom";
+
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
 
 // ── Section card ──────────────────────────────────────────────────────────────
 
@@ -106,10 +112,13 @@ export default function InvoiceEditor() {
   const [isItemised,      setIsItemised]      = useState(false);
   const [simpleTotal,     setSimpleTotal]     = useState(0);
   const [lines,           setLines]           = useState<InvoiceLine[]>([newLine()]);
+  const [depositChoice,   setDepositChoice]   = useState<DepositChoice>("none");
+  const [customDepositPercent, setCustomDepositPercent] = useState(50);
 
   // Local save tracker
   const [dirty, setDirty] = useState(false);
   const [paidDialogOpen,  setPaidDialogOpen]  = useState(false);
+  const [depositDialogOpen, setDepositDialogOpen] = useState(false);
   const [paidAmount,      setPaidAmount]      = useState("");
 
   // Initialise form from fetched invoice (once)
@@ -124,6 +133,13 @@ export default function InvoiceEditor() {
       setDueDate((inv as any).dueDate ?? "");
       setNotes(inv.notes ?? "");
       setVatRate(Number((inv as any).vatRate ?? 20));
+      const savedDepositPercent = Number((inv as any).depositPercent ?? 0);
+      if ((inv as any).depositType === "percentage" && savedDepositPercent > 0) {
+        setDepositChoice(Math.abs(savedDepositPercent - 50) < 0.001 ? "fifty" : "custom");
+        setCustomDepositPercent(savedDepositPercent);
+      } else {
+        setDepositChoice("none");
+      }
 
       const savedLines: InvoiceLine[] | null = (() => {
         if (!(inv as any).lineItems) return null;
@@ -152,6 +168,14 @@ export default function InvoiceEditor() {
 
   // ── Derived totals ──────────────────────────────────────────────────────────
   const { subtotal, vatAmount, total } = calcTotals(lines, simpleTotal, isItemised, vatRate);
+  const selectedDepositPercent = depositChoice === "fifty" ? 50 : customDepositPercent;
+  const depositIsValid =
+    depositChoice === "none" ||
+    (Number.isFinite(selectedDepositPercent) && selectedDepositPercent > 0 && selectedDepositPercent <= 100);
+  const depositAmount = depositChoice === "none" || !depositIsValid
+    ? 0
+    : roundMoney(total * (selectedDepositPercent / 100));
+  const remainingBalance = roundMoney(total - depositAmount);
 
   // ── Mutations ───────────────────────────────────────────────────────────────
   const updateInvoice = useUpdateInvoice({
@@ -186,6 +210,17 @@ export default function InvoiceEditor() {
     },
   });
 
+  const markDepositPaid = useMarkInvoiceDepositPaid({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetInvoiceQueryKey(id) });
+        setDepositDialogOpen(false);
+        toast({ title: "Deposit recorded" });
+      },
+      onError: () => toast({ title: "Could not record the deposit", variant: "destructive" }),
+    },
+  });
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
   function buildBody() {
     const body: Record<string, any> = {
@@ -196,26 +231,36 @@ export default function InvoiceEditor() {
       invoiceDate,
       dueDate: dueDate || null,
       notes,
-      vatRate,
-      materialsAllowance: subtotal,
-      estimatedTotal: subtotal,
-      vatAmount,
-      totalWithVat: total,
     };
-    if (isItemised) {
-      body.lineItems = JSON.stringify(lines);
-    } else {
-      body.lineItems = null;
+    if (!hasDepositPaid) {
+      Object.assign(body, {
+        vatRate,
+        materialsAllowance: subtotal,
+        estimatedTotal: subtotal,
+        vatAmount,
+        totalWithVat: total,
+        depositType: depositChoice === "none" ? "none" : "percentage",
+        depositPercent: depositChoice === "none" ? 0 : selectedDepositPercent,
+        lineItems: isItemised ? JSON.stringify(lines) : null,
+      });
     }
     return body;
   }
 
   function onSave() {
+    if (!depositIsValid) {
+      toast({ title: "Enter a deposit percentage between 1% and 100%", variant: "destructive" });
+      return;
+    }
     updateInvoice.mutate({ id, data: buildBody() as any });
   }
 
   function onSend() {
     // Save first, then send
+    if (!depositIsValid) {
+      toast({ title: "Enter a deposit percentage between 1% and 100%", variant: "destructive" });
+      return;
+    }
     const body = buildBody();
     updateInvoice.mutate({ id, data: body as any }, {
       onSuccess: () => {
@@ -231,6 +276,10 @@ export default function InvoiceEditor() {
       return;
     }
     markPaid.mutate({ id, data: { amount } });
+  }
+
+  function onMarkDepositPaid() {
+    markDepositPaid.mutate({ id });
   }
 
   // ── Line item handlers ──────────────────────────────────────────────────────
@@ -288,9 +337,19 @@ export default function InvoiceEditor() {
   const isPaid = invoice.status === "paid";
   const isSent = invoice.status === "sent";
   const isReadOnly = isPaid;
+  const hasDepositPaid = Boolean((invoice as any).depositPaidAt) || Number((invoice as any).depositPaidAmount ?? 0) > 0;
+  const chargesLocked = isReadOnly || hasDepositPaid;
+  const displayedRemainingBalance = isPaid ? 0 : remainingBalance;
+  const finalPaymentDue = hasDepositPaid ? displayedRemainingBalance : total;
+  const persistedDepositAmount = Number((invoice as any).depositAmount ?? 0);
+  const depositConfigurationSaved =
+    depositChoice !== "none" &&
+    (invoice as any).depositType === "percentage" &&
+    Math.abs(Number((invoice as any).depositPercent ?? 0) - selectedDepositPercent) < 0.01 &&
+    Math.abs(persistedDepositAmount - depositAmount) < 0.01;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="w-full min-w-0 max-w-6xl mx-auto space-y-6">
       {/* Top bar */}
       <div className="flex flex-wrap items-center gap-3">
         <Link href="/invoices">
@@ -319,9 +378,9 @@ export default function InvoiceEditor() {
         </div>
       </div>
 
-      <div className="grid xl:grid-cols-2 gap-8">
+      <div className="grid min-w-0 xl:grid-cols-2 gap-8">
         {/* ── LEFT: edit form ─────────────────────────────────────────────── */}
-        <div className={cn("space-y-5", mobileTab === "preview" && "hidden xl:block")}>
+        <div className={cn("min-w-0 space-y-5", mobileTab === "preview" && "hidden xl:block")}>
 
           {/* Invoice metadata */}
           <SectionCard label="Invoice Details">
@@ -396,7 +455,7 @@ export default function InvoiceEditor() {
           {/* Line items / totals */}
           <SectionCard label="Charges">
             {/* Mode toggle */}
-            {!isReadOnly && (
+            {!chargesLocked && (
               <div className="flex gap-2 mb-2">
                 <button
                   type="button"
@@ -443,7 +502,7 @@ export default function InvoiceEditor() {
                       placeholder="Job or product description"
                       value={line.description}
                       onChange={(e) => updateLine(i, "description", e.target.value)}
-                      disabled={isReadOnly}
+                      disabled={chargesLocked}
                     />
                     <div className="min-w-0">
                       <span className="sm:hidden block mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -454,7 +513,7 @@ export default function InvoiceEditor() {
                         className="h-9 text-sm text-center"
                         value={String(line.quantity)}
                         onChange={(e) => updateLine(i, "quantity", e.target.value)}
-                        disabled={isReadOnly}
+                        disabled={chargesLocked}
                       />
                     </div>
                     <div className="min-w-0">
@@ -466,7 +525,7 @@ export default function InvoiceEditor() {
                         placeholder="each"
                         value={line.unit}
                         onChange={(e) => updateLine(i, "unit", e.target.value)}
-                        disabled={isReadOnly}
+                        disabled={chargesLocked}
                       />
                     </div>
                     <div className="min-w-0">
@@ -479,7 +538,7 @@ export default function InvoiceEditor() {
                         className="h-9 text-sm text-right font-mono"
                         value={String(line.unitPrice)}
                         onChange={(e) => updateLine(i, "unitPrice", e.target.value)}
-                        disabled={isReadOnly}
+                        disabled={chargesLocked}
                       />
                     </div>
                     <div className="min-w-0">
@@ -490,7 +549,7 @@ export default function InvoiceEditor() {
                         £{Number(line.lineTotal).toFixed(2)}
                       </div>
                     </div>
-                    {!isReadOnly && (
+                    {!chargesLocked && (
                       <button
                         onClick={() => removeLine(i)}
                         aria-label={`Remove line ${i + 1}`}
@@ -502,7 +561,7 @@ export default function InvoiceEditor() {
                     )}
                   </div>
                 ))}
-                {!isReadOnly && (
+                {!chargesLocked && (
                   <button
                     onClick={addLine}
                     className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary transition-colors mt-1"
@@ -523,7 +582,7 @@ export default function InvoiceEditor() {
                   className="h-11 font-mono font-bold text-lg"
                   value={simpleTotal || ""}
                   onChange={(e) => { setSimpleTotal(Number(e.target.value) || 0); setDirty(true); }}
-                  disabled={isReadOnly}
+                  disabled={chargesLocked}
                 />
               </div>
             )}
@@ -536,7 +595,7 @@ export default function InvoiceEditor() {
                   <button
                     key={opt.value}
                     type="button"
-                    disabled={isReadOnly}
+                    disabled={chargesLocked}
                     onClick={() => { setVatRate(opt.value); setDirty(true); }}
                     className={cn(
                       "flex-1 py-2 rounded-xl text-xs font-bold border transition-all",
@@ -565,6 +624,84 @@ export default function InvoiceEditor() {
             </div>
           </SectionCard>
 
+          <SectionCard label="Deposit">
+            <p className="text-xs text-muted-foreground font-medium">
+              Request an upfront payment while keeping the remaining balance visible on the invoice.
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { value: "none", label: "No deposit" },
+                { value: "fifty", label: "50% deposit" },
+                { value: "custom", label: "Custom %" },
+              ] as const).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  disabled={chargesLocked}
+                  onClick={() => { setDepositChoice(option.value); setDirty(true); }}
+                  className={cn(
+                    "min-h-10 rounded-xl px-2 py-2 text-xs font-bold border transition-all",
+                    depositChoice === option.value
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : "bg-background text-muted-foreground border-border/60 hover:border-primary/30",
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            {depositChoice === "custom" && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Deposit percentage
+                </label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    step="0.01"
+                    className="h-11 pr-9 font-mono font-bold"
+                    value={customDepositPercent || ""}
+                    onChange={(e) => {
+                      setCustomDepositPercent(Number(e.target.value));
+                      setDirty(true);
+                    }}
+                    disabled={chargesLocked}
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">%</span>
+                </div>
+                {!depositIsValid && (
+                  <p className="text-xs font-semibold text-destructive">Enter a value between 1% and 100%.</p>
+                )}
+              </div>
+            )}
+
+            {depositChoice !== "none" && depositIsValid && (
+              <div className={cn(
+                "rounded-xl border p-4 space-y-2",
+                hasDepositPaid ? "bg-green-50 border-green-200" : "bg-secondary/50 border-border/40",
+              )}>
+                <div className="flex justify-between items-center text-sm font-bold">
+                  <span className={hasDepositPaid ? "text-green-700" : "text-foreground"}>
+                    {hasDepositPaid ? "Deposit received" : `Deposit due now (${selectedDepositPercent}%)`}
+                  </span>
+                  <span className={hasDepositPaid ? "text-green-700" : "text-primary"}>{formatCurrency(depositAmount)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-semibold text-muted-foreground">
+                  <span>Remaining balance</span>
+                  <span>{formatCurrency(displayedRemainingBalance)}</span>
+                </div>
+                {hasDepositPaid && (
+                  <p className="text-xs font-medium text-green-700 pt-1">
+                    Deposit terms are locked once payment has been recorded.
+                  </p>
+                )}
+              </div>
+            )}
+          </SectionCard>
+
           {/* Notes */}
           <SectionCard label="Notes">
             <textarea
@@ -576,7 +713,51 @@ export default function InvoiceEditor() {
             />
           </SectionCard>
 
-          {/* Actions */}
+          {/* Mobile payment actions — the desktop controls live with the preview. */}
+          <div className="xl:hidden space-y-2">
+            {!isPaid && (
+              <Button
+                className="w-full font-bold rounded-xl h-12 bg-primary hover:bg-primary/90 hover-elevate"
+                onClick={onSend}
+                disabled={sendInvoice.isPending || updateInvoice.isPending}
+              >
+                <Send className="w-4 h-4 mr-2" />
+                {sendInvoice.isPending ? "Sending…" : isSent ? "Resend Invoice" : "Send Invoice"}
+              </Button>
+            )}
+            {!isPaid && depositConfigurationSaved && !hasDepositPaid && (
+              <Button
+                variant="outline"
+                className="w-full font-bold rounded-xl h-12 border-primary/30 text-primary hover:bg-primary/5"
+                onClick={() => setDepositDialogOpen(true)}
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Record {formatCurrency(persistedDepositAmount)} Deposit
+              </Button>
+            )}
+            {!isPaid && hasDepositPaid && (
+              <div className="w-full flex items-center justify-center gap-2 h-12 bg-green-50 border border-green-200 rounded-xl text-green-700 font-bold text-sm">
+                <CheckCircle2 className="w-4 h-4" /> Deposit Received
+              </div>
+            )}
+            {!isPaid && (
+              <Button
+                variant="outline"
+                className="w-full font-bold rounded-xl h-12 border-green-300 text-green-700 hover:bg-green-50"
+                onClick={() => { setPaidAmount(String(finalPaymentDue)); setPaidDialogOpen(true); }}
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                {hasDepositPaid ? "Mark Balance Paid" : "Mark Paid"}
+              </Button>
+            )}
+            {isPaid && (
+              <div className="w-full flex items-center justify-center gap-2 h-12 bg-green-50 border border-green-200 rounded-xl text-green-700 font-bold text-sm">
+                <CheckCircle2 className="w-4 h-4" /> Invoice Paid
+              </div>
+            )}
+          </div>
+
+          {/* Save changes */}
           <div className="flex gap-3">
             <Button
               className="flex-1 font-bold rounded-xl h-12"
@@ -590,7 +771,7 @@ export default function InvoiceEditor() {
         </div>
 
         {/* ── RIGHT: preview + actions ─────────────────────────────────────── */}
-        <div className={cn("space-y-5", mobileTab === "edit" && "hidden xl:block")}>
+        <div className={cn("min-w-0 space-y-5", mobileTab === "edit" && "hidden xl:block")}>
           {/* Action buttons */}
           <div className="flex flex-wrap gap-3">
             {!isPaid && (
@@ -603,14 +784,29 @@ export default function InvoiceEditor() {
                 {sendInvoice.isPending ? "Sending…" : isSent ? "Resend Invoice" : "Send Invoice"}
               </Button>
             )}
+            {!isPaid && depositConfigurationSaved && !hasDepositPaid && (
+              <Button
+                variant="outline"
+                className="flex-1 font-bold rounded-xl h-12 border-primary/30 text-primary hover:bg-primary/5"
+                onClick={() => setDepositDialogOpen(true)}
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Record Deposit
+              </Button>
+            )}
+            {!isPaid && hasDepositPaid && (
+              <div className="flex-1 flex items-center justify-center gap-2 h-12 bg-green-50 border border-green-200 rounded-xl text-green-700 font-bold text-sm">
+                <CheckCircle2 className="w-4 h-4" /> Deposit Received
+              </div>
+            )}
             {!isPaid && (
               <Button
                 variant="outline"
                 className="flex-1 font-bold rounded-xl h-12 border-green-300 text-green-700 hover:bg-green-50"
-                onClick={() => { setPaidAmount(String(total)); setPaidDialogOpen(true); }}
+                onClick={() => { setPaidAmount(String(finalPaymentDue)); setPaidDialogOpen(true); }}
               >
                 <CheckCircle2 className="w-4 h-4 mr-2" />
-                Mark Paid
+                {hasDepositPaid ? "Mark Balance Paid" : "Mark Paid"}
               </Button>
             )}
             {isPaid && (
@@ -653,6 +849,11 @@ export default function InvoiceEditor() {
               vatRate,
               vatAmount,
               total,
+              depositType: depositChoice === "none" ? "none" : "percentage",
+              depositPercent: depositChoice === "none" ? null : selectedDepositPercent,
+              depositAmount: depositChoice === "none" ? 0 : depositAmount,
+              remainingBalance: depositChoice === "none" ? total : displayedRemainingBalance,
+              depositPaidAmount: (invoice as any).depositPaidAmount ?? null,
               notes,
               status: invoice.status,
             };
@@ -662,7 +863,36 @@ export default function InvoiceEditor() {
         </div>
       </div>
 
-      {/* Mark Paid dialog */}
+      {/* Deposit received dialog */}
+      <Dialog open={depositDialogOpen} onOpenChange={setDepositDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black">Record Deposit Received</DialogTitle>
+            <DialogDescription>
+              Confirm that the customer has paid the requested deposit.
+              <span className="block mt-1 font-semibold text-foreground">
+                Deposit received: {formatCurrency(persistedDepositAmount)}
+              </span>
+              <span className="block mt-1 text-sm">
+                Remaining balance: {formatCurrency(displayedRemainingBalance)}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDepositDialogOpen(false)} className="font-bold rounded-xl">Cancel</Button>
+            <Button
+              onClick={onMarkDepositPaid}
+              disabled={markDepositPaid.isPending}
+              className="font-bold rounded-xl bg-green-600 hover:bg-green-700 text-white"
+            >
+              <CheckCircle2 className="w-4 h-4 mr-2" />
+              {markDepositPaid.isPending ? "Saving…" : "Confirm Deposit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark paid dialog */}
       <Dialog open={paidDialogOpen} onOpenChange={setPaidDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -670,7 +900,9 @@ export default function InvoiceEditor() {
             <DialogDescription>
               Record that payment has been received for this invoice.
               <span className="block mt-1 font-semibold text-foreground">
-                Invoice total: {formatCurrency(total)}
+                {hasDepositPaid
+                  ? `Remaining balance due: ${formatCurrency(finalPaymentDue)}`
+                  : `Invoice total: ${formatCurrency(total)}`}
               </span>
             </DialogDescription>
           </DialogHeader>
@@ -682,7 +914,7 @@ export default function InvoiceEditor() {
                 min={0}
                 step={0.01}
                 className="h-11 font-mono"
-                placeholder={total.toFixed(2)}
+                placeholder={finalPaymentDue.toFixed(2)}
                 value={paidAmount}
                 onChange={(e) => setPaidAmount(e.target.value)}
               />

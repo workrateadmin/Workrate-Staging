@@ -47,6 +47,16 @@ export interface Invoice {
   /** @nullable */
   paidAt?: Date | null;
   /** @nullable */
+  depositType?: string | null;
+  /** @nullable */
+  depositPercent?: number | null;
+  /** @nullable */
+  depositAmount?: number | null;
+  /** @nullable */
+  remainingBalance?: number | null;
+  /** @nullable */
+  depositPaidAt?: Date | null;
+  /** @nullable */
   depositPaidAmount?: number | null;
   createdAt: Date;
   updatedAt: Date;

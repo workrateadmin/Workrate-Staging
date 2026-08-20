@@ -3855,3 +3855,74 @@ export const useMarkInvoicePaid = <TError = ErrorType<ApiError>,
       return useMutation(getMarkInvoicePaidMutationOptions(options));
     }
 
+export const getMarkInvoiceDepositPaidUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/mark-deposit-paid`
+}
+
+/**
+ * @summary Record the requested invoice deposit as received
+ */
+export const markInvoiceDepositPaid = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getMarkInvoiceDepositPaidUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkInvoiceDepositPaidMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markInvoiceDepositPaid>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markInvoiceDepositPaid>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['markInvoiceDepositPaid'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markInvoiceDepositPaid>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  markInvoiceDepositPaid(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkInvoiceDepositPaidMutationResult = NonNullable<Awaited<ReturnType<typeof markInvoiceDepositPaid>>>
+
+    export type MarkInvoiceDepositPaidMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record the requested invoice deposit as received
+ */
+export const useMarkInvoiceDepositPaid = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markInvoiceDepositPaid>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markInvoiceDepositPaid>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getMarkInvoiceDepositPaidMutationOptions(options));
+    }
+
