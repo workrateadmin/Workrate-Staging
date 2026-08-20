@@ -1,12 +1,18 @@
 import {
   useGetJob,
+  useGetQuote,
   useUpdateJob,
   useScheduleJob,
   useGetEnquiry,
   useListEnquiryAttachments,
+  useListInvoices,
+  useCreateInvoice,
+  useSendInvoice,
   getGetEnquiryQueryKey,
   getGetJobQueryKey,
+  getGetQuoteQueryKey,
   getListEnquiryAttachmentsQueryKey,
+  getListInvoicesQueryKey,
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -48,6 +54,7 @@ import {
   Brain,
   AlertCircle,
   Plus,
+  Send,
 } from "lucide-react";
 import {
   Select,
@@ -98,9 +105,17 @@ export default function JobDetail() {
   const { data: enquiry } = useGetEnquiry(enquiryId, {
     query: { enabled: !!job?.enquiryId, queryKey: getGetEnquiryQueryKey(enquiryId) },
   });
+  const { data: quote } = useGetQuote(enquiryId, {
+    query: { enabled: !!job?.enquiryId, retry: false, queryKey: getGetQuoteQueryKey(enquiryId) },
+  });
   const { data: attachments } = useListEnquiryAttachments(enquiryId, {
     query: { enabled: !!job?.enquiryId, queryKey: getListEnquiryAttachmentsQueryKey(enquiryId) },
   });
+  const { data: invoices = [], isLoading: invoicesLoading } = useListInvoices({
+    query: { queryKey: getListInvoicesQueryKey() },
+  });
+  const createInvoice = useCreateInvoice();
+  const sendInvoice = useSendInvoice();
 
   const [statusVal, setStatusVal] = useState<string | undefined>();
   const [editingNotes, setEditingNotes] = useState(false);
@@ -147,6 +162,7 @@ export default function JobDetail() {
   // Intelligence state
   const [intelligence, setIntelligence] = useState<Intelligence>({ components: [], invoiceLines: [] });
   const [intelLoading, setIntelLoading] = useState(false);
+  const [sendingFinalInvoice, setSendingFinalInvoice] = useState(false);
 
   const updateJob = useUpdateJob({
     mutation: {
@@ -231,6 +247,69 @@ export default function JobDetail() {
       toast({ title: "Failed to complete job", variant: "destructive" });
     } finally {
       setCompletionSaving(false);
+    }
+  };
+
+  const handleSendFinalInvoice = async (existingInvoice?: any) => {
+    if (!job) return;
+    if (!job.customerEmail) {
+      toast({ title: "Add a customer email before sending the final invoice", variant: "destructive" });
+      return;
+    }
+
+    setSendingFinalInvoice(true);
+    try {
+      let invoice = existingInvoice;
+      if (!invoice) {
+        const jobValue = Number((job as any).finalAmountCharged ?? job.totalWithVat);
+        const paidDeposit = Number((quote as any)?.depositPaidAmount ?? 0);
+        const finalPaymentDue = Math.max(0, Math.round((jobValue - paidDeposit) * 100) / 100);
+        if (finalPaymentDue <= 0) {
+          toast({ title: "There is no final balance left to invoice" });
+          return;
+        }
+
+        const vatRate = 20;
+        const netAmount = Math.round((finalPaymentDue / (1 + vatRate / 100)) * 100) / 100;
+        const vatAmount = Math.round((finalPaymentDue - netAmount) * 100) / 100;
+        const description = `Final payment — ${job.projectDescription || job.projectType || "completed job"}`;
+
+        invoice = await createInvoice.mutateAsync({
+          data: {
+            customerDetails: job.customerName,
+            customerEmail: job.customerEmail,
+            projectDescription: description,
+            jobId: id,
+            materialsAllowance: netAmount,
+            estimatedTotal: netAmount,
+            vatRate,
+            vatAmount,
+            totalWithVat: finalPaymentDue,
+            lineItems: JSON.stringify([{
+              id: crypto.randomUUID(),
+              description,
+              quantity: 1,
+              unit: "job",
+              unitPrice: netAmount,
+              lineTotal: netAmount,
+            }]),
+            depositType: "none",
+          } as any,
+        });
+      }
+
+      if (invoice.status !== "paid") {
+        await sendInvoice.mutateAsync({ id: invoice.id });
+      }
+      queryClient.invalidateQueries({ queryKey: getListInvoicesQueryKey() });
+      toast({
+        title: invoice.status === "sent" ? "Invoice resent" : "Final invoice sent",
+        description: `Sent to ${job.customerEmail}`,
+      });
+    } catch {
+      toast({ title: "Failed to send the final invoice", variant: "destructive" });
+    } finally {
+      setSendingFinalInvoice(false);
     }
   };
 
@@ -405,6 +484,8 @@ export default function JobDetail() {
   // ── Completion actuals (cast — new fields not yet in generated types) ──────
   const jx = job as any;
   const isCompleted = jx.completedAt != null;
+  const jobInvoice = invoices.find((invoice: any) => Number(invoice.jobId) === id);
+  const finalPaymentAccepted = jobInvoice?.status === "paid";
   const finalCharged: number | null = jx.finalAmountCharged ?? null;
   const quoteVariance = finalCharged != null ? finalCharged - job.totalWithVat : null;
   const quoteVariancePct = quoteVariance != null && job.totalWithVat > 0
@@ -1008,6 +1089,65 @@ export default function JobDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Final invoice — only available once the work is complete */}
+          {isCompleted && (
+            <Card className="shadow-sm border-border/60 rounded-2xl">
+              <div className="px-6 py-5 border-b border-border/60">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-muted-foreground" /> Final Invoice
+                </h2>
+              </div>
+              <CardContent className="p-5 space-y-3">
+                {invoicesLoading ? (
+                  <Skeleton className="h-11 w-full rounded-xl" />
+                ) : finalPaymentAccepted ? (
+                  <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-left">
+                    <div className="flex items-center gap-2 text-sm font-bold text-green-800">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      Final payment accepted
+                    </div>
+                    <p className="mt-1 text-xs font-medium text-green-700">
+                      {formatCurrency(Number(jobInvoice.totalWithVat))} received
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {jobInvoice?.status === "sent" && (
+                      <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-left">
+                        <p className="text-sm font-bold text-violet-800">Invoice sent</p>
+                        <p className="mt-1 text-xs font-medium text-violet-700">Final payment is still outstanding.</p>
+                      </div>
+                    )}
+                    {!job.customerEmail && (
+                      <p className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                        Add the customer’s email to send the final invoice.
+                      </p>
+                    )}
+                    <Button
+                      onClick={() => handleSendFinalInvoice(jobInvoice)}
+                      disabled={!job.customerEmail || sendingFinalInvoice}
+                      className="w-full font-bold h-11 rounded-xl gap-2"
+                    >
+                      <Send className="w-4 h-4" />
+                      {sendingFinalInvoice
+                        ? "Sending…"
+                        : jobInvoice?.status === "sent"
+                          ? "Resend Invoice"
+                          : "Send Invoice"}
+                    </Button>
+                  </>
+                )}
+                {jobInvoice && (
+                  <Link href={`/invoices/${jobInvoice.id}`}>
+                    <Button variant="outline" className="w-full font-bold h-10 rounded-xl">
+                      View Invoice
+                    </Button>
+                  </Link>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Financial snapshot */}
           <Card className="shadow-sm border-border/60 rounded-2xl">
