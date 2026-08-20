@@ -19,6 +19,13 @@ When a quote's status first changes to `'sent'` or `'accepted'`, the server snap
 
 **How to apply:** In `quotes.ts` PATCH, `snapshotBranding(userId)` is called when status becomes 'sent'/'accepted' and no snapshot yet exists. Snapshot is stored in `updates.brandingSnapshot`.
 
+## Proposal payment instructions
+Deposit-specific payment instructions are included in the proposal's send-time branding snapshot so accepted customers receive the payment details that applied when the proposal was sent. Public proposal responses must omit both bank and deposit-payment instructions until the proposal has been accepted.
+
+**Why:** Deposit terms can be reviewed before acceptance, but payment details must not be exposed through either the page or public API until the customer agrees. Snapshotting also prevents later company-setting changes from rewriting an already-sent payment request.
+
+**How to apply:** Treat `accepted` and the legacy post-acceptance payment states as eligible to receive instructions. After public acceptance, reload the public proposal data so the client receives the newly permitted payment step.
+
 ## New DB columns (companies)
 `website`, `company_reg_number`, `vat_number`, `bank_payment_details`, `brand_colour_primary`, `brand_colour_secondary`, `payment_terms`, `terms_and_conditions`, `quote_footer`, `invoice_footer`, `document_mode`. Added in migration `0003_documents_branding`.
 

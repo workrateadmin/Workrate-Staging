@@ -1,0 +1,227 @@
+TASK #68 — Gate proposal deposits until AFTER customer acceptance
+
+GOAL:
+Separate proposal acceptance from deposit collection in the public customer flow.
+
+Current problem:
+The public proposal currently shows deposit/payment instructions during the initial review stage, before the customer has accepted.
+
+Acceptance and payment are being conflated.
+
+Desired customer journey:
+
+Customer opens proposal
+→ reviews scope, price and deposit terms
+→ chooses Accept or Decline
+→ proposal status becomes Accepted
+→ ONLY THEN does the deposit/payment step become available
+→ deposit payment updates separately from proposal acceptance
+
+IMPORTANT:
+Do NOT redesign the quote, proposal, deposit, invoice, or payment systems.
+Do NOT change quote calculations.
+Do NOT change the original proposal amount.
+Do NOT disturb unrelated customer/job logic.
+Make the smallest safe change.
+
+==================================================
+1. BEFORE ACCEPTANCE
+==================================================
+
+When the customer first opens the public proposal:
+
+They CAN see:
+- full proposal
+- scope of works
+- price
+- deposit percentage
+- deposit amount
+- deposit terms
+- Accept button
+- Decline button if currently supported
+
+They must NOT see:
+- bank/payment instructions
+- active deposit payment button
+- payment session/link
+- any wording implying payment is already due
+
+The customer should understand:
+
+“If I accept this proposal, a deposit of £X / X% will then be required.”
+
+==================================================
+2. ACCEPTANCE
+==================================================
+
+When the customer clicks Accept:
+
+- record proposal acceptance
+- record acceptance timestamp
+- set proposal status to Accepted
+- preserve original quote/proposal amount
+- preserve original deposit percentage/amount
+- do NOT treat acceptance itself as payment
+
+Acceptance and deposit payment must remain separate events.
+
+==================================================
+3. AFTER ACCEPTANCE
+==================================================
+
+Only after the proposal is successfully Accepted:
+
+- reveal the existing deposit/payment step
+- show the existing payment instructions
+- allow the customer to begin payment
+- use the existing configured deposit percentage/amount
+- do NOT regenerate or alter the proposal total
+
+The UI should clearly show something like:
+
+Proposal accepted
+
+Deposit required: £X
+
+Then the customer can proceed to payment.
+
+==================================================
+4. NO-DEPOSIT PROPOSALS
+==================================================
+
+If no deposit is required:
+
+- acceptance alone completes the proposal acceptance step
+- do not show unnecessary payment UI
+- preserve the existing downstream job flow
+
+==================================================
+5. BACKEND ENFORCEMENT — IMPORTANT
+==================================================
+
+Do NOT implement this as a frontend-only button hide.
+
+The backend must enforce the acceptance gate.
+
+If someone attempts to:
+- call the deposit/payment endpoint directly
+- open a payment URL directly
+- create a payment/deposit session before acceptance
+
+the backend must reject the request unless the proposal status is already Accepted.
+
+Return a clear safe error such as:
+
+Proposal must be accepted before deposit payment can begin.
+
+This must be enforced server-side even if the frontend is bypassed.
+
+==================================================
+6. DEPOSIT PAYMENT
+==================================================
+
+When payment is received:
+
+- update deposit/payment status separately
+- preserve proposal status as Accepted
+- preserve acceptance timestamp
+- preserve original proposal amount
+- preserve original deposit terms
+
+Do NOT overwrite acceptance information with payment information.
+
+The system should distinguish between:
+
+Proposal: Accepted
+Deposit: Awaiting payment
+
+and later:
+
+Proposal: Accepted
+Deposit: Paid
+
+==================================================
+7. EXISTING FLOWS TO PRESERVE
+==================================================
+
+Do NOT change:
+
+- quote calculations
+- quote editor
+- proposal generation
+- proposal email
+- public proposal link/token
+- invoice flow
+- customer records
+- proposal branding
+- payment provider integration
+- unrelated job logic
+
+==================================================
+8. ACCEPTANCE TEST
+==================================================
+
+Test ONE safe public proposal end-to-end.
+
+A. Open public proposal while logged OUT of WorkRate
+
+Expected:
+- proposal loads
+- scope/price visible
+- deposit amount/terms visible
+- payment instructions NOT visible
+- payment cannot be started
+
+B. Attempt direct payment/deposit endpoint BEFORE acceptance
+
+Expected:
+- backend rejects request
+- no payment session created
+
+C. Customer clicks Accept
+
+Expected:
+- proposal status becomes Accepted
+- acceptance timestamp recorded
+- original proposal amount unchanged
+
+D. After acceptance
+
+Expected:
+- deposit/payment section becomes available
+- correct deposit amount shown
+- payment can now be started
+
+E. Complete or simulate existing deposit flow safely
+
+Expected:
+- proposal remains Accepted
+- deposit status updates separately
+- original proposal amount remains unchanged
+
+F. Test a proposal with no deposit requirement
+
+Expected:
+- acceptance works
+- no payment step appears
+- proposal continues through existing workflow correctly
+
+==================================================
+9. REPORT BEFORE MARKING FIXED
+==================================================
+
+Report:
+
+A. Exact reason payment was available before acceptance
+B. Files changed
+C. Frontend gate added
+D. Backend guard added
+E. How acceptance status/timestamp is stored
+F. How deposit status is stored separately
+G. Full end-to-end test result
+H. Confirmation that quote/invoice/payment calculations were not changed
+
+IMPORTANT:
+Do not mark fixed because the button is hidden.
+
+Payment must be impossible BOTH visually AND technically before proposal acceptance.

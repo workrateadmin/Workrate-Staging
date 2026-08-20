@@ -399,6 +399,16 @@ export default function EnquiryDetail() {
                       Proposal: {(quote as any).proposalStatus.replace(/_/g, " ")}
                     </div>
                   )}
+                  {(quote as any).proposalStatus === "accepted" && Number((quote as any).depositAmount ?? 0) > 0 && (
+                    <div className={cn(
+                      "text-center py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider border",
+                      (quote as any).depositPaidAt
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : "bg-amber-50 text-amber-700 border-amber-200",
+                    )}>
+                      Deposit: {(quote as any).depositPaidAt ? "Paid" : "Awaiting payment"}
+                    </div>
+                  )}
 
                   {/* Proposal link */}
                   {(quote as any).proposalToken && (
@@ -425,9 +435,14 @@ export default function EnquiryDetail() {
                   )}
 
                   {/* Mark Deposit as Paid */}
-                  {(quote as any).proposalStatus === "deposit_awaiting_payment" && (
+                  {(quote as any).proposalStatus === "accepted" &&
+                    Number((quote as any).depositAmount ?? 0) > 0 &&
+                    !(quote as any).depositPaidAt && (
                     <Button
-                      onClick={() => setDepositDialogOpen(true)}
+                      onClick={() => {
+                        setDepositAmount(Number((quote as any).depositAmount).toFixed(2));
+                        setDepositDialogOpen(true);
+                      }}
                       className="w-full font-bold hover-elevate h-12 rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-md"
                     >
                       <CheckCircle2 className="w-5 h-5 mr-2" />
@@ -436,7 +451,9 @@ export default function EnquiryDetail() {
                   )}
 
                   {/* Convert to Job — shown when deposit paid or quote accepted */}
-                  {(quote.status === "accepted" || (quote as any).proposalStatus === "deposit_paid") && (
+                  {(quote.status === "accepted" &&
+                    (Number((quote as any).depositAmount ?? 0) <= 0 || Boolean((quote as any).depositPaidAt))) ||
+                    (quote as any).proposalStatus === "deposit_paid" ? (
                     <Button
                       onClick={() => convertToJob.mutate({ id })}
                       disabled={convertToJob.isPending}
@@ -445,7 +462,7 @@ export default function EnquiryDetail() {
                       <Briefcase className="w-5 h-5 mr-2" />
                       {convertToJob.isPending ? "Creating Job…" : "Convert to Job"}
                     </Button>
-                  )}
+                  ) : null}
 
                   <Link href={`/quotes/${id}`}>
                     <Button

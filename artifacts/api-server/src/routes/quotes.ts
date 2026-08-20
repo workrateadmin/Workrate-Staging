@@ -105,6 +105,7 @@ async function snapshotBranding(userId: string): Promise<string | null> {
     companyRegNumber: (company as any).companyRegNumber,
     vatNumber: (company as any).vatNumber,
     bankPaymentDetails: (company as any).bankPaymentDetails,
+    depositPaymentInstructions: (company as any).depositPaymentInstructions,
     brandColourPrimary: (company as any).brandColourPrimary,
     brandColourSecondary: (company as any).brandColourSecondary,
     paymentTerms: (company as any).paymentTerms,
@@ -521,16 +522,34 @@ router.post("/enquiries/:id/quote/mark-deposit-paid", requireAuth, async (req, r
     .from(quotesTable)
     .where(eq(quotesTable.enquiryId, id));
   if (!existing) { res.status(404).json({ error: "Quote not found" }); return; }
+  if (!["accepted", "deposit_awaiting_payment"].includes(existing.proposalStatus)) {
+    res.status(400).json({ error: "The proposal must be accepted before recording a deposit" });
+    return;
+  }
+  if (existing.depositPaidAt) {
+    res.status(400).json({ error: "The deposit has already been recorded" });
+    return;
+  }
+
+  const expectedDeposit = Math.round(Number(existing.depositAmount ?? 0) * 100) / 100;
+  if (expectedDeposit <= 0) {
+    res.status(400).json({ error: "This accepted proposal does not require a deposit" });
+    return;
+  }
+  if (Math.abs(amount - expectedDeposit) > 0.005) {
+    res.status(400).json({ error: `The deposit amount must match the agreed ${expectedDeposit.toFixed(2)} payment schedule` });
+    return;
+  }
 
   const total = Number(existing.totalWithVat);
-  const remaining = Math.max(0, Math.round((total - amount) * 100) / 100);
+  const remaining = Math.max(0, Math.round((total - expectedDeposit) * 100) / 100);
 
   const [updated] = await db
     .update(quotesTable)
     .set({
-      proposalStatus: "deposit_paid",
+      proposalStatus: "accepted",
       depositPaidAt: new Date(),
-      depositPaidAmount: amount.toString(),
+      depositPaidAmount: expectedDeposit.toFixed(2),
       remainingBalance: remaining.toString(),
       status: "accepted",
     })

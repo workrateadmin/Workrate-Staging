@@ -38,6 +38,8 @@ type ProposalData = {
   depositFixed?: number | null;
   depositAmount?: number | null;
   remainingBalance?: number | null;
+  depositPaidAt?: string | null;
+  depositPaidAmount?: number | null;
   acceptedAt?: string | null;
   acceptedByName?: string | null;
   viewedAt?: string | null;
@@ -123,7 +125,15 @@ export default function ProposalPage() {
         method: "POST",
         body: JSON.stringify({ action, name, email, message }),
       });
-      setProposal(updated);
+      if (action === "accept") {
+        setProposal(await apiFetch(`/proposals/${token}`));
+      } else {
+        setProposal((current) =>
+          current
+            ? { ...current, ...updated, company: current.company }
+            : updated,
+        );
+      }
       setSubmitted(true);
       if (action === "accept") setScreen("accepted");
       else if (action === "decline") setScreen("declined");
@@ -169,8 +179,11 @@ export default function ProposalPage() {
 
   // ── Accepted screen ────────────────────────────────────────────────────────
   if (screen === "accepted") {
-    const isDepositPaid = proposal.proposalStatus === "deposit_paid";
-    const isDepositAwaitingPayment = proposal.proposalStatus === "deposit_awaiting_payment";
+    const isDepositPaid = Boolean(proposal.depositPaidAt) || proposal.proposalStatus === "deposit_paid";
+    const isDepositAwaitingPayment =
+      hasDeposit &&
+      !isDepositPaid &&
+      ["accepted", "deposit_awaiting_payment"].includes(proposal.proposalStatus);
     return (
       <div className="min-h-screen bg-gray-50 py-12 px-4">
         <div className="max-w-lg mx-auto">
@@ -207,9 +220,16 @@ export default function ProposalPage() {
                 </div>
               )}
 
+              {!hasDeposit && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-5 text-center">
+                  <p className="font-bold text-green-800">No deposit is required</p>
+                  <p className="text-sm text-green-700 mt-1">Your accepted proposal is confirmed and ready to schedule.</p>
+                </div>
+              )}
+
               {isDepositAwaitingPayment && hasDeposit && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-3">
-                  <h3 className="font-bold text-amber-900">Deposit Payment Instructions</h3>
+                  <h3 className="font-bold text-amber-900">Next Step: Pay Your Deposit</h3>
                   {company.depositPaymentInstructions ? (
                     <p className="text-sm text-amber-800 whitespace-pre-wrap font-medium">{company.depositPaymentInstructions}</p>
                   ) : company.bankPaymentDetails ? (
@@ -471,15 +491,6 @@ export default function ProposalPage() {
                 <p className="text-xl font-black text-gray-900">{formatCurrency(remaining)}</p>
               </div>
 
-              {/* Payment instructions */}
-              {(company.depositPaymentInstructions || company.bankPaymentDetails) && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Payment Details</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
-                    {company.depositPaymentInstructions || company.bankPaymentDetails}
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         )}

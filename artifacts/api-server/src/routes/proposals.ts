@@ -80,6 +80,13 @@ router.get("/proposals/:token", async (req, res): Promise<void> => {
     }
   }
 
+  const paymentStepAvailable = ["accepted", "deposit_awaiting_payment", "deposit_paid"]
+    .includes(quote.proposalStatus);
+  if (!paymentStepAvailable) {
+    const { bankPaymentDetails, depositPaymentInstructions, ...publicCompanyData } = companyData;
+    companyData = publicCompanyData;
+  }
+
   const parsed = parseQuoteNumerics(quote);
 
   res.json({
@@ -148,7 +155,8 @@ router.post("/proposals/:token/respond", async (req, res): Promise<void> => {
   const updates: Record<string, any> = {};
 
   if (action === "accept") {
-    updates.proposalStatus = "deposit_awaiting_payment";
+    updates.proposalStatus = "accepted";
+    updates.status = "accepted";
     updates.acceptedAt = now;
     updates.acceptedByName = name ?? null;
     updates.acceptedByEmail = email ?? null;
