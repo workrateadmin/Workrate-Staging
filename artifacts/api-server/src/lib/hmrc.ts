@@ -63,6 +63,8 @@ type HmrcTokenResponse = {
   expires_in?: number;
   scope?: string;
   token_type?: string;
+  error?: string;
+  error_description?: string;
 };
 
 function configuredValue(name: string): string | null {
@@ -204,10 +206,17 @@ function encodeFormValue(value: string): string {
 }
 
 async function readTokenResponse(response: Response, action: string): Promise<HmrcTokenResponse> {
-  if (!response.ok) {
-    throw new Error(`HMRC ${action} failed (${response.status}).`);
-  }
   const payload = await response.json().catch(() => null) as HmrcTokenResponse | null;
+  if (!response.ok) {
+    const errorCode = typeof payload?.error === "string"
+      ? payload.error.replace(/\s+/g, " ").slice(0, 100)
+      : "unknown_error";
+    const errorDescription = typeof payload?.error_description === "string"
+      ? payload.error_description.replace(/\s+/g, " ").slice(0, 300)
+      : "";
+    const detail = errorDescription ? `: ${errorCode} — ${errorDescription}` : `: ${errorCode}`;
+    throw new Error(`HMRC ${action} failed (${response.status})${detail}`);
+  }
   if (!payload?.access_token || typeof payload.access_token !== "string") {
     throw new Error(`HMRC ${action} returned an invalid token response.`);
   }

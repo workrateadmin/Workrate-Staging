@@ -1,0 +1,82 @@
+HMRC PRODUCTION OAUTH CALLBACK DEBUG
+
+IMPORTANT:
+I am testing on the PUBLISHED WorkRate production URL, NOT Replit Preview/dev.
+
+Current behaviour:
+
+1. Open published WorkRate
+2. Finance → Tax / MTD
+3. Click Connect HMRC
+4. HMRC sandbox login works
+5. I complete the MTD sandbox account/consent flow
+6. HMRC redirects back to published WorkRate
+7. WorkRate still shows NOT CONNECTED
+
+Do NOT investigate this as a dev-vs-production callback mismatch.
+
+Trace the full PRODUCTION OAuth callback path and report the exact failure point.
+
+Check:
+
+1. OAuth state creation
+- Is the state row created successfully in production?
+- Which production business/company ID is it tied to?
+- Which Clerk user ID is it tied to?
+- Is PKCE verifier stored correctly?
+
+2. HMRC callback
+- Does /api/hmrc/callback receive:
+  - code
+  - state
+- Does state validation pass?
+- Does the callback find and consume the correct production state row?
+- Does Clerk authentication/user resolution succeed?
+
+3. Token exchange
+- Does HMRC token exchange succeed?
+- If not, capture the NON-SECRET HMRC error code/description only.
+- Do not log access tokens, refresh tokens, client secret, or passwords.
+
+4. Connection persistence
+- Is an HMRC connection row created/updated in production?
+- Is it linked to the correct WorkRate business/company?
+- Are tokens encrypted successfully?
+- Is status set to connected?
+
+5. Redirect back to UI
+- What URL does the callback redirect to after success/failure?
+- Does the Finance page re-fetch connection status after redirect?
+- Is stale cache/query state causing "Not Connected" even if the DB row exists?
+
+6. Production database verification
+Read-only check:
+- whether an HMRC connection row exists for the current production business
+- connection status
+- connected_at
+- last_error, redacted
+Do not expose encrypted token values.
+
+7. Fix
+Apply the smallest safe fix only.
+
+Do NOT:
+- weaken OAuth state or PKCE
+- bypass Clerk/business ownership
+- expose tokens
+- fabricate HMRC fraud headers
+- call Business Details or Obligations yet
+
+SUCCESS CRITERIA:
+
+Published WorkRate
+→ Connect HMRC
+→ HMRC sandbox login
+→ consent
+→ callback
+→ token exchange
+→ encrypted production connection saved
+→ Finance page shows CONNECTED
+
+Stop after proving that OAuth connection state works.
+Report downstream HMRC data sync separately.

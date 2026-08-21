@@ -129,6 +129,16 @@ function safeError(error: unknown): string {
   return "HMRC sandbox connection needs attention. Check the connection settings and try again.";
 }
 
+function safeCallbackFailure(error: unknown): string {
+  if (
+    error instanceof Error &&
+    (error.message.startsWith("HMRC token exchange") || error.message.startsWith("HMRC sandbox configuration"))
+  ) {
+    return error.message;
+  }
+  return "OAuth callback failed before encrypted connection storage.";
+}
+
 function storedFraudContext(req: any, browserContext: HmrcBrowserContext): StoredFraudContext {
   return {
     ...browserContext,
@@ -458,7 +468,7 @@ router.get("/hmrc/callback", requireAuth, async (req, res): Promise<void> => {
     await db.delete(hmrcOauthStatesTable).where(eq(hmrcOauthStatesTable.id, claimedState.id));
     res.redirect(callbackRedirect(config, claimedState.returnPath, "connected"));
   } catch (error) {
-    req.log.warn({ companyId: company.id }, "HMRC sandbox callback failed");
+    req.log.warn({ companyId: company.id, failure: safeCallbackFailure(error) }, "HMRC sandbox callback failed");
     await db.delete(hmrcOauthStatesTable).where(eq(hmrcOauthStatesTable.id, claimedState.id));
     res.redirect(callbackRedirect(config, claimedState.returnPath, "error"));
   }
