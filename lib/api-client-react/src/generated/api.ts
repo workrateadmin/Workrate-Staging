@@ -32,6 +32,7 @@ import type {
   ChatStartInput,
   Company,
   CompanyInput,
+  CompleteHmrcSandboxAuthorizationParams,
   ConfirmFinanceExpenseBody,
   ConnectIntegrationBody,
   DashboardStats,
@@ -53,6 +54,10 @@ import type {
   FinanceTransaction,
   GetFinanceSummaryParams,
   HealthStatus,
+  HmrcAuthorizationStart,
+  HmrcConnectionInput,
+  HmrcConnectionStatus,
+  HmrcSyncInput,
   IntegrationStatus,
   Invoice,
   InvoiceCreate,
@@ -4090,6 +4095,380 @@ export function useGetFinanceSummary<TData = Awaited<ReturnType<typeof getFinanc
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetFinanceSummaryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetHmrcConnectionStatusUrl = () => {
+
+
+
+
+  return `/api/finance/hmrc/status`
+}
+
+/**
+ * @summary Get the signed-in business's HMRC sandbox connection status
+ */
+export const getHmrcConnectionStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<HmrcConnectionStatus> => {
+
+  return customFetch<HmrcConnectionStatus>(getGetHmrcConnectionStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHmrcConnectionStatusQueryKey = () => {
+    return [
+    `/api/finance/hmrc/status`
+    ] as const;
+    }
+
+
+export const getGetHmrcConnectionStatusQueryOptions = <TData = Awaited<ReturnType<typeof getHmrcConnectionStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHmrcConnectionStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHmrcConnectionStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHmrcConnectionStatus>>> = ({ signal }) => getHmrcConnectionStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHmrcConnectionStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHmrcConnectionStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getHmrcConnectionStatus>>>
+export type GetHmrcConnectionStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the signed-in business's HMRC sandbox connection status
+ */
+
+export function useGetHmrcConnectionStatus<TData = Awaited<ReturnType<typeof getHmrcConnectionStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHmrcConnectionStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHmrcConnectionStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartHmrcSandboxConnectionUrl = () => {
+
+
+
+
+  return `/api/finance/hmrc/connect`
+}
+
+/**
+ * @summary Start tenant-bound HMRC sandbox OAuth authorisation
+ */
+export const startHmrcSandboxConnection = async (hmrcConnectionInput: HmrcConnectionInput, options?: Parameters<typeof customFetch>[1]): Promise<HmrcAuthorizationStart> => {
+
+  return customFetch<HmrcAuthorizationStart>(getStartHmrcSandboxConnectionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(hmrcConnectionInput)
+  }
+);}
+
+
+
+
+
+export const getStartHmrcSandboxConnectionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startHmrcSandboxConnection>>, TError,{data: BodyType<HmrcConnectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startHmrcSandboxConnection>>, TError,{data: BodyType<HmrcConnectionInput>}, TContext> => {
+
+const mutationKey = ['startHmrcSandboxConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startHmrcSandboxConnection>>, {data: BodyType<HmrcConnectionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  startHmrcSandboxConnection(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartHmrcSandboxConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof startHmrcSandboxConnection>>>
+    export type StartHmrcSandboxConnectionMutationBody = BodyType<HmrcConnectionInput>
+    export type StartHmrcSandboxConnectionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Start tenant-bound HMRC sandbox OAuth authorisation
+ */
+export const useStartHmrcSandboxConnection = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startHmrcSandboxConnection>>, TError,{data: BodyType<HmrcConnectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startHmrcSandboxConnection>>,
+        TError,
+        {data: BodyType<HmrcConnectionInput>},
+        TContext
+      > => {
+      return useMutation(getStartHmrcSandboxConnectionMutationOptions(options));
+    }
+
+export const getSyncHmrcSandboxDataUrl = () => {
+
+
+
+
+  return `/api/finance/hmrc/sync`
+}
+
+/**
+ * @summary Retrieve read-only HMRC sandbox business details and obligations
+ */
+export const syncHmrcSandboxData = async (hmrcSyncInput: HmrcSyncInput, options?: Parameters<typeof customFetch>[1]): Promise<HmrcConnectionStatus> => {
+
+  return customFetch<HmrcConnectionStatus>(getSyncHmrcSandboxDataUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(hmrcSyncInput)
+  }
+);}
+
+
+
+
+
+export const getSyncHmrcSandboxDataMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncHmrcSandboxData>>, TError,{data: BodyType<HmrcSyncInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncHmrcSandboxData>>, TError,{data: BodyType<HmrcSyncInput>}, TContext> => {
+
+const mutationKey = ['syncHmrcSandboxData'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncHmrcSandboxData>>, {data: BodyType<HmrcSyncInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  syncHmrcSandboxData(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncHmrcSandboxDataMutationResult = NonNullable<Awaited<ReturnType<typeof syncHmrcSandboxData>>>
+    export type SyncHmrcSandboxDataMutationBody = BodyType<HmrcSyncInput>
+    export type SyncHmrcSandboxDataMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Retrieve read-only HMRC sandbox business details and obligations
+ */
+export const useSyncHmrcSandboxData = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncHmrcSandboxData>>, TError,{data: BodyType<HmrcSyncInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof syncHmrcSandboxData>>,
+        TError,
+        {data: BodyType<HmrcSyncInput>},
+        TContext
+      > => {
+      return useMutation(getSyncHmrcSandboxDataMutationOptions(options));
+    }
+
+export const getDisconnectHmrcSandboxUrl = () => {
+
+
+
+
+  return `/api/finance/hmrc`
+}
+
+/**
+ * @summary Remove the signed-in business's local HMRC sandbox connection
+ */
+export const disconnectHmrcSandbox = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDisconnectHmrcSandboxUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectHmrcSandboxMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectHmrcSandbox>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectHmrcSandbox>>, TError,void, TContext> => {
+
+const mutationKey = ['disconnectHmrcSandbox'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectHmrcSandbox>>, void> = () => {
+
+
+          return  disconnectHmrcSandbox(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectHmrcSandboxMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectHmrcSandbox>>>
+
+    export type DisconnectHmrcSandboxMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Remove the signed-in business's local HMRC sandbox connection
+ */
+export const useDisconnectHmrcSandbox = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectHmrcSandbox>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectHmrcSandbox>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDisconnectHmrcSandboxMutationOptions(options));
+    }
+
+export const getCompleteHmrcSandboxAuthorizationUrl = (params: CompleteHmrcSandboxAuthorizationParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/hmrc/callback?${stringifiedParams}` : `/api/hmrc/callback`
+}
+
+/**
+ * @summary Complete a tenant-bound HMRC sandbox OAuth callback
+ */
+export const completeHmrcSandboxAuthorization = async (params: CompleteHmrcSandboxAuthorizationParams, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+
+  return customFetch<unknown>(getCompleteHmrcSandboxAuthorizationUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCompleteHmrcSandboxAuthorizationQueryKey = (params?: CompleteHmrcSandboxAuthorizationParams,) => {
+    return [
+    `/api/hmrc/callback`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCompleteHmrcSandboxAuthorizationQueryOptions = <TData = Awaited<ReturnType<typeof completeHmrcSandboxAuthorization>>, TError = ErrorType<void>>(params: CompleteHmrcSandboxAuthorizationParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof completeHmrcSandboxAuthorization>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCompleteHmrcSandboxAuthorizationQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof completeHmrcSandboxAuthorization>>> = ({ signal }) => completeHmrcSandboxAuthorization(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof completeHmrcSandboxAuthorization>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CompleteHmrcSandboxAuthorizationQueryResult = NonNullable<Awaited<ReturnType<typeof completeHmrcSandboxAuthorization>>>
+export type CompleteHmrcSandboxAuthorizationQueryError = ErrorType<void>
+
+
+/**
+ * @summary Complete a tenant-bound HMRC sandbox OAuth callback
+ */
+
+export function useCompleteHmrcSandboxAuthorization<TData = Awaited<ReturnType<typeof completeHmrcSandboxAuthorization>>, TError = ErrorType<void>>(
+ params: CompleteHmrcSandboxAuthorizationParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof completeHmrcSandboxAuthorization>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCompleteHmrcSandboxAuthorizationQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

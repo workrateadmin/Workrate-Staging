@@ -17,6 +17,7 @@ import storageRouter from "./storage";
 import whatsappWebhookRouter from "./webhooks-whatsapp";
 import invoicesRouter from "./invoices";
 import financeRouter from "./finance";
+import hmrcRouter from "./hmrc";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(storageRouter);
 router.use(whatsappWebhookRouter);
 router.use(invoicesRouter);
 router.use(financeRouter);
+router.use(hmrcRouter);
 
 export default router;

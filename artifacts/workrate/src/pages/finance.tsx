@@ -13,7 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils";
 import {
   AlertTriangle, ArrowDownLeft, ArrowUpRight, CheckCircle2, FileSearch,
-  FileUp, Plus, ReceiptText, ShieldCheck, WalletCards,
+  FileUp, Plus, ReceiptText, ShieldCheck, WalletCards, Building2,
+  CalendarClock, Link2, RefreshCw, Unplug,
 } from "lucide-react";
 
 type FinanceExpense = {
@@ -41,6 +42,38 @@ type FinanceReceipt = {
   fileUrl?: string;
 };
 
+type HmrcBusiness = {
+  typeOfBusiness?: string;
+  businessId?: string;
+  tradingType?: string;
+  tradingName?: string;
+};
+
+type HmrcObligation = {
+  periodStartDate?: string;
+  periodEndDate?: string;
+  dueDate?: string;
+  status?: string;
+  receivedDate?: string;
+};
+
+type HmrcStatus = {
+  status: "not_connected" | "connected" | "error" | "disconnected";
+  sandboxConfigured: boolean;
+  configurationMessage: string | null;
+  scopes: string[];
+  connectedAt: string | null;
+  disconnectedAt: string | null;
+  lastSuccessfulSyncAt: string | null;
+  lastError: string | null;
+  businesses: HmrcBusiness[];
+  obligations: Array<{
+    typeOfBusiness?: string;
+    businessId?: string;
+    obligationDetails?: HmrcObligation[];
+  }>;
+};
+
 const emptyExpense = {
   transactionDate: new Date().toISOString().slice(0, 10),
   supplierName: "",
@@ -53,6 +86,42 @@ const emptyExpense = {
   jobId: "",
   notes: "",
 };
+
+const hmrcDeviceStorageKey = "workrate.hmrc.device-id";
+
+function hmrcBrowserContext() {
+  let deviceId = window.localStorage.getItem(hmrcDeviceStorageKey);
+  if (!deviceId) {
+    deviceId = crypto.randomUUID();
+    window.localStorage.setItem(hmrcDeviceStorageKey, deviceId);
+  }
+  const offsetMinutes = -new Date().getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absoluteMinutes = Math.abs(offsetMinutes);
+  const timezone = `UTC${sign}${String(Math.floor(absoluteMinutes / 60)).padStart(2, "0")}:${String(absoluteMinutes % 60).padStart(2, "0")}`;
+  return {
+    browserUserAgent: navigator.userAgent,
+    deviceId,
+    timezone,
+    screens: [{
+      width: window.screen.width,
+      height: window.screen.height,
+      colourDepth: window.screen.colorDepth,
+      scalingFactor: window.devicePixelRatio || 1,
+    }],
+    windowSize: {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    },
+  };
+}
+
+function obligationStatusVariant(status?: string): "default" | "secondary" | "outline" {
+  const normalized = status?.toLowerCase();
+  if (normalized === "fulfilled") return "default";
+  if (normalized === "open") return "secondary";
+  return "outline";
+}
 
 function statusLabel(status: string) {
   if (status === "confirmed") return "Confirmed";
@@ -77,6 +146,7 @@ export default function FinancePage() {
   const [income, setIncome] = useState<any[]>([]);
   const [audit, setAudit] = useState<any[]>([]);
   const [taxTransactions, setTaxTransactions] = useState<any[]>([]);
+  const [hmrcStatus, setHmrcStatus] = useState<HmrcStatus | null>(null);
   const [taxCategory, setTaxCategory] = useState<string>("");
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,6 +165,9 @@ export default function FinancePage() {
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptJobId, setReceiptJobId] = useState("");
+  const [hmrcDialogOpen, setHmrcDialogOpen] = useState(false);
+  const [sandboxTaxpayerId, setSandboxTaxpayerId] = useState("");
+  const [hmrcSubmitting, setHmrcSubmitting] = useState(false);
   const { data: jobs = [] } = useListJobs();
 
   const request = async (path: string, init?: RequestInit) => {
@@ -109,6 +182,7 @@ export default function FinancePage() {
       const body = await response.json().catch(() => ({}));
       throw new Error(body.error ?? "Finance request failed");
     }
+    if (response.status === 204) return null;
     return response.json();
   };
 
@@ -123,7 +197,7 @@ export default function FinancePage() {
       if (periodFrom) periodParams.set("from", periodFrom);
       if (periodTo) periodParams.set("to", periodTo);
       const periodQuery = periodParams.size ? `?${periodParams.toString()}` : "";
-      const [nextSummary, nextExpenses, nextReceipts, nextIncome, nextAudit, nextCategories, nextTransactions] = await Promise.all([
+      const [nextSummary, nextExpenses, nextReceipts, nextIncome, nextAudit, nextCategories, nextTransactions, nextHmrcStatus] = await Promise.all([
         request(`/finance/summary${periodQuery}`),
         request("/finance/expenses"),
         request("/finance/receipts"),
@@ -131,6 +205,7 @@ export default function FinancePage() {
         request("/finance/audit"),
         request("/finance/categories"),
         request(`/finance/transactions${periodQuery}`),
+        request("/finance/hmrc/status"),
       ]);
       setSummary(nextSummary);
       setExpenses(nextExpenses);
@@ -139,6 +214,7 @@ export default function FinancePage() {
       setAudit(nextAudit);
       setCategories(nextCategories.categories ?? []);
       setTaxTransactions(nextTransactions);
+      setHmrcStatus(nextHmrcStatus);
       setTaxCategory("");
     } catch (error: any) {
       toast({ title: "Finance data could not be loaded", description: error.message, variant: "destructive" });
@@ -284,9 +360,64 @@ export default function FinancePage() {
     }
   }
 
+  async function connectHmrcSandbox() {
+    setHmrcSubmitting(true);
+    try {
+      const start = await request("/finance/hmrc/connect", {
+        method: "POST",
+        body: JSON.stringify({
+          taxpayerId: sandboxTaxpayerId.trim().toUpperCase(),
+          browserContext: hmrcBrowserContext(),
+          returnPath: window.location.pathname,
+        }),
+      });
+      window.location.assign(start.authorizationUrl);
+    } catch (error: any) {
+      toast({ title: "Could not start HMRC sandbox connection", description: error.message, variant: "destructive" });
+      setHmrcSubmitting(false);
+    }
+  }
+
+  async function syncHmrcSandbox() {
+    setHmrcSubmitting(true);
+    try {
+      const nextStatus = await request("/finance/hmrc/sync", {
+        method: "POST",
+        body: JSON.stringify({ browserContext: hmrcBrowserContext() }),
+      });
+      setHmrcStatus(nextStatus);
+      toast({ title: "HMRC sandbox data refreshed", description: "Only read-only business details and obligations were retrieved." });
+    } catch (error: any) {
+      toast({ title: "HMRC sandbox sync needs attention", description: error.message, variant: "destructive" });
+    } finally {
+      setHmrcSubmitting(false);
+    }
+  }
+
+  async function disconnectHmrcSandbox() {
+    setHmrcSubmitting(true);
+    try {
+      await request("/finance/hmrc", { method: "DELETE" });
+      setSandboxTaxpayerId("");
+      toast({ title: "HMRC sandbox disconnected", description: "Local encrypted connection credentials were removed." });
+      await refresh();
+    } catch (error: any) {
+      toast({ title: "Could not disconnect HMRC sandbox", description: error.message, variant: "destructive" });
+    } finally {
+      setHmrcSubmitting(false);
+    }
+  }
+
   const warnings = summary?.warnings ?? { unreviewed: [], missingReceipts: [], uncategorized: [], incompleteAmounts: [] };
   const warningCount = Object.values(warnings as Record<string, unknown[]>)
     .reduce((total, list) => total + (Array.isArray(list) ? list.length : 0), 0);
+  const hmrcObligations = (hmrcStatus?.obligations ?? []).flatMap((group) =>
+    (group.obligationDetails ?? []).map((detail) => ({
+      ...detail,
+      businessId: group.businessId,
+      typeOfBusiness: group.typeOfBusiness,
+    })),
+  );
 
   return (
     <div className="max-w-6xl mx-auto space-y-7">
@@ -448,6 +579,103 @@ export default function FinancePage() {
               </div>
             </CardContent>
           </Card>
+          <Card className="rounded-2xl shadow-sm">
+            <CardHeader className="pb-3 flex flex-row items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-lg">HMRC sandbox connection</CardTitle>
+                  <Badge variant={hmrcStatus?.status === "connected" ? "default" : "outline"}>
+                    {hmrcStatus?.status === "connected" ? "Connected" : "Not connected"}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground font-medium mt-1">
+                  Read-only sandbox business details and MTD obligations. WorkRate cannot submit anything from this page.
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                {hmrcStatus?.status === "connected" ? (
+                  <>
+                    <Button size="sm" variant="outline" className="rounded-lg gap-2" disabled={hmrcSubmitting} onClick={() => void syncHmrcSandbox()}>
+                      <RefreshCw className={`w-4 h-4 ${hmrcSubmitting ? "animate-spin" : ""}`} /> Refresh
+                    </Button>
+                    <Button size="sm" variant="outline" className="rounded-lg gap-2 text-destructive hover:text-destructive" disabled={hmrcSubmitting} onClick={() => void disconnectHmrcSandbox()}>
+                      <Unplug className="w-4 h-4" /> Disconnect
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="sm" className="rounded-lg gap-2" disabled={!hmrcStatus?.sandboxConfigured || hmrcSubmitting} onClick={() => setHmrcDialogOpen(true)}>
+                    <Link2 className="w-4 h-4" /> Connect HMRC
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-4">
+              {!hmrcStatus?.sandboxConfigured && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                  <p className="font-bold">Sandbox configuration needed</p>
+                  <p className="mt-1">{hmrcStatus?.configurationMessage ?? "Add the HMRC sandbox settings on the server before connecting a business."}</p>
+                </div>
+              )}
+              {hmrcStatus?.lastError && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                  <p className="font-bold">Connection needs attention</p>
+                  <p className="mt-1">{hmrcStatus.lastError}</p>
+                </div>
+              )}
+              {hmrcStatus?.status === "connected" && (
+                <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs font-medium text-muted-foreground">
+                  <span>Scope: {hmrcStatus.scopes.join(", ") || "read-only"}</span>
+                  <span>Last read-only sync: {hmrcStatus.lastSuccessfulSyncAt ? new Date(hmrcStatus.lastSuccessfulSyncAt).toLocaleString() : "Not yet retrieved"}</span>
+                </div>
+              )}
+              {hmrcStatus?.status === "connected" && hmrcStatus.businesses.length > 0 && (
+                <div className="grid md:grid-cols-2 gap-3">
+                  {hmrcStatus.businesses.map((business, index) => (
+                    <div key={`${business.businessId ?? "business"}-${index}`} className="rounded-xl border border-border/60 p-4">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-primary" />
+                        <p className="font-bold">{business.tradingName || business.typeOfBusiness || "Registered business"}</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground font-medium mt-2">
+                        {business.typeOfBusiness || "Business type not supplied"}{business.tradingType ? ` · ${business.tradingType}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {hmrcStatus?.status === "connected" && hmrcStatus.businesses.length === 0 && !hmrcStatus.lastError && (
+                <p className="text-sm text-muted-foreground">Connected to HMRC sandbox. Refresh to retrieve registered businesses and current obligations.</p>
+              )}
+            </CardContent>
+          </Card>
+          {hmrcStatus?.status === "connected" && (
+            <Card className="rounded-2xl shadow-sm">
+              <CardHeader className="pb-3"><CardTitle className="text-lg">HMRC MTD obligations</CardTitle></CardHeader>
+              <CardContent className="pt-0">
+                {hmrcObligations.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No sandbox obligations have been retrieved yet.</p>
+                ) : (
+                  <div className="divide-y divide-border/60">
+                    {hmrcObligations.map((obligation, index) => (
+                      <div key={`${obligation.businessId ?? "business"}-${obligation.periodEndDate ?? index}`} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <CalendarClock className="w-4 h-4 text-primary" />
+                            <p className="font-bold">{obligation.periodStartDate || "Period start unavailable"} — {obligation.periodEndDate || "Period end unavailable"}</p>
+                            <Badge variant={obligationStatusVariant(obligation.status)}>{obligation.status || "Unknown"}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground font-medium mt-1">
+                            {obligation.typeOfBusiness || "Business"}{obligation.receivedDate ? ` · Received ${obligation.receivedDate}` : ""}
+                          </p>
+                        </div>
+                        <p className="text-sm font-bold">{obligation.dueDate ? `Due ${obligation.dueDate}` : "No due date supplied"}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
           <ReviewNotice warnings={warnings} />
           <Card className="rounded-2xl shadow-sm">
             <CardHeader className="pb-3"><CardTitle className="text-lg">Expense categories in this period</CardTitle></CardHeader>
@@ -497,6 +725,36 @@ export default function FinancePage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={hmrcDialogOpen} onOpenChange={setHmrcDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-black">Connect HMRC sandbox</DialogTitle>
+            <DialogDescription>
+              Use an HMRC sandbox test account only. Your taxpayer identifier is encrypted on the server and is never shown again in WorkRate.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <Field label="Sandbox NINO">
+              <Input
+                value={sandboxTaxpayerId}
+                onChange={(event) => setSandboxTaxpayerId(event.target.value.toUpperCase())}
+                placeholder="AA000003D"
+                autoCapitalize="characters"
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              This starts a read-only OAuth connection. No Finance records or HMRC tax updates will be created.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHmrcDialogOpen(false)}>Cancel</Button>
+            <Button disabled={!sandboxTaxpayerId.trim() || hmrcSubmitting} onClick={() => void connectHmrcSandbox()}>
+              {hmrcSubmitting ? "Opening HMRC…" : "Continue to HMRC"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={expenseOpen} onOpenChange={setExpenseOpen}>
         <DialogContent className="max-w-xl">

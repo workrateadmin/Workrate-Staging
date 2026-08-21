@@ -16,3 +16,4 @@
 - [Invoice deposit lifecycle](invoice-deposit-lifecycle.md) — deposits are a percentage schedule, separately receipted, with finance locked after receipt
 - [Customer proposal privacy](customer-proposal-privacy.md) — public proposals are allow-listed: show the final total and payment schedule, never internal estimate components
 - [Finance evidence boundaries](workrate-finance-evidence.md) — derive invoice cash activity; AI receipt values stay unconfirmed and evidence streams only through tenant authorization
+- [HMRC sandbox read-only](hmrc-sandbox-read-only.md) — sandbox-only OAuth requires encrypted tenant credentials and verified fraud-prevention sources; fail closed when evidence is unavailable

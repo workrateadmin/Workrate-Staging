@@ -13,6 +13,94 @@ export interface ApiError {
   error: string;
 }
 
+export type HmrcBrowserContextScreensItem = {
+  width: number;
+  height: number;
+  colourDepth: number;
+  scalingFactor: number;
+};
+
+export type HmrcBrowserContextWindowSize = {
+  width: number;
+  height: number;
+};
+
+export interface HmrcBrowserContext {
+  browserUserAgent: string;
+  deviceId: string;
+  /** Browser local UTC offset in HMRC format, for example UTC+01:00 */
+  timezone: string;
+  screens: HmrcBrowserContextScreensItem[];
+  windowSize: HmrcBrowserContextWindowSize;
+  clientPublicPort?: number;
+  multiFactor?: string;
+}
+
+export interface HmrcConnectionInput {
+  /** Sandbox NINO required by HMRC read-only MTD endpoints; encrypted server-side. */
+  taxpayerId: string;
+  browserContext: HmrcBrowserContext;
+  returnPath?: string;
+}
+
+export interface HmrcSyncInput {
+  browserContext: HmrcBrowserContext;
+}
+
+export interface HmrcAuthorizationStart {
+  authorizationUrl: string;
+  expiresAt: string;
+}
+
+export interface HmrcBusiness {
+  typeOfBusiness?: string;
+  businessId?: string;
+  tradingType?: string;
+  tradingName?: string;
+}
+
+export interface HmrcObligationDetail {
+  periodStartDate?: string;
+  periodEndDate?: string;
+  dueDate?: string;
+  status?: string;
+  receivedDate?: string;
+}
+
+export interface HmrcObligationGroup {
+  typeOfBusiness?: string;
+  businessId?: string;
+  obligationDetails?: HmrcObligationDetail[];
+}
+
+export type HmrcConnectionStatusStatus = typeof HmrcConnectionStatusStatus[keyof typeof HmrcConnectionStatusStatus];
+
+
+export const HmrcConnectionStatusStatus = {
+  not_connected: 'not_connected',
+  connected: 'connected',
+  error: 'error',
+  disconnected: 'disconnected',
+} as const;
+
+export interface HmrcConnectionStatus {
+  status: HmrcConnectionStatusStatus;
+  sandboxConfigured: boolean;
+  /** @nullable */
+  configurationMessage: string | null;
+  scopes: string[];
+  /** @nullable */
+  connectedAt: string | null;
+  /** @nullable */
+  disconnectedAt: string | null;
+  /** @nullable */
+  lastSuccessfulSyncAt: string | null;
+  /** @nullable */
+  lastError: string | null;
+  businesses: HmrcBusiness[];
+  obligations: HmrcObligationGroup[];
+}
+
 export interface FinanceCategories {
   categories: string[];
 }
@@ -906,6 +994,11 @@ followUpRequired?: string;
 export type GetFinanceSummaryParams = {
 from?: FinancePeriodFromParameter;
 to?: FinancePeriodToParameter;
+};
+
+export type CompleteHmrcSandboxAuthorizationParams = {
+code: string;
+state: string;
 };
 
 export type ListFinanceTransactionsParams = {

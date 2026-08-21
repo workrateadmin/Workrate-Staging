@@ -1286,6 +1286,126 @@ paths:
               schema:
                 $ref: "#/components/schemas/FinanceSummary"
 
+  /finance/hmrc/status:
+    get:
+      operationId: getHmrcConnectionStatus
+      tags: [finance]
+      summary: Get the signed-in business's HMRC sandbox connection status
+      responses:
+        "200":
+          description: HMRC sandbox connection status and last read-only sync data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HmrcConnectionStatus"
+
+  /finance/hmrc/connect:
+    post:
+      operationId: startHmrcSandboxConnection
+      tags: [finance]
+      summary: Start tenant-bound HMRC sandbox OAuth authorisation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HmrcConnectionInput"
+      responses:
+        "200":
+          description: Secure HMRC authorisation URL for the current business
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HmrcAuthorizationStart"
+        "400":
+          description: Invalid taxpayer identifier or browser metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: HMRC sandbox OAuth has not been configured server-side
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /finance/hmrc/sync:
+    post:
+      operationId: syncHmrcSandboxData
+      tags: [finance]
+      summary: Retrieve read-only HMRC sandbox business details and obligations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HmrcSyncInput"
+      responses:
+        "200":
+          description: Current connection status with refreshed read-only MTD data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HmrcConnectionStatus"
+        "400":
+          description: Invalid browser metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No connection exists for the signed-in business
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: Read-only HMRC data could not be synchronised
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /finance/hmrc:
+    delete:
+      operationId: disconnectHmrcSandbox
+      tags: [finance]
+      summary: Remove the signed-in business's local HMRC sandbox connection
+      responses:
+        "204":
+          description: Local encrypted tokens and connection metadata removed
+        "404":
+          description: No connection exists for the signed-in business
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /hmrc/callback:
+    get:
+      operationId: completeHmrcSandboxAuthorization
+      tags: [finance]
+      summary: Complete a tenant-bound HMRC sandbox OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirects back to the Finance page after processing the callback
+        "400":
+          description: Invalid, expired, or already-used callback state
+        "403":
+          description: Callback belongs to a different WorkRate business
+
   /finance/expenses:
     get:
       operationId: listFinanceExpenses
@@ -1545,6 +1665,154 @@ components:
           type: string
       required:
         - error
+
+    HmrcBrowserContext:
+      type: object
+      properties:
+        browserUserAgent:
+          type: string
+        deviceId:
+          type: string
+        timezone:
+          type: string
+          description: Browser local UTC offset in HMRC format, for example UTC+01:00
+        screens:
+          type: array
+          items:
+            type: object
+            properties:
+              width: { type: number }
+              height: { type: number }
+              colourDepth: { type: number }
+              scalingFactor: { type: number }
+            required: [width, height, colourDepth, scalingFactor]
+        windowSize:
+          type: object
+          properties:
+            width: { type: number }
+            height: { type: number }
+          required: [width, height]
+        clientPublicPort:
+          type: number
+        multiFactor:
+          type: string
+      required: [browserUserAgent, deviceId, timezone, screens, windowSize]
+
+    HmrcConnectionInput:
+      type: object
+      properties:
+        taxpayerId:
+          type: string
+          description: Sandbox NINO required by HMRC read-only MTD endpoints; encrypted server-side.
+        browserContext:
+          $ref: "#/components/schemas/HmrcBrowserContext"
+        returnPath:
+          type: string
+      required: [taxpayerId, browserContext]
+
+    HmrcSyncInput:
+      type: object
+      properties:
+        browserContext:
+          $ref: "#/components/schemas/HmrcBrowserContext"
+      required: [browserContext]
+
+    HmrcAuthorizationStart:
+      type: object
+      properties:
+        authorizationUrl:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+      required: [authorizationUrl, expiresAt]
+
+    HmrcBusiness:
+      type: object
+      properties:
+        typeOfBusiness:
+          type: string
+        businessId:
+          type: string
+        tradingType:
+          type: string
+        tradingName:
+          type: string
+
+    HmrcObligationDetail:
+      type: object
+      properties:
+        periodStartDate:
+          type: string
+          format: date
+        periodEndDate:
+          type: string
+          format: date
+        dueDate:
+          type: string
+          format: date
+        status:
+          type: string
+        receivedDate:
+          type: string
+          format: date
+
+    HmrcObligationGroup:
+      type: object
+      properties:
+        typeOfBusiness:
+          type: string
+        businessId:
+          type: string
+        obligationDetails:
+          type: array
+          items:
+            $ref: "#/components/schemas/HmrcObligationDetail"
+
+    HmrcConnectionStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [not_connected, connected, error, disconnected]
+        sandboxConfigured:
+          type: boolean
+        configurationMessage:
+          type: ["string", "null"]
+        scopes:
+          type: array
+          items:
+            type: string
+        connectedAt:
+          type: ["string", "null"]
+          format: date-time
+        disconnectedAt:
+          type: ["string", "null"]
+          format: date-time
+        lastSuccessfulSyncAt:
+          type: ["string", "null"]
+          format: date-time
+        lastError:
+          type: ["string", "null"]
+        businesses:
+          type: array
+          items:
+            $ref: "#/components/schemas/HmrcBusiness"
+        obligations:
+          type: array
+          items:
+            $ref: "#/components/schemas/HmrcObligationGroup"
+      required:
+        - status
+        - sandboxConfigured
+        - configurationMessage
+        - scopes
+        - connectedAt
+        - disconnectedAt
+        - lastSuccessfulSyncAt
+        - lastError
+        - businesses
+        - obligations
 
     FinanceCategories:
       type: object

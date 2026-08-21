@@ -19,8 +19,21 @@ mkdirSync(uploadsDir, { recursive: true });
 
 const app = express();
 
-// Trust Replit's reverse proxy so req.protocol returns "https" in production
-app.set("trust proxy", true);
+// Never trust arbitrary forwarded headers. Deployments that need the originating
+// client IP (notably HMRC fraud-prevention headers) must declare the CIDRs for
+// their controlled proxy chain. Loopback remains enough for local proxying.
+const trustedProxyCidrs = (process.env.HMRC_TRUSTED_PROXY_CIDRS ?? "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+app.set("trust proxy", trustedProxyCidrs.length ? trustedProxyCidrs : "loopback");
+
+const allowedCorsOrigins = new Set(
+  (process.env.CORS_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
 
 app.use(
   pinoHttp({
@@ -44,7 +57,14 @@ app.use(
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.use(cors({ credentials: true, origin: true }));
+app.use(cors({
+  credentials: true,
+  origin(origin, callback) {
+    // Same-origin calls do not need CORS. Cross-origin credentialed requests
+    // must be explicitly allow-listed by deployment configuration.
+    callback(null, Boolean(origin && allowedCorsOrigins.has(origin)));
+  },
+}));
 // Capture the raw request body before JSON parsing so webhook routes can
 // verify HMAC-SHA256 signatures (e.g. Meta WhatsApp, Stripe, etc.).
 app.use(express.json({

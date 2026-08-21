@@ -1868,6 +1868,138 @@ export const GetFinanceSummaryResponse = zod.object({
 
 
 /**
+ * @summary Get the signed-in business's HMRC sandbox connection status
+ */
+export const GetHmrcConnectionStatusResponse = zod.object({
+  "status": zod.enum(['not_connected', 'connected', 'error', 'disconnected']),
+  "sandboxConfigured": zod.boolean(),
+  "configurationMessage": zod.string().nullable(),
+  "scopes": zod.array(zod.string()),
+  "connectedAt": zod.coerce.date().nullable(),
+  "disconnectedAt": zod.coerce.date().nullable(),
+  "lastSuccessfulSyncAt": zod.coerce.date().nullable(),
+  "lastError": zod.string().nullable(),
+  "businesses": zod.array(zod.object({
+  "typeOfBusiness": zod.string().optional(),
+  "businessId": zod.string().optional(),
+  "tradingType": zod.string().optional(),
+  "tradingName": zod.string().optional()
+})),
+  "obligations": zod.array(zod.object({
+  "typeOfBusiness": zod.string().optional(),
+  "businessId": zod.string().optional(),
+  "obligationDetails": zod.array(zod.object({
+  "periodStartDate": zod.coerce.date().optional(),
+  "periodEndDate": zod.coerce.date().optional(),
+  "dueDate": zod.coerce.date().optional(),
+  "status": zod.string().optional(),
+  "receivedDate": zod.coerce.date().optional()
+})).optional()
+}))
+})
+
+
+/**
+ * @summary Start tenant-bound HMRC sandbox OAuth authorisation
+ */
+export const StartHmrcSandboxConnectionBody = zod.object({
+  "taxpayerId": zod.string().describe('Sandbox NINO required by HMRC read-only MTD endpoints; encrypted server-side.'),
+  "browserContext": zod.object({
+  "browserUserAgent": zod.string(),
+  "deviceId": zod.string(),
+  "timezone": zod.string().describe('Browser local UTC offset in HMRC format, for example UTC+01:00'),
+  "screens": zod.array(zod.object({
+  "width": zod.number(),
+  "height": zod.number(),
+  "colourDepth": zod.number(),
+  "scalingFactor": zod.number()
+})),
+  "windowSize": zod.object({
+  "width": zod.number(),
+  "height": zod.number()
+}),
+  "clientPublicPort": zod.number().optional(),
+  "multiFactor": zod.string().optional()
+}),
+  "returnPath": zod.string().optional()
+})
+
+export const StartHmrcSandboxConnectionResponse = zod.object({
+  "authorizationUrl": zod.string(),
+  "expiresAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Retrieve read-only HMRC sandbox business details and obligations
+ */
+export const SyncHmrcSandboxDataBody = zod.object({
+  "browserContext": zod.object({
+  "browserUserAgent": zod.string(),
+  "deviceId": zod.string(),
+  "timezone": zod.string().describe('Browser local UTC offset in HMRC format, for example UTC+01:00'),
+  "screens": zod.array(zod.object({
+  "width": zod.number(),
+  "height": zod.number(),
+  "colourDepth": zod.number(),
+  "scalingFactor": zod.number()
+})),
+  "windowSize": zod.object({
+  "width": zod.number(),
+  "height": zod.number()
+}),
+  "clientPublicPort": zod.number().optional(),
+  "multiFactor": zod.string().optional()
+})
+})
+
+export const SyncHmrcSandboxDataResponse = zod.object({
+  "status": zod.enum(['not_connected', 'connected', 'error', 'disconnected']),
+  "sandboxConfigured": zod.boolean(),
+  "configurationMessage": zod.string().nullable(),
+  "scopes": zod.array(zod.string()),
+  "connectedAt": zod.coerce.date().nullable(),
+  "disconnectedAt": zod.coerce.date().nullable(),
+  "lastSuccessfulSyncAt": zod.coerce.date().nullable(),
+  "lastError": zod.string().nullable(),
+  "businesses": zod.array(zod.object({
+  "typeOfBusiness": zod.string().optional(),
+  "businessId": zod.string().optional(),
+  "tradingType": zod.string().optional(),
+  "tradingName": zod.string().optional()
+})),
+  "obligations": zod.array(zod.object({
+  "typeOfBusiness": zod.string().optional(),
+  "businessId": zod.string().optional(),
+  "obligationDetails": zod.array(zod.object({
+  "periodStartDate": zod.coerce.date().optional(),
+  "periodEndDate": zod.coerce.date().optional(),
+  "dueDate": zod.coerce.date().optional(),
+  "status": zod.string().optional(),
+  "receivedDate": zod.coerce.date().optional()
+})).optional()
+}))
+})
+
+
+/**
+ * @summary Remove the signed-in business's local HMRC sandbox connection
+ */
+export const DisconnectHmrcSandboxResponse = zod.void()
+
+
+/**
+ * @summary Complete a tenant-bound HMRC sandbox OAuth callback
+ */
+export const CompleteHmrcSandboxAuthorizationQueryParams = zod.object({
+  "code": zod.coerce.string(),
+  "state": zod.coerce.string()
+})
+
+export const CompleteHmrcSandboxAuthorizationResponse = zod.void()
+
+
+/**
  * @summary List finance expenses for the signed-in business
  */
 export const ListFinanceExpensesResponseItem = zod.object({
