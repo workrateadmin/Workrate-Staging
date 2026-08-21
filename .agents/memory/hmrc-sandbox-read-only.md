@@ -37,3 +37,14 @@ deployment versions change, and placeholders are expressly prohibited.
 **How to apply:** Keep data reads disabled until a controlled ingress can
 provide verified public-hop evidence and its exact trusted CIDRs. OAuth setup
 may be tested separately, but it does not justify a non-compliant data sync.
+
+The HMRC sandbox token endpoint requires both `client_id` and `client_secret` in
+the URL-encoded authorization-code exchange body, even when the same
+credentials are also sent through HTTP Basic authentication.
+
+**Why:** Production rejected otherwise valid callbacks with `invalid_request`
+because Basic authentication alone was insufficient for the sandbox token
+endpoint.
+
+**How to apply:** Keep both form fields server-side and URL-encoded; never log
+the request body or credential values.

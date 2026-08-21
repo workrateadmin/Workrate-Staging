@@ -242,6 +242,7 @@ export async function exchangeAuthorizationCode(
     body: [
       "grant_type=authorization_code",
       `client_id=${encodeFormValue(config.clientId)}`,
+      `client_secret=${encodeFormValue(config.clientSecret)}`,
       `code=${encodeFormValue(code)}`,
       `redirect_uri=${encodeFormValue(config.redirectUrl)}`,
       `code_verifier=${encodeFormValue(codeVerifier)}`,
