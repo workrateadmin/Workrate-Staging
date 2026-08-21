@@ -116,14 +116,6 @@ function hmrcBrowserContext() {
   };
 }
 
-function navigateTopLevel(url: string) {
-  if (window.top && window.top !== window) {
-    window.top.location.href = url;
-    return;
-  }
-  window.location.assign(url);
-}
-
 function obligationStatusVariant(status?: string): "default" | "secondary" | "outline" {
   const normalized = status?.toLowerCase();
   if (normalized === "fulfilled") return "default";
@@ -370,6 +362,21 @@ export default function FinancePage() {
 
   async function connectHmrcSandbox() {
     setHmrcSubmitting(true);
+    // Preview is itself embedded in an iframe, and its sandbox prevents
+    // cross-origin top-frame assignment. Open a real top-level tab while the
+    // click still has user activation, then navigate that tab after the API
+    // returns the authorization URL.
+    const hmrcWindow = window.open("about:blank", "_blank");
+    if (!hmrcWindow) {
+      toast({
+        title: "Could not open HMRC sandbox",
+        description: "Allow pop-ups for WorkRate, then try connecting again.",
+        variant: "destructive",
+      });
+      setHmrcSubmitting(false);
+      return;
+    }
+    hmrcWindow.opener = null;
     try {
       const start = await request("/finance/hmrc/connect", {
         method: "POST",
@@ -379,8 +386,9 @@ export default function FinancePage() {
           returnPath: window.location.pathname,
         }),
       });
-      navigateTopLevel(start.authorizationUrl);
+      hmrcWindow.location.replace(start.authorizationUrl);
     } catch (error: any) {
+      hmrcWindow.close();
       toast({ title: "Could not start HMRC sandbox connection", description: error.message, variant: "destructive" });
       setHmrcSubmitting(false);
     }
