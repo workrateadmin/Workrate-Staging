@@ -116,6 +116,14 @@ function hmrcBrowserContext() {
   };
 }
 
+function navigateTopLevel(url: string) {
+  if (window.top && window.top !== window) {
+    window.top.location.href = url;
+    return;
+  }
+  window.location.assign(url);
+}
+
 function obligationStatusVariant(status?: string): "default" | "secondary" | "outline" {
   const normalized = status?.toLowerCase();
   if (normalized === "fulfilled") return "default";
@@ -371,7 +379,7 @@ export default function FinancePage() {
           returnPath: window.location.pathname,
         }),
       });
-      window.location.assign(start.authorizationUrl);
+      navigateTopLevel(start.authorizationUrl);
     } catch (error: any) {
       toast({ title: "Could not start HMRC sandbox connection", description: error.message, variant: "destructive" });
       setHmrcSubmitting(false);
