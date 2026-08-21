@@ -1,0 +1,73 @@
+FINAL PRE-PUBLISH FINANCE / MTD CHECK
+
+Do not add new features.
+
+The Finance / MTD foundation is implemented in DEV.
+
+Before publishing, run one final production-readiness audit only.
+
+Check:
+
+1. Migration safety
+- 0010_finance_foundation.sql
+- 0011_finance_receipt_integrity.sql
+
+Confirm both migrations are:
+- additive
+- backward compatible
+- safe on existing production data
+- nullable/defaulted where necessary
+- do not rewrite existing invoice/payment/job records
+
+2. Existing production flows
+Prove the new finance code does NOT alter:
+- enquiries
+- quotes
+- proposals
+- deposits
+- invoices
+- payments
+- Job Actuals
+
+3. Finance totals
+Confirm:
+- unreviewed AI receipt extractions are excluded
+- confirmed/corrected expenses are included
+- other income is included correctly
+- invoice/deposit/payment data is not double-counted
+- date filtering works correctly
+- VAT values are not invented
+
+4. Receipt security
+Confirm:
+- receipt files are tenant-isolated
+- direct generic storage access is blocked
+- authorised finance download works
+- one business cannot request another business's receipt/document by ID or URL
+
+5. Duplicate protection
+Confirm uploading the exact same receipt twice for the same business is handled safely and does not create duplicate financial entries.
+
+6. Job linking
+Confirm linking an expense to a job does NOT automatically overwrite Job Actuals or Cost Intelligence values without explicit confirmation.
+
+7. Existing project errors
+The following unrelated type errors were reported:
+- company.ts onboarding field typing
+- concept-visuals.ts optional response-data typing
+
+Confirm these are pre-existing and will NOT prevent the production build/deploy.
+
+8. Generated client formatting
+Resolve or safely document the EOF-whitespace generator issue so it does not create a failing production CI/build step.
+
+9. Production publish plan
+Report:
+A. exact migrations that will run
+B. whether any production data will be modified beyond schema creation
+C. rollback plan
+D. one final production smoke-test checklist
+
+Do not add features.
+Do not refactor.
+This is only a final publish-safety check.

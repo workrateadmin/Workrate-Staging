@@ -2198,5 +2198,3 @@ export const ListFinanceAuditResponseItem = zod.object({
   "createdAt": zod.coerce.date()
 })
 export const ListFinanceAuditResponse = zod.array(ListFinanceAuditResponseItem)
-
-

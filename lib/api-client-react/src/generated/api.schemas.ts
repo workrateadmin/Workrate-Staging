@@ -934,4 +934,3 @@ export type ListFinanceIncomeParams = {
 from?: FinancePeriodFromParameter;
 to?: FinancePeriodToParameter;
 };
-

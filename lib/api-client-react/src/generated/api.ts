@@ -176,6 +176,12 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+
+
+
+
+
+
 export const getGetCompanyUrl = () => {
 
 
@@ -246,6 +252,10 @@ export function useGetCompany<TData = Awaited<ReturnType<typeof getCompany>>, TE
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
 
 
 
@@ -397,6 +407,13 @@ export function useListEnquiries<TData = Awaited<ReturnType<typeof listEnquiries
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
 export const getCreateEnquiryUrl = () => {
 
 
@@ -538,6 +555,13 @@ export function useGetEnquiry<TData = Awaited<ReturnType<typeof getEnquiry>>, TE
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
 export const getUpdateEnquiryUrl = (id: number,) => {
 
 
@@ -758,7 +782,6 @@ export function useListEnquiryMessages<TData = Awaited<ReturnType<typeof listEnq
 
 
 
-// End of generated API client.
 export const getListEnquiryAttachmentsUrl = (id: number,) => {
 
 
@@ -4910,10 +4933,3 @@ export function useListFinanceAudit<TData = Awaited<ReturnType<typeof listFinanc
 
   return withQueryKey(query, queryOptions.queryKey);
 }
-
-
-
-
-
-
-
