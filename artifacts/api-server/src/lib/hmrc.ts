@@ -7,7 +7,13 @@ import {
 
 const HMRC_SANDBOX_BASE_URL = "https://test-api.service.hmrc.gov.uk";
 const HMRC_READ_SCOPE = "read:self-assessment";
-const OMITTABLE_HEADERS = new Set(["client-public-port", "client-multi-factor"]);
+const OMITTABLE_HEADERS = new Set([
+  "client-public-port",
+  "client-multi-factor",
+  "vendor-license-ids",
+  "vendor-forwarded",
+  "vendor-public-ip",
+]);
 
 export type HmrcSandboxConfig = {
   apiBaseUrl: string;
@@ -17,10 +23,6 @@ export type HmrcSandboxConfig = {
   clientSecret: string;
   redirectUrl: string;
   encryptionKey: Buffer;
-  vendorForwarded: string | null;
-  vendorLicenseIds: string | null;
-  vendorPublicIp: string | null;
-  vendorVersion: string | null;
   approvedOmissions: Set<string>;
 };
 
@@ -42,6 +44,17 @@ export type HmrcBrowserContext = {
 export type StoredFraudContext = HmrcBrowserContext & {
   clientPublicIp: string;
   capturedAt: string;
+};
+
+/**
+ * Values supplied by a controlled TLS edge or deployment runtime. They must
+ * describe the current request and must never be populated from browser input
+ * or a manually maintained environment variable.
+ */
+export type HmrcTrustedNetworkEvidence = {
+  vendorForwarded: string;
+  vendorPublicIp: string;
+  vendorVersion: string;
 };
 
 type HmrcTokenResponse = {
@@ -67,10 +80,6 @@ export function getHmrcSandboxConfig(): HmrcSandboxConfig {
   const redirectUrl = configuredValue("HMRC_OAUTH_REDIRECT_URL");
   const keyValue = configuredValue("HMRC_TOKEN_ENCRYPTION_KEY");
   const apiBaseUrl = configuredValue("HMRC_SANDBOX_API_BASE_URL") ?? HMRC_SANDBOX_BASE_URL;
-  const vendorForwarded = configuredValue("HMRC_FRAUD_VENDOR_FORWARDED");
-  const vendorLicenseIds = configuredValue("HMRC_FRAUD_VENDOR_LICENSE_IDS");
-  const vendorPublicIp = configuredValue("HMRC_FRAUD_VENDOR_PUBLIC_IP");
-  const vendorVersion = configuredValue("HMRC_FRAUD_VENDOR_VERSION");
 
   if (!clientId || !clientSecret || !redirectUrl || !keyValue) {
     safeConfigError("add the sandbox client credentials, redirect URL, and token encryption key.");
@@ -116,10 +125,6 @@ export function getHmrcSandboxConfig(): HmrcSandboxConfig {
     clientSecret,
     redirectUrl: parsedRedirect.toString(),
     encryptionKey,
-    vendorForwarded,
-    vendorLicenseIds,
-    vendorPublicIp,
-    vendorVersion,
     approvedOmissions,
   };
 }
@@ -286,9 +291,12 @@ function omitAllowed(config: HmrcSandboxConfig, name: string): boolean {
 export function createFraudPreventionHeaders(
   config: HmrcSandboxConfig,
   input: StoredFraudContext & { userId: string },
+  networkEvidence?: HmrcTrustedNetworkEvidence,
 ): Record<string, string> {
-  if (!config.vendorForwarded || !config.vendorLicenseIds || !config.vendorPublicIp || !config.vendorVersion) {
-    throw new Error("HMRC fraud-prevention vendor metadata is not configured.");
+  if (!networkEvidence?.vendorForwarded || !networkEvidence.vendorPublicIp || !networkEvidence.vendorVersion) {
+    throw new Error(
+      "HMRC sandbox cannot make a read request until a controlled TLS edge supplies verified network evidence.",
+    );
   }
   if (!input.browserUserAgent || input.browserUserAgent.length > 1024) {
     throw new Error("HMRC fraud-prevention data needs the browser JavaScript user agent.");
@@ -339,12 +347,17 @@ export function createFraudPreventionHeaders(
       width: input.windowSize.width,
       height: input.windowSize.height,
     }),
-    "Gov-Vendor-Forwarded": config.vendorForwarded,
-    "Gov-Vendor-License-IDs": config.vendorLicenseIds,
+    "Gov-Vendor-Forwarded": networkEvidence.vendorForwarded,
     "Gov-Vendor-Product-Name": "WorkRate",
-    "Gov-Vendor-Public-IP": config.vendorPublicIp,
-    "Gov-Vendor-Version": config.vendorVersion,
+    "Gov-Vendor-Public-IP": networkEvidence.vendorPublicIp,
+    "Gov-Vendor-Version": networkEvidence.vendorVersion,
   };
+
+  if (!omitAllowed(config, "vendor-license-ids")) {
+    throw new Error(
+      "HMRC requires documented approval to omit Gov-Vendor-License-IDs when WorkRate has no vendor licence on the browser.",
+    );
+  }
 
   if (input.clientPublicPort != null) {
     if (!positiveInteger(input.clientPublicPort)) {

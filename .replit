@@ -25,6 +25,7 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
+HMRC_OAUTH_REDIRECT_URL = "https://work-rate-manager.replit.app/api/hmrc/callback"
 
 [userenv.production]
 PROPOSAL_BASE_URL = "https://work-rate-manager.replit.app"

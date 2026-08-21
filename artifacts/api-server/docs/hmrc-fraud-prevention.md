@@ -40,32 +40,43 @@ connection or refresh is requested:
 The server obtains the client IP from the incoming trusted-proxy request. It
 never replaces missing browser or network data with placeholders.
 
-The deployment operator must supply real infrastructure values through:
+For a browser SaaS app, the following values must be collected or generated
+from the current deployment and request. They are **not** manually maintained
+environment variables:
 
-- `HMRC_FRAUD_VENDOR_FORWARDED`
-- `HMRC_FRAUD_VENDOR_LICENSE_IDS`
-- `HMRC_FRAUD_VENDOR_PUBLIC_IP`
-- `HMRC_FRAUD_VENDOR_VERSION`
+- `Gov-Vendor-Forwarded` — the actual public TLS termination path for the
+  current request
+- `Gov-Vendor-Public-IP` — the public edge address that received the browser
+  request
+- `Gov-Vendor-Version` — the actual versions of WorkRate software handling the
+  request
+
+`Gov-Vendor-License-IDs` does not have a truthful value when WorkRate has not
+installed licensed vendor software on the customer's browser. Leave it absent
+and obtain HMRC's documented approval before treating it as an omission.
 
 The originating IP must come through a controlled proxy chain. Configure
-`HMRC_TRUSTED_PROXY_CIDRS` with the exact CIDR ranges of those proxy hops; the
-server refuses an HMRC sync when this setting is absent instead of trusting an
-unverified `X-Forwarded-For` value. If another frontend origin legitimately
+`HMRC_TRUSTED_PROXY_CIDRS` only when the deployment operator provides the
+exact CIDR ranges of those proxy hops; the server refuses an HMRC sync when
+this setting is absent instead of trusting an unverified `X-Forwarded-For`
+value. Do not guess Replit edge ranges. If another frontend origin legitimately
 calls the API, add its exact origin to `CORS_ALLOWED_ORIGINS`. Same-origin
 WorkRate requests do not need this CORS setting.
 
 Some reverse-proxy architectures cannot truthfully expose a browser's public
 TCP port, and WorkRate does not have reliable per-request MFA factor metadata.
 Do **not** invent these values. Ask HMRC for approval before setting
-`HMRC_FRAUD_APPROVED_OMISSIONS` to either or both of:
+`HMRC_FRAUD_APPROVED_OMISSIONS` to the supported missing headers:
 
 ```text
-client-public-port,client-multi-factor
+client-public-port,client-multi-factor,vendor-license-ids,vendor-forwarded,vendor-public-ip
 ```
 
-Without the actual values or documented HMRC approval, WorkRate refuses the
-outbound sync and shows a configuration error. OAuth authorisation can still
-complete, but no HMRC data will be retrieved until the evidence is ready.
+Only set that variable with an HMRC decision that applies to WorkRate's actual
+architecture. Without verified network evidence and documented approval for
+any genuinely missing header, WorkRate refuses the outbound sync. OAuth
+authorisation can still complete, but no HMRC data will be retrieved until the
+evidence is ready.
 
 ## Security model
 

@@ -4,6 +4,7 @@ import test from "node:test";
 import { eq } from "drizzle-orm";
 import { companiesTable, db, hmrcOauthStatesTable } from "@workspace/db";
 import {
+  createFraudPreventionHeaders,
   getHmrcSandboxConfig,
   hmrcGet,
   type HmrcSandboxConfig,
@@ -24,10 +25,6 @@ const sandboxConfig: HmrcSandboxConfig = {
   clientSecret: "sandbox-client-secret",
   redirectUrl: "https://workrate.example/api/hmrc/callback",
   encryptionKey: Buffer.alloc(32),
-  vendorForwarded: null,
-  vendorLicenseIds: null,
-  vendorPublicIp: null,
-  vendorVersion: null,
   approvedOmissions: new Set(),
 };
 
@@ -77,6 +74,42 @@ test("HMRC only accepts forwarded client IPs after exact proxy CIDRs are configu
 
   assert.throws(() => getHmrcTrustedProxyCidrs("198.51.100.7"), /exact IPv4 or IPv6 CIDRs/);
   assert.throws(() => getHmrcTrustedProxyCidrs("*"), /exact IPv4 or IPv6 CIDRs/);
+});
+
+test("HMRC rejects static or missing network evidence instead of manufacturing vendor headers", () => {
+  const fraudContext = {
+    browserUserAgent: "WorkRate HMRC security test",
+    deviceId: "cfa7e0e9-d3fc-4e61-89c5-56d6aa3f4f8e",
+    timezone: "UTC+00:00",
+    screens: [{ width: 1440, height: 900, colourDepth: 24, scalingFactor: 1 }],
+    windowSize: { width: 1280, height: 720 },
+    clientPublicIp: "203.0.113.99",
+    capturedAt: "2026-08-21T12:00:00.000Z",
+    userId: "test-owner",
+  };
+  const withApprovedMissingHeaders: HmrcSandboxConfig = {
+    ...sandboxConfig,
+    approvedOmissions: new Set([
+      "client-public-port",
+      "client-multi-factor",
+      "vendor-license-ids",
+    ]),
+  };
+
+  assert.throws(
+    () => createFraudPreventionHeaders(withApprovedMissingHeaders, fraudContext),
+    /controlled TLS edge supplies verified network evidence/,
+  );
+
+  const headers = createFraudPreventionHeaders(withApprovedMissingHeaders, fraudContext, {
+    vendorForwarded: "by=203.0.113.7&for=203.0.113.99",
+    vendorPublicIp: "203.0.113.7",
+    vendorVersion: "workrate-api=0.0.0",
+  });
+  assert.equal(headers["Gov-Vendor-Forwarded"], "by=203.0.113.7&for=203.0.113.99");
+  assert.equal(headers["Gov-Vendor-Public-IP"], "203.0.113.7");
+  assert.equal(headers["Gov-Vendor-Version"], "workrate-api=0.0.0");
+  assert.equal(headers["Gov-Vendor-License-IDs"], undefined);
 });
 
 test("HMRC connect, sync, and disconnect reject cross-origin browser mutations", () => {
@@ -220,6 +253,40 @@ test("HMRC sandbox configuration rejects a non-sandbox API host", () => {
     process.env.HMRC_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32).toString("base64");
     process.env.HMRC_SANDBOX_API_BASE_URL = "https://example.invalid";
     assert.throws(() => getHmrcSandboxConfig(), /only the HTTPS HMRC sandbox base URL is allowed/);
+  } finally {
+    for (const name of envNames) {
+      if (original[name]) process.env[name] = original[name];
+      else delete process.env[name];
+    }
+  }
+});
+
+test("HMRC sandbox OAuth configuration does not accept static vendor header values", () => {
+  const envNames = [
+    "HMRC_SANDBOX_CLIENT_ID",
+    "HMRC_SANDBOX_CLIENT_SECRET",
+    "HMRC_OAUTH_REDIRECT_URL",
+    "HMRC_TOKEN_ENCRYPTION_KEY",
+    "HMRC_FRAUD_VENDOR_FORWARDED",
+    "HMRC_FRAUD_VENDOR_LICENSE_IDS",
+    "HMRC_FRAUD_VENDOR_PUBLIC_IP",
+    "HMRC_FRAUD_VENDOR_VERSION",
+  ] as const;
+  const original = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
+
+  try {
+    process.env.HMRC_SANDBOX_CLIENT_ID = "client";
+    process.env.HMRC_SANDBOX_CLIENT_SECRET = "secret";
+    process.env.HMRC_OAUTH_REDIRECT_URL = "https://workrate.example/api/hmrc/callback";
+    process.env.HMRC_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32).toString("base64");
+    delete process.env.HMRC_FRAUD_VENDOR_FORWARDED;
+    delete process.env.HMRC_FRAUD_VENDOR_LICENSE_IDS;
+    delete process.env.HMRC_FRAUD_VENDOR_PUBLIC_IP;
+    delete process.env.HMRC_FRAUD_VENDOR_VERSION;
+
+    const config = getHmrcSandboxConfig();
+    assert.equal(config.clientId, "client");
+    assert.equal("vendorForwarded" in config, false);
   } finally {
     for (const name of envNames) {
       if (original[name]) process.env[name] = original[name];

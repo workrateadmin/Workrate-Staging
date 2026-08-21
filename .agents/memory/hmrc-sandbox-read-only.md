@@ -22,3 +22,18 @@ explicit trusted proxy CIDRs before accepting forwarded client IP information;
 if a required source cannot be obtained or HMRC has not approved its omission,
 fail the sync rather than inventing a value. Keep credential actions same-origin
 and protect against cross-origin requests.
+
+For `WEB_APP_VIA_SERVER`, do not model `Gov-Vendor-Forwarded`,
+`Gov-Vendor-Public-IP`, or `Gov-Vendor-Version` as manually entered static
+configuration: the first two describe the current public TLS path and the last
+must come from the actual deployed build. A browser-only SaaS app has no
+truthful `Gov-Vendor-License-IDs` value. Store an omission only after HMRC has
+approved that exact missing datum.
+
+**Why:** HMRC's fraud-prevention specification requires real, per-request
+evidence. Static values silently become false when routing, browser sources, or
+deployment versions change, and placeholders are expressly prohibited.
+
+**How to apply:** Keep data reads disabled until a controlled ingress can
+provide verified public-hop evidence and its exact trusted CIDRs. OAuth setup
+may be tested separately, but it does not justify a non-compliant data sync.
