@@ -1,0 +1,230 @@
+WORKRATE — HMRC MTD SANDBOX INTEGRATION
+
+GOAL:
+Connect the existing WorkRate Finance / MTD foundation to HMRC's sandbox environment so we can prove the full MTD journey safely before applying for production HMRC access.
+
+IMPORTANT:
+Do NOT connect to live HMRC yet.
+Do NOT submit any real tax return or production data.
+Do NOT redesign the Finance workspace.
+Reuse the existing Finance / Tax / MTD data and tenant isolation.
+
+==================================================
+1. HMRC DEVELOPER CONFIGURATION
+==================================================
+
+Add server-side configuration for:
+
+- HMRC sandbox client ID
+- HMRC sandbox client secret
+- HMRC OAuth redirect URL
+- HMRC sandbox API base URL
+
+All secrets must live server-side in Replit Secrets / environment variables.
+
+Never expose HMRC client secrets or access tokens in frontend code or logs.
+
+==================================================
+2. BUSINESS-LEVEL HMRC CONNECTION
+==================================================
+
+Each WorkRate business must have its OWN HMRC connection.
+
+Do not hardcode Huntley Bespoke.
+
+Create/extend an HMRC connection model containing:
+
+- business/company ID
+- connection status
+- access token reference
+- refresh token reference where applicable
+- token expiry
+- scopes
+- taxpayer/business identifiers required by HMRC
+- last successful sync
+- last error
+- connected_at
+- disconnected_at
+
+Preserve tenant isolation.
+
+==================================================
+3. HMRC OAUTH FLOW
+==================================================
+
+Add a "Connect HMRC" action in:
+
+Finance → Tax / MTD
+
+Flow:
+
+Connect HMRC
+→ redirect to HMRC sandbox OAuth
+→ user authorises
+→ HMRC redirects back to WorkRate
+→ WorkRate exchanges code securely server-side
+→ connection is saved to that business
+→ UI shows Connected
+
+Also support Disconnect HMRC.
+
+==================================================
+4. START READ-ONLY
+==================================================
+
+For the first sandbox version, integrate READ-ONLY HMRC functionality only.
+
+Retrieve the appropriate current HMRC sandbox data for MTD, such as:
+
+- business details
+- MTD obligations
+- tax periods
+- obligation due dates
+- obligation status
+- submission status where available
+
+Do not submit quarterly updates yet.
+
+==================================================
+5. TAX / MTD WORKSPACE
+==================================================
+
+Extend the existing Tax / MTD page to show:
+
+HMRC connection:
+- Not connected
+- Connected
+- Connection error
+
+Once connected show:
+- registered business details where available
+- open obligations
+- upcoming deadlines
+- fulfilled obligations
+- tax year / period
+
+Keep the existing WorkRate tax-preparation figures and receipt review tools.
+
+==================================================
+6. WORKRATE DATA PREPARATION
+==================================================
+
+Use the existing confirmed Finance records to prepare:
+
+- business income
+- confirmed expenses
+- expense categories
+- receipt evidence
+- tax-period totals
+
+Only confirmed/corrected finance records should feed MTD preparation.
+
+AI-extracted but unreviewed records must remain excluded.
+
+Do not invent missing figures.
+
+==================================================
+7. PRE-SUBMISSION VALIDATION
+==================================================
+
+Before any future submission can be allowed, WorkRate should be able to flag:
+
+- uncategorised expenses
+- missing dates
+- missing amounts
+- unreviewed receipts
+- duplicate records
+- missing required business/tax identifiers
+- incomplete tax period data
+
+Do NOT submit yet.
+
+This task only prepares and validates the data.
+
+==================================================
+8. HMRC FRAUD PREVENTION HEADERS
+==================================================
+
+HMRC requires fraud-prevention headers for applicable API calls.
+
+Inspect the CURRENT HMRC Developer requirements and implement the required headers correctly server-side.
+
+Do not fake values.
+
+Document:
+- which headers are required
+- how WorkRate obtains them
+- which calls they apply to
+
+==================================================
+9. AUDIT TRAIL
+==================================================
+
+Log HMRC integration activity such as:
+
+- connection created
+- connection refreshed
+- obligations fetched
+- connection errors
+- disconnect events
+
+Do not log secrets or full tokens.
+
+Future submissions must also have auditable HMRC references, but do not implement live submission yet.
+
+==================================================
+10. SANDBOX TESTING
+==================================================
+
+Use HMRC sandbox test users only.
+
+Prove:
+
+1. Connect HMRC works
+2. OAuth callback succeeds
+3. tokens stay server-side
+4. correct WorkRate business owns the connection
+5. business details can be retrieved
+6. obligations can be retrieved
+7. Tax / MTD page displays them correctly
+8. disconnect works
+9. reconnect works
+10. one WorkRate business cannot access another business's HMRC connection
+11. no production HMRC data is used
+12. existing Finance records remain unchanged
+
+==================================================
+11. DO NOT BUILD YET
+==================================================
+
+Do NOT yet implement:
+- live HMRC production access
+- real quarterly submissions
+- final tax return submission
+- automatic tax filing
+- automatic accounting corrections
+
+==================================================
+12. BEFORE IMPLEMENTING
+==================================================
+
+First inspect the existing Finance / MTD implementation and report:
+
+A. existing finance schema that can be reused
+B. proposed HMRC connection schema
+C. OAuth callback route
+D. required HMRC sandbox APIs
+E. scopes required
+F. fraud-prevention-header requirements
+G. how tenant isolation will be enforced
+H. smallest safe implementation plan
+
+Then implement and test the sandbox connection.
+
+When complete report:
+
+- files/schema changed
+- HMRC APIs used
+- sandbox test results
+- security approach
+- anything still required before quarterly submission testing
