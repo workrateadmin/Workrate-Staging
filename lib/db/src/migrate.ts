@@ -219,6 +219,126 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       ALTER TABLE "companies" DROP COLUMN IF EXISTS "imported_invoice_template";
     `,
   },
+  {
+    name: "0009_standalone_invoices",
+    sql: `
+      -- Make enquiry_id nullable so standalone invoices do not require an enquiry.
+      ALTER TABLE "quotes" ALTER COLUMN "enquiry_id" DROP NOT NULL;
+
+      ALTER TABLE "quotes"
+        ADD COLUMN IF NOT EXISTS "document_type" TEXT NOT NULL DEFAULT 'quote',
+        ADD COLUMN IF NOT EXISTS "invoice_number" TEXT,
+        ADD COLUMN IF NOT EXISTS "invoice_date" TEXT,
+        ADD COLUMN IF NOT EXISTS "due_date" TEXT,
+        ADD COLUMN IF NOT EXISTS "job_id" INTEGER REFERENCES "jobs"("id") ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS "vat_rate" NUMERIC(5,2) NOT NULL DEFAULT 20,
+        ADD COLUMN IF NOT EXISTS "line_items" TEXT,
+        ADD COLUMN IF NOT EXISTS "owner_user_id" TEXT,
+        ADD COLUMN IF NOT EXISTS "paid_at" TIMESTAMPTZ;
+
+      UPDATE "quotes" q
+      SET "owner_user_id" = e."owner_user_id"
+      FROM "enquiries" e
+      WHERE e."id" = q."enquiry_id"
+        AND q."owner_user_id" IS NULL;
+    `,
+  },
+  {
+    name: "0010_finance_foundation",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "finance_expenses" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "company_id" integer NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
+        "owner_user_id" text NOT NULL,
+        "job_id" integer REFERENCES "jobs"("id") ON DELETE SET NULL,
+        "transaction_date" date,
+        "supplier_name" text,
+        "description" text,
+        "category" text,
+        "gross_amount" numeric(12,2),
+        "net_amount" numeric(12,2),
+        "vat_amount" numeric(12,2),
+        "payment_method" text,
+        "source" text NOT NULL DEFAULT 'manual',
+        "review_status" text NOT NULL DEFAULT 'needs_review',
+        "notes" text,
+        "created_by_user_id" text NOT NULL,
+        "updated_by_user_id" text NOT NULL,
+        "created_at" timestamptz NOT NULL DEFAULT now(),
+        "updated_at" timestamptz NOT NULL DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS "finance_receipts" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "company_id" integer NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
+        "owner_user_id" text NOT NULL,
+        "expense_id" integer NOT NULL REFERENCES "finance_expenses"("id") ON DELETE CASCADE,
+        "job_id" integer REFERENCES "jobs"("id") ON DELETE SET NULL,
+        "object_path" text NOT NULL,
+        "original_name" text NOT NULL,
+        "mime_type" text NOT NULL,
+        "file_size_bytes" integer,
+        "content_hash" text NOT NULL,
+        "extraction_status" text NOT NULL DEFAULT 'pending',
+        "extraction_method" text,
+        "extracted_data" jsonb,
+        "uploaded_by_user_id" text NOT NULL,
+        "uploaded_at" timestamptz NOT NULL DEFAULT now(),
+        "reviewed_at" timestamptz,
+        "reviewed_by_user_id" text
+      );
+
+      CREATE TABLE IF NOT EXISTS "finance_income_records" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "company_id" integer NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
+        "owner_user_id" text NOT NULL,
+        "job_id" integer REFERENCES "jobs"("id") ON DELETE SET NULL,
+        "received_date" date NOT NULL,
+        "description" text NOT NULL,
+        "category" text,
+        "gross_amount" numeric(12,2) NOT NULL,
+        "net_amount" numeric(12,2),
+        "vat_amount" numeric(12,2),
+        "payment_method" text,
+        "source" text NOT NULL DEFAULT 'manual',
+        "notes" text,
+        "created_by_user_id" text NOT NULL,
+        "created_at" timestamptz NOT NULL DEFAULT now(),
+        "updated_at" timestamptz NOT NULL DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS "finance_audit_events" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "company_id" integer NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
+        "owner_user_id" text NOT NULL,
+        "entity_type" text NOT NULL,
+        "entity_id" integer NOT NULL,
+        "action" text NOT NULL,
+        "actor_user_id" text NOT NULL,
+        "before_data" jsonb,
+        "after_data" jsonb,
+        "created_at" timestamptz NOT NULL DEFAULT now()
+      );
+
+      CREATE INDEX IF NOT EXISTS "finance_expenses_tenant_date_idx"
+        ON "finance_expenses"("company_id", "owner_user_id", "transaction_date");
+      CREATE INDEX IF NOT EXISTS "finance_expenses_job_idx" ON "finance_expenses"("job_id");
+      CREATE INDEX IF NOT EXISTS "finance_receipts_tenant_hash_idx"
+        ON "finance_receipts"("company_id", "content_hash");
+      CREATE INDEX IF NOT EXISTS "finance_receipts_expense_idx" ON "finance_receipts"("expense_id");
+      CREATE INDEX IF NOT EXISTS "finance_income_tenant_date_idx"
+        ON "finance_income_records"("company_id", "owner_user_id", "received_date");
+      CREATE INDEX IF NOT EXISTS "finance_audit_tenant_entity_idx"
+        ON "finance_audit_events"("company_id", "entity_type", "entity_id");
+    `,
+  },
+  {
+    name: "0011_finance_receipt_integrity",
+    sql: `
+      CREATE UNIQUE INDEX IF NOT EXISTS "finance_receipts_company_hash_unique"
+        ON "finance_receipts"("company_id", "content_hash");
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
