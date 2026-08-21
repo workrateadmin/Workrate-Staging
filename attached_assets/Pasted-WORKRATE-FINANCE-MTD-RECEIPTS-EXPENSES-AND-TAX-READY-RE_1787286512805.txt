@@ -1,0 +1,280 @@
+WORKRATE FINANCE / MTD — RECEIPTS, EXPENSES AND TAX-READY RECORDS
+
+GOAL:
+Extend the WorkRate finance foundation so a business can maintain the digital records needed to prepare its tax information, including uploaded receipts and expense evidence.
+
+IMPORTANT:
+Do NOT build live HMRC submission yet.
+Do NOT turn WorkRate into a full accounting package in this task.
+Do NOT disturb existing quote, invoice, payment, job or enquiry flows.
+
+==================================================
+1. FINANCE AREA
+==================================================
+
+Add / extend a Finance area containing:
+
+- Income
+- Expenses
+- Receipts
+- Tax / MTD
+- Financial summary
+
+Use existing WorkRate invoice/payment data wherever possible.
+
+Do not duplicate financial records unnecessarily.
+
+==================================================
+2. EXPENSE RECORDS
+==================================================
+
+Allow the business to create expenses manually.
+
+Each expense should support:
+
+- business/company ID
+- transaction date
+- supplier
+- description
+- category
+- gross amount
+- net amount where known
+- VAT amount where applicable
+- payment method if known
+- job ID if related to a job
+- notes
+- receipt/document attachment
+- created/updated timestamps
+- source
+- review status
+
+Do not invent values.
+
+==================================================
+3. RECEIPT UPLOAD
+==================================================
+
+Allow receipts to be uploaded as:
+
+- photo
+- JPG/PNG
+- PDF
+
+Reuse the existing WorkRate GCS/storage architecture.
+
+Do NOT create another file-storage system.
+
+Each receipt must remain linked to:
+- business
+- expense
+- optional job
+- source document
+- upload timestamp
+
+Preserve the original file.
+
+==================================================
+4. AI RECEIPT EXTRACTION
+==================================================
+
+When a receipt or supplier invoice is uploaded, AI should extract where possible:
+
+- supplier name
+- date
+- receipt/invoice number
+- item descriptions
+- subtotal
+- VAT
+- total
+- likely expense category
+- product/material category
+- job reference if obvious
+- payment method if shown
+
+The AI must NOT invent missing values.
+
+Every extracted value must be presented for review before becoming confirmed financial data.
+
+Statuses:
+- AI Extracted
+- Needs Review
+- Confirmed
+- Corrected
+
+==================================================
+5. EXPENSE CATEGORIES
+==================================================
+
+Design categories so WorkRate can support UK sole traders and small businesses.
+
+Examples:
+- materials
+- subcontractors
+- tools/equipment
+- vehicle/fuel
+- travel
+- premises
+- insurance
+- professional fees
+- advertising/marketing
+- phone/internet
+- software/subscriptions
+- bank/payment fees
+- training
+- other expenses
+
+Do not hardcode this so tightly that future trade/business categories cannot be added.
+
+==================================================
+6. TAX-READY DATA
+==================================================
+
+The Finance layer should be able to calculate/report, for a chosen tax period:
+
+INCOME
+- invoice income
+- deposits received
+- final payments
+- other income
+
+EXPENSES
+- total expenses
+- totals by category
+- VAT where applicable
+
+Also flag:
+- uncategorised expenses
+- missing receipts
+- duplicate receipts
+- unreviewed AI extractions
+- transactions with missing dates/amounts
+- records not linked correctly
+
+Do not invent or estimate missing tax figures.
+
+==================================================
+7. DIGITAL RECORDS
+==================================================
+
+Every financial record should retain:
+
+- source
+- original document
+- created timestamp
+- updated timestamp
+- who edited it if available
+- original extracted value where corrected
+- confirmed value
+- job/customer link where relevant
+
+The system should maintain a clear audit trail.
+
+==================================================
+8. JOB COSTING LINK
+==================================================
+
+If an expense relates to a WorkRate job:
+
+- allow it to link to that job
+- include it in actual material/production cost where appropriate
+- do not automatically overwrite existing Job Actuals without user confirmation
+
+This should eventually feed WorkRate Cost Intelligence.
+
+==================================================
+9. TAX / MTD REVIEW SCREEN
+==================================================
+
+Add a Tax / MTD preparation view.
+
+For a selected period show:
+
+- total income
+- total expenses
+- expense category breakdown
+- VAT totals where applicable
+- receipts attached
+- missing receipt warnings
+- uncategorised items
+- items needing review
+
+The user should be able to open any figure and see the transactions/documents behind it.
+
+==================================================
+10. EXPORT / ACCOUNTANT SUPPORT
+==================================================
+
+Prepare the data model so WorkRate can later provide:
+
+- CSV export
+- accountant export
+- Xero sync
+- HMRC MTD submission
+
+Do not build all of these yet unless already part of the current finance architecture.
+
+==================================================
+11. TENANT ISOLATION
+==================================================
+
+All finance, tax and receipt data must be isolated by business/company.
+
+No business can access another business's:
+- receipts
+- expenses
+- income
+- tax summaries
+- HMRC data
+- attachments
+
+==================================================
+12. SAFETY
+==================================================
+
+Do not:
+- submit anything to HMRC yet
+- automatically categorise without review
+- silently change existing invoices/payments
+- overwrite original documents
+- invent missing VAT/tax values
+- create duplicate expense entries from the same receipt
+
+==================================================
+13. TEST
+==================================================
+
+Use one safe test business / test records.
+
+Prove:
+
+1. manual expense can be created
+2. receipt photo uploads
+3. receipt PDF uploads
+4. original file is preserved
+5. AI extraction suggests supplier/date/total/VAT/category
+6. user can correct extracted data
+7. corrected data survives refresh
+8. expense appears in finance totals
+9. expense can link to a job
+10. tax summary updates correctly
+11. missing/unreviewed items are flagged
+12. no existing invoice/payment/job data is changed
+
+==================================================
+14. BEFORE IMPLEMENTING
+==================================================
+
+First inspect the current finance, invoice, payment and Job Actuals schemas.
+
+Report:
+
+A. what financial data already exists
+B. what can be reused
+C. proposed receipt/expense schema
+D. how receipt files link to expenses/jobs
+E. how AI extraction and review status will work
+F. how the tax-period summary will be calculated
+G. smallest safe implementation plan
+
+Do not begin a broad refactor.
+Build this as the finance/MTD data foundation for WorkRate.
