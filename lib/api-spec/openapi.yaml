@@ -1257,7 +1257,278 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /finance/categories:
+    get:
+      operationId: getFinanceCategories
+      tags: [finance]
+      summary: List configurable finance category suggestions
+      responses:
+        "200":
+          description: Category suggestions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceCategories"
+
+  /finance/summary:
+    get:
+      operationId: getFinanceSummary
+      tags: [finance]
+      summary: Get tax-preparation summary without HMRC submission
+      parameters:
+        - $ref: "#/components/parameters/FinancePeriodFrom"
+        - $ref: "#/components/parameters/FinancePeriodTo"
+      responses:
+        "200":
+          description: Finance summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceSummary"
+
+  /finance/expenses:
+    get:
+      operationId: listFinanceExpenses
+      tags: [finance]
+      summary: List finance expenses for the signed-in business
+      responses:
+        "200":
+          description: Expense records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FinanceExpense"
+    post:
+      operationId: createFinanceExpense
+      tags: [finance]
+      summary: Create a manual expense record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinanceExpenseInput"
+      responses:
+        "201":
+          description: Created expense
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceExpense"
+
+  /finance/transactions:
+    get:
+      operationId: listFinanceTransactions
+      tags: [finance]
+      summary: List filtered expense records and receipt evidence for Tax / MTD review
+      parameters:
+        - $ref: "#/components/parameters/FinancePeriodFrom"
+        - $ref: "#/components/parameters/FinancePeriodTo"
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: reviewStatus
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: hasReceipt
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Reviewable expense records and linked receipt documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FinanceTransaction"
+
+  /finance/expenses/{id}:
+    patch:
+      operationId: updateFinanceExpense
+      tags: [finance]
+      summary: Edit a finance expense before or after review
+      parameters:
+        - $ref: "#/components/parameters/FinanceRecordId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinanceExpenseInput"
+      responses:
+        "200":
+          description: Updated expense
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceExpense"
+
+  /finance/expenses/{id}/confirm:
+    post:
+      operationId: confirmFinanceExpense
+      tags: [finance]
+      summary: Confirm or correct human-reviewed receipt values
+      parameters:
+        - $ref: "#/components/parameters/FinanceRecordId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                wasCorrected:
+                  type: boolean
+      responses:
+        "200":
+          description: Confirmed expense
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceExpense"
+
+  /finance/receipts:
+    get:
+      operationId: listFinanceReceipts
+      tags: [finance]
+      summary: List private receipt evidence for the signed-in business
+      responses:
+        "200":
+          description: Receipt evidence
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FinanceReceipt"
+    post:
+      operationId: uploadFinanceReceipt
+      tags: [finance]
+      summary: Upload private receipt evidence and create AI suggestions for review
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                jobId:
+                  type: number
+              required: [file]
+      responses:
+        "201":
+          description: Receipt stored; extraction remains unconfirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expense:
+                    $ref: "#/components/schemas/FinanceExpense"
+                  receipt:
+                    $ref: "#/components/schemas/FinanceReceipt"
+                required: [expense, receipt]
+
+  /finance/receipts/{id}/file:
+    get:
+      operationId: downloadFinanceReceipt
+      tags: [finance]
+      summary: Stream a private receipt after verifying tenant ownership
+      parameters:
+        - $ref: "#/components/parameters/FinanceRecordId"
+      responses:
+        "200":
+          description: Receipt document
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  /finance/income:
+    get:
+      operationId: listFinanceIncome
+      tags: [finance]
+      summary: List derived invoice activity and manually recorded other income
+      parameters:
+        - $ref: "#/components/parameters/FinancePeriodFrom"
+        - $ref: "#/components/parameters/FinancePeriodTo"
+      responses:
+        "200":
+          description: Income activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FinanceIncome"
+    post:
+      operationId: createFinanceIncome
+      tags: [finance]
+      summary: Record income not already represented by a WorkRate invoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinanceIncomeInput"
+      responses:
+        "201":
+          description: Created other-income record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceIncome"
+
+  /finance/audit:
+    get:
+      operationId: listFinanceAudit
+      tags: [finance]
+      summary: List finance record audit events for the signed-in business
+      responses:
+        "200":
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FinanceAuditEvent"
+
 components:
+  parameters:
+    FinanceRecordId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: number
+    FinancePeriodFrom:
+      name: from
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date
+    FinancePeriodTo:
+      name: to
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date
   schemas:
     HealthStatus:
       type: object
@@ -1274,6 +1545,291 @@ components:
           type: string
       required:
         - error
+
+    FinanceCategories:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            type: string
+      required: [categories]
+
+    FinanceExpenseInput:
+      type: object
+      properties:
+        jobId:
+          type: number
+        transactionDate:
+          type: string
+          format: date
+        supplierName:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        grossAmount:
+          type: number
+        netAmount:
+          type: number
+        vatAmount:
+          type: number
+        paymentMethod:
+          type: string
+        notes:
+          type: string
+
+    FinanceExpense:
+      allOf:
+        - $ref: "#/components/schemas/FinanceExpenseInput"
+        - type: object
+          properties:
+            id:
+              type: number
+            companyId:
+              type: number
+            source:
+              type: string
+            reviewStatus:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+          required: [id, companyId, source, reviewStatus, createdAt, updatedAt]
+
+    FinanceReceipt:
+      type: object
+      properties:
+        id:
+          type: number
+        expenseId:
+          type: number
+        jobId:
+          type: ["number", "null"]
+        originalName:
+          type: string
+        mimeType:
+          type: string
+        fileSizeBytes:
+          type: ["number", "null"]
+        extractionStatus:
+          type: string
+        extractionMethod:
+          type: ["string", "null"]
+        extractedData:
+          anyOf:
+            - $ref: "#/components/schemas/ReceiptExtractionData"
+            - type: "null"
+        uploadedAt:
+          type: string
+          format: date-time
+        fileUrl:
+          type: string
+      required: [id, expenseId, originalName, mimeType, extractionStatus, uploadedAt]
+
+    FinanceIncomeInput:
+      type: object
+      properties:
+        jobId:
+          type: number
+        receivedDate:
+          type: string
+          format: date
+        description:
+          type: string
+        category:
+          type: string
+        grossAmount:
+          type: number
+        netAmount:
+          type: number
+        vatAmount:
+          type: number
+        paymentMethod:
+          type: string
+        notes:
+          type: string
+      required: [receivedDate, description, grossAmount]
+
+    FinanceIncome:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+        grossAmount:
+          type: number
+        sourceInvoiceId:
+          type: ["number", "null"]
+        jobId:
+          type: ["number", "null"]
+      required: [id, type, date, description, grossAmount]
+
+    FinanceSummary:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            from:
+              type: ["string", "null"]
+              format: date
+            to:
+              type: ["string", "null"]
+              format: date
+          required: [from, to]
+        income:
+          type: object
+          properties:
+            invoiceIncome:
+              type: number
+            otherIncome:
+              type: number
+            totalIncome:
+              type: number
+            depositsReceived:
+              type: number
+            finalPayments:
+              type: number
+            cashReceived:
+              type: number
+          required: [invoiceIncome, otherIncome, totalIncome, depositsReceived, finalPayments, cashReceived]
+        expenses:
+          type: object
+          properties:
+            confirmedGross:
+              type: number
+            confirmedNet:
+              type: number
+            confirmedVat:
+              type: number
+            confirmedCount:
+              type: number
+            needsReviewCount:
+              type: number
+            categoryBreakdown:
+              type: array
+              items:
+                type: object
+                properties:
+                  category:
+                    type: string
+                  count:
+                    type: number
+                  grossAmount:
+                    type: number
+                  netAmount:
+                    type: number
+                  vatAmount:
+                    type: number
+                required: [category, count, grossAmount, netAmount, vatAmount]
+            receiptAttachedCount:
+              type: number
+            receiptAttachedGross:
+              type: number
+            missingReceiptCount:
+              type: number
+          required: [confirmedGross, confirmedNet, confirmedVat, confirmedCount, needsReviewCount, categoryBreakdown, receiptAttachedCount, receiptAttachedGross, missingReceiptCount]
+        warnings:
+          type: object
+          properties:
+            unreviewed:
+              type: array
+              items:
+                type: number
+            missingReceipts:
+              type: array
+              items:
+                type: number
+            uncategorized:
+              type: array
+              items:
+                type: number
+            incompleteAmounts:
+              type: array
+              items:
+                type: number
+          required: [unreviewed, missingReceipts, uncategorized, incompleteAmounts]
+        notice:
+          type: string
+      required: [period, income, expenses, warnings, notice]
+
+    ReceiptExtractionData:
+      type: object
+      properties:
+        suggestion:
+          type: object
+          properties:
+            supplierName:
+              type: ["string", "null"]
+            transactionDate:
+              type: ["string", "null"]
+              format: date
+            description:
+              type: ["string", "null"]
+            category:
+              type: ["string", "null"]
+            grossAmount:
+              type: ["number", "null"]
+            netAmount:
+              type: ["number", "null"]
+            vatAmount:
+              type: ["number", "null"]
+            paymentMethod:
+              type: ["string", "null"]
+            jobReference:
+              type: ["string", "null"]
+            confidence:
+              type: ["number", "null"]
+          required: [supplierName, transactionDate, description, category, grossAmount, netAmount, vatAmount, paymentMethod, jobReference, confidence]
+      required: [suggestion]
+
+    FinanceTransaction:
+      allOf:
+        - $ref: "#/components/schemas/FinanceExpense"
+        - type: object
+          properties:
+            receipts:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: number
+                  originalName:
+                    type: string
+                  extractionStatus:
+                    type: string
+                  fileUrl:
+                    type: string
+                required: [id, originalName, extractionStatus, fileUrl]
+          required: [receipts]
+
+    FinanceAuditEvent:
+      type: object
+      properties:
+        id:
+          type: number
+        entityType:
+          type: string
+        entityId:
+          type: number
+        action:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, entityType, entityId, action, createdAt]
 
     IntegrationStatus:
       type: object

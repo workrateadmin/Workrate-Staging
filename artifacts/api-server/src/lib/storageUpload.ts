@@ -56,6 +56,7 @@ export interface StorageUploadResult {
 export async function uploadBufferToStorage(
   buffer: Buffer,
   contentType: string,
+  namespace = "uploads",
 ): Promise<StorageUploadResult> {
   const bucketId = getBucketId();
   const privateDir = getPrivateObjectDir();
@@ -75,7 +76,10 @@ export async function uploadBufferToStorage(
   const uuid = randomUUID();
   // Strip bucket from PRIVATE_OBJECT_DIR to get the within-bucket dir prefix
   const dirWithinBucket = privateDir.replace(/^\/[^/]+\//, ""); // "private"
-  const gcsObjectName = `${dirWithinBucket}/uploads/${uuid}.${ext}`;
+  // Namespaces let sensitive domains opt out of the generic storage serving
+  // route while preserving the existing upload path for normal app assets.
+  const safeNamespace = /^[a-z0-9_-]+$/i.test(namespace) ? namespace : "uploads";
+  const gcsObjectName = `${dirWithinBucket}/${safeNamespace}/${uuid}.${ext}`;
 
   const bucket = objectStorageClient.bucket(bucketId);
   const file = bucket.file(gcsObjectName);

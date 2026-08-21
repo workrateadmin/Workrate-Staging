@@ -59,6 +59,13 @@ router.get('/storage/objects/*path', async (req: Request, res: Response) => {
   try {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join('/') : raw;
+    // Finance evidence must only be streamed by the tenant-authorized Finance
+    // route. Do not allow the shared object endpoint to turn an opaque path
+    // into public access.
+    if (wildcardPath === "finance" || wildcardPath.startsWith("finance/")) {
+      res.status(404).json({ error: "Object not found" });
+      return;
+    }
     const objectPath = `/objects/${wildcardPath}`;
     const objectFile =
       await objectStorageService.getObjectEntityFile(objectPath);

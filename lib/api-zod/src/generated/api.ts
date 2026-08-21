@@ -1811,3 +1811,392 @@ export const MarkInvoiceDepositPaidResponse = zod.object({
 })
 
 
+/**
+ * @summary List configurable finance category suggestions
+ */
+export const GetFinanceCategoriesResponse = zod.object({
+  "categories": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Get tax-preparation summary without HMRC submission
+ */
+export const GetFinanceSummaryQueryParams = zod.object({
+  "from": zod.date().optional(),
+  "to": zod.date().optional()
+})
+
+export const GetFinanceSummaryResponse = zod.object({
+  "period": zod.object({
+  "from": zod.coerce.date().nullable(),
+  "to": zod.coerce.date().nullable()
+}),
+  "income": zod.object({
+  "invoiceIncome": zod.number(),
+  "otherIncome": zod.number(),
+  "totalIncome": zod.number(),
+  "depositsReceived": zod.number(),
+  "finalPayments": zod.number(),
+  "cashReceived": zod.number()
+}),
+  "expenses": zod.object({
+  "confirmedGross": zod.number(),
+  "confirmedNet": zod.number(),
+  "confirmedVat": zod.number(),
+  "confirmedCount": zod.number(),
+  "needsReviewCount": zod.number(),
+  "categoryBreakdown": zod.array(zod.object({
+  "category": zod.string(),
+  "count": zod.number(),
+  "grossAmount": zod.number(),
+  "netAmount": zod.number(),
+  "vatAmount": zod.number()
+})),
+  "receiptAttachedCount": zod.number(),
+  "receiptAttachedGross": zod.number(),
+  "missingReceiptCount": zod.number()
+}),
+  "warnings": zod.object({
+  "unreviewed": zod.array(zod.number()),
+  "missingReceipts": zod.array(zod.number()),
+  "uncategorized": zod.array(zod.number()),
+  "incompleteAmounts": zod.array(zod.number())
+}),
+  "notice": zod.string()
+})
+
+
+/**
+ * @summary List finance expenses for the signed-in business
+ */
+export const ListFinanceExpensesResponseItem = zod.object({
+  "jobId": zod.number().optional(),
+  "transactionDate": zod.coerce.date().optional(),
+  "supplierName": zod.string().optional(),
+  "description": zod.string().optional(),
+  "category": zod.string().optional(),
+  "grossAmount": zod.number().optional(),
+  "netAmount": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "paymentMethod": zod.string().optional(),
+  "notes": zod.string().optional()
+}).and(zod.object({
+  "id": zod.number(),
+  "companyId": zod.number(),
+  "source": zod.string(),
+  "reviewStatus": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+export const ListFinanceExpensesResponse = zod.array(ListFinanceExpensesResponseItem)
+
+
+/**
+ * @summary Create a manual expense record
+ */
+export const CreateFinanceExpenseBody = zod.object({
+  "jobId": zod.number().optional(),
+  "transactionDate": zod.coerce.date().optional(),
+  "supplierName": zod.string().optional(),
+  "description": zod.string().optional(),
+  "category": zod.string().optional(),
+  "grossAmount": zod.number().optional(),
+  "netAmount": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "paymentMethod": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const CreateFinanceExpenseResponse = zod.object({
+  "jobId": zod.number().optional(),
+  "transactionDate": zod.coerce.date().optional(),
+  "supplierName": zod.string().optional(),
+  "description": zod.string().optional(),
+  "category": zod.string().optional(),
+  "grossAmount": zod.number().optional(),
+  "netAmount": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "paymentMethod": zod.string().optional(),
+  "notes": zod.string().optional()
+}).and(zod.object({
+  "id": zod.number(),
+  "companyId": zod.number(),
+  "source": zod.string(),
+  "reviewStatus": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary List filtered expense records and receipt evidence for Tax / MTD review
+ */
+export const ListFinanceTransactionsQueryParams = zod.object({
+  "from": zod.date().optional(),
+  "to": zod.date().optional(),
+  "category": zod.coerce.string().optional(),
+  "reviewStatus": zod.coerce.string().optional(),
+  "hasReceipt": zod.coerce.boolean().optional()
+})
+
+export const ListFinanceTransactionsResponseItem = zod.object({
+  "jobId": zod.number().optional(),
+  "transactionDate": zod.coerce.date().optional(),
+  "supplierName": zod.string().optional(),
+  "description": zod.string().optional(),
+  "category": zod.string().optional(),
+  "grossAmount": zod.number().optional(),
+  "netAmount": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "paymentMethod": zod.string().optional(),
+  "notes": zod.string().optional()
+}).and(zod.object({
+  "id": zod.number(),
+  "companyId": zod.number(),
+  "source": zod.string(),
+  "reviewStatus": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})).and(zod.object({
+  "receipts": zod.array(zod.object({
+  "id": zod.number(),
+  "originalName": zod.string(),
+  "extractionStatus": zod.string(),
+  "fileUrl": zod.string()
+}))
+}))
+export const ListFinanceTransactionsResponse = zod.array(ListFinanceTransactionsResponseItem)
+
+
+/**
+ * @summary Edit a finance expense before or after review
+ */
+export const UpdateFinanceExpenseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateFinanceExpenseBody = zod.object({
+  "jobId": zod.number().optional(),
+  "transactionDate": zod.coerce.date().optional(),
+  "supplierName": zod.string().optional(),
+  "description": zod.string().optional(),
+  "category": zod.string().optional(),
+  "grossAmount": zod.number().optional(),
+  "netAmount": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "paymentMethod": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const UpdateFinanceExpenseResponse = zod.object({
+  "jobId": zod.number().optional(),
+  "transactionDate": zod.coerce.date().optional(),
+  "supplierName": zod.string().optional(),
+  "description": zod.string().optional(),
+  "category": zod.string().optional(),
+  "grossAmount": zod.number().optional(),
+  "netAmount": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "paymentMethod": zod.string().optional(),
+  "notes": zod.string().optional()
+}).and(zod.object({
+  "id": zod.number(),
+  "companyId": zod.number(),
+  "source": zod.string(),
+  "reviewStatus": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Confirm or correct human-reviewed receipt values
+ */
+export const ConfirmFinanceExpenseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ConfirmFinanceExpenseBody = zod.object({
+  "wasCorrected": zod.boolean().optional()
+})
+
+export const ConfirmFinanceExpenseResponse = zod.object({
+  "jobId": zod.number().optional(),
+  "transactionDate": zod.coerce.date().optional(),
+  "supplierName": zod.string().optional(),
+  "description": zod.string().optional(),
+  "category": zod.string().optional(),
+  "grossAmount": zod.number().optional(),
+  "netAmount": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "paymentMethod": zod.string().optional(),
+  "notes": zod.string().optional()
+}).and(zod.object({
+  "id": zod.number(),
+  "companyId": zod.number(),
+  "source": zod.string(),
+  "reviewStatus": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary List private receipt evidence for the signed-in business
+ */
+export const ListFinanceReceiptsResponseItem = zod.object({
+  "id": zod.number(),
+  "expenseId": zod.number(),
+  "jobId": zod.number().nullish(),
+  "originalName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSizeBytes": zod.number().nullish(),
+  "extractionStatus": zod.string(),
+  "extractionMethod": zod.string().nullish(),
+  "extractedData": zod.union([zod.object({
+  "suggestion": zod.object({
+  "supplierName": zod.string().nullable(),
+  "transactionDate": zod.coerce.date().nullable(),
+  "description": zod.string().nullable(),
+  "category": zod.string().nullable(),
+  "grossAmount": zod.number().nullable(),
+  "netAmount": zod.number().nullable(),
+  "vatAmount": zod.number().nullable(),
+  "paymentMethod": zod.string().nullable(),
+  "jobReference": zod.string().nullable(),
+  "confidence": zod.number().nullable()
+})
+}),zod.null()]).optional(),
+  "uploadedAt": zod.coerce.date(),
+  "fileUrl": zod.string().optional()
+})
+export const ListFinanceReceiptsResponse = zod.array(ListFinanceReceiptsResponseItem)
+
+
+/**
+ * @summary Upload private receipt evidence and create AI suggestions for review
+ */
+export const UploadFinanceReceiptBody = zod.object({
+  "file": zod.instanceof(File),
+  "jobId": zod.number().optional()
+})
+
+export const UploadFinanceReceiptResponse = zod.object({
+  "expense": zod.object({
+  "jobId": zod.number().optional(),
+  "transactionDate": zod.coerce.date().optional(),
+  "supplierName": zod.string().optional(),
+  "description": zod.string().optional(),
+  "category": zod.string().optional(),
+  "grossAmount": zod.number().optional(),
+  "netAmount": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "paymentMethod": zod.string().optional(),
+  "notes": zod.string().optional()
+}).and(zod.object({
+  "id": zod.number(),
+  "companyId": zod.number(),
+  "source": zod.string(),
+  "reviewStatus": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "receipt": zod.object({
+  "id": zod.number(),
+  "expenseId": zod.number(),
+  "jobId": zod.number().nullish(),
+  "originalName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSizeBytes": zod.number().nullish(),
+  "extractionStatus": zod.string(),
+  "extractionMethod": zod.string().nullish(),
+  "extractedData": zod.union([zod.object({
+  "suggestion": zod.object({
+  "supplierName": zod.string().nullable(),
+  "transactionDate": zod.coerce.date().nullable(),
+  "description": zod.string().nullable(),
+  "category": zod.string().nullable(),
+  "grossAmount": zod.number().nullable(),
+  "netAmount": zod.number().nullable(),
+  "vatAmount": zod.number().nullable(),
+  "paymentMethod": zod.string().nullable(),
+  "jobReference": zod.string().nullable(),
+  "confidence": zod.number().nullable()
+})
+}),zod.null()]).optional(),
+  "uploadedAt": zod.coerce.date(),
+  "fileUrl": zod.string().optional()
+})
+})
+
+
+/**
+ * @summary Stream a private receipt after verifying tenant ownership
+ */
+export const DownloadFinanceReceiptParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DownloadFinanceReceiptResponse = zod.unknown()
+
+
+/**
+ * @summary List derived invoice activity and manually recorded other income
+ */
+export const ListFinanceIncomeQueryParams = zod.object({
+  "from": zod.date().optional(),
+  "to": zod.date().optional()
+})
+
+export const ListFinanceIncomeResponseItem = zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "date": zod.coerce.date(),
+  "description": zod.string(),
+  "grossAmount": zod.number(),
+  "sourceInvoiceId": zod.number().nullish(),
+  "jobId": zod.number().nullish()
+})
+export const ListFinanceIncomeResponse = zod.array(ListFinanceIncomeResponseItem)
+
+
+/**
+ * @summary Record income not already represented by a WorkRate invoice
+ */
+export const CreateFinanceIncomeBody = zod.object({
+  "jobId": zod.number().optional(),
+  "receivedDate": zod.coerce.date(),
+  "description": zod.string(),
+  "category": zod.string().optional(),
+  "grossAmount": zod.number(),
+  "netAmount": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "paymentMethod": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const CreateFinanceIncomeResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "date": zod.coerce.date(),
+  "description": zod.string(),
+  "grossAmount": zod.number(),
+  "sourceInvoiceId": zod.number().nullish(),
+  "jobId": zod.number().nullish()
+})
+
+
+/**
+ * @summary List finance record audit events for the signed-in business
+ */
+export const ListFinanceAuditResponseItem = zod.object({
+  "id": zod.number(),
+  "entityType": zod.string(),
+  "entityId": zod.number(),
+  "action": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListFinanceAuditResponse = zod.array(ListFinanceAuditResponseItem)
+
+

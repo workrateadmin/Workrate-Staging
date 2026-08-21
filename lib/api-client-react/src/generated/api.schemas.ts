@@ -13,6 +13,170 @@ export interface ApiError {
   error: string;
 }
 
+export interface FinanceCategories {
+  categories: string[];
+}
+
+export interface FinanceExpenseInput {
+  jobId?: number;
+  transactionDate?: string;
+  supplierName?: string;
+  description?: string;
+  category?: string;
+  grossAmount?: number;
+  netAmount?: number;
+  vatAmount?: number;
+  paymentMethod?: string;
+  notes?: string;
+}
+
+export type FinanceExpense = FinanceExpenseInput & {
+  id: number;
+  companyId: number;
+  source: string;
+  reviewStatus: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReceiptExtractionDataSuggestion = {
+  /** @nullable */
+  supplierName: string | null;
+  /** @nullable */
+  transactionDate: string | null;
+  /** @nullable */
+  description: string | null;
+  /** @nullable */
+  category: string | null;
+  /** @nullable */
+  grossAmount: number | null;
+  /** @nullable */
+  netAmount: number | null;
+  /** @nullable */
+  vatAmount: number | null;
+  /** @nullable */
+  paymentMethod: string | null;
+  /** @nullable */
+  jobReference: string | null;
+  /** @nullable */
+  confidence: number | null;
+};
+
+export interface ReceiptExtractionData {
+  suggestion: ReceiptExtractionDataSuggestion;
+}
+
+export interface FinanceReceipt {
+  id: number;
+  expenseId: number;
+  /** @nullable */
+  jobId?: number | null;
+  originalName: string;
+  mimeType: string;
+  /** @nullable */
+  fileSizeBytes?: number | null;
+  extractionStatus: string;
+  /** @nullable */
+  extractionMethod?: string | null;
+  extractedData?: ReceiptExtractionData | null;
+  uploadedAt: string;
+  fileUrl?: string;
+}
+
+export interface FinanceIncomeInput {
+  jobId?: number;
+  receivedDate: string;
+  description: string;
+  category?: string;
+  grossAmount: number;
+  netAmount?: number;
+  vatAmount?: number;
+  paymentMethod?: string;
+  notes?: string;
+}
+
+export interface FinanceIncome {
+  id: string;
+  type: string;
+  date: string;
+  description: string;
+  grossAmount: number;
+  /** @nullable */
+  sourceInvoiceId?: number | null;
+  /** @nullable */
+  jobId?: number | null;
+}
+
+export type FinanceSummaryPeriod = {
+  /** @nullable */
+  from: string | null;
+  /** @nullable */
+  to: string | null;
+};
+
+export type FinanceSummaryIncome = {
+  invoiceIncome: number;
+  otherIncome: number;
+  totalIncome: number;
+  depositsReceived: number;
+  finalPayments: number;
+  cashReceived: number;
+};
+
+export type FinanceSummaryExpensesCategoryBreakdownItem = {
+  category: string;
+  count: number;
+  grossAmount: number;
+  netAmount: number;
+  vatAmount: number;
+};
+
+export type FinanceSummaryExpenses = {
+  confirmedGross: number;
+  confirmedNet: number;
+  confirmedVat: number;
+  confirmedCount: number;
+  needsReviewCount: number;
+  categoryBreakdown: FinanceSummaryExpensesCategoryBreakdownItem[];
+  receiptAttachedCount: number;
+  receiptAttachedGross: number;
+  missingReceiptCount: number;
+};
+
+export type FinanceSummaryWarnings = {
+  unreviewed: number[];
+  missingReceipts: number[];
+  uncategorized: number[];
+  incompleteAmounts: number[];
+};
+
+export interface FinanceSummary {
+  period: FinanceSummaryPeriod;
+  income: FinanceSummaryIncome;
+  expenses: FinanceSummaryExpenses;
+  warnings: FinanceSummaryWarnings;
+  notice: string;
+}
+
+export type FinanceTransactionReceiptsItem = {
+  id: number;
+  originalName: string;
+  extractionStatus: string;
+  fileUrl: string;
+};
+
+export type FinanceTransaction = FinanceExpense & {
+  receipts: FinanceTransactionReceiptsItem[];
+};
+
+export interface FinanceAuditEvent {
+  id: number;
+  entityType: string;
+  entityId: number;
+  action: string;
+  createdAt: string;
+}
+
 export interface IntegrationStatus {
   provider: string;
   name: string;
@@ -710,6 +874,10 @@ export interface EnquiryAttachment {
   uploadedAt: string;
 }
 
+export type FinancePeriodFromParameter = string;
+
+export type FinancePeriodToParameter = string;
+
 export type ListEnquiriesParams = {
 status?: string;
 };
@@ -733,5 +901,37 @@ date?: string;
  * Filter by follow-up required (true/false)
  */
 followUpRequired?: string;
+};
+
+export type GetFinanceSummaryParams = {
+from?: FinancePeriodFromParameter;
+to?: FinancePeriodToParameter;
+};
+
+export type ListFinanceTransactionsParams = {
+from?: FinancePeriodFromParameter;
+to?: FinancePeriodToParameter;
+category?: string;
+reviewStatus?: string;
+hasReceipt?: boolean;
+};
+
+export type ConfirmFinanceExpenseBody = {
+  wasCorrected?: boolean;
+};
+
+export type UploadFinanceReceiptBody = {
+  file: Blob;
+  jobId?: number;
+};
+
+export type UploadFinanceReceipt201 = {
+  expense: FinanceExpense;
+  receipt: FinanceReceipt;
+};
+
+export type ListFinanceIncomeParams = {
+from?: FinancePeriodFromParameter;
+to?: FinancePeriodToParameter;
 };
 
