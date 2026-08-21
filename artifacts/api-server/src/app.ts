@@ -11,6 +11,7 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import { logger } from "./lib/logger";
+import { hmrcTrustProxySetting } from "./lib/hmrc-security";
 import router from "./routes";
 
 // Ensure uploads dir exists
@@ -22,11 +23,7 @@ const app = express();
 // Never trust arbitrary forwarded headers. Deployments that need the originating
 // client IP (notably HMRC fraud-prevention headers) must declare the CIDRs for
 // their controlled proxy chain. Loopback remains enough for local proxying.
-const trustedProxyCidrs = (process.env.HMRC_TRUSTED_PROXY_CIDRS ?? "")
-  .split(",")
-  .map((value) => value.trim())
-  .filter(Boolean);
-app.set("trust proxy", trustedProxyCidrs.length ? trustedProxyCidrs : "loopback");
+app.set("trust proxy", hmrcTrustProxySetting());
 
 const allowedCorsOrigins = new Set(
   (process.env.CORS_ALLOWED_ORIGINS ?? "")

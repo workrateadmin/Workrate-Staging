@@ -370,8 +370,16 @@ export async function hmrcGet<T>(
   accessToken: string,
   fraudHeaders: Record<string, string>,
 ): Promise<T> {
-  const url = new URL(path, config.apiBaseUrl);
+  const configuredBase = new URL(config.apiBaseUrl);
+  if (configuredBase.origin !== HMRC_SANDBOX_BASE_URL) {
+    throw new Error("HMRC read requests must use the sandbox host.");
+  }
+  const url = new URL(path, configuredBase);
+  if (url.origin !== HMRC_SANDBOX_BASE_URL) {
+    throw new Error("HMRC read requests must use the sandbox host.");
+  }
   const response = await fetch(url, {
+    method: "GET",
     headers: {
       Accept: accept,
       Authorization: `Bearer ${accessToken}`,

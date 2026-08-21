@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   companiesTable,
@@ -29,6 +29,8 @@ import {
   type HmrcSandboxConfig,
   type StoredFraudContext,
 } from "../lib/hmrc";
+import { claimHmrcOauthState } from "../lib/hmrc-oauth-state";
+import { hmrcClientIp, requireHmrcSameOrigin } from "../lib/hmrc-security";
 
 const router: IRouter = Router();
 const HMRC_STATE_TTL_MS = 10 * 60 * 1000;
@@ -127,38 +129,12 @@ function safeError(error: unknown): string {
   return "HMRC sandbox connection needs attention. Check the connection settings and try again.";
 }
 
-function safeClientIp(req: any): string {
-  // req.ip is only reliable when the controlled proxy chain is explicitly
-  // declared in app.ts. Refuse the HMRC call rather than accepting spoofable XFF.
-  if (!process.env.HMRC_TRUSTED_PROXY_CIDRS?.trim()) return "";
-  return typeof req.ip === "string" ? req.ip : "";
-}
-
 function storedFraudContext(req: any, browserContext: HmrcBrowserContext): StoredFraudContext {
   return {
     ...browserContext,
-    clientPublicIp: safeClientIp(req),
+    clientPublicIp: hmrcClientIp(req),
     capturedAt: new Date().toISOString(),
   };
-}
-
-function requireSameOrigin(req: any, res: any, next: any) {
-  const origin = req.get("origin");
-  const host = req.get("x-forwarded-host") ?? req.get("host");
-  if (!origin || !host) {
-    res.status(403).json({ error: "HMRC connection actions require a same-origin browser request." });
-    return;
-  }
-  try {
-    if (new URL(origin).host !== host) {
-      res.status(403).json({ error: "HMRC connection actions require a same-origin browser request." });
-      return;
-    }
-  } catch {
-    res.status(403).json({ error: "HMRC connection actions require a same-origin browser request." });
-    return;
-  }
-  next();
 }
 
 async function writeAudit(input: {
@@ -344,7 +320,7 @@ router.get("/finance/hmrc/status", requireAuth, async (req, res): Promise<void> 
   res.json(connectionStatus(await storedConnection(company.id, userId!)));
 });
 
-router.post("/finance/hmrc/connect", requireAuth, requireSameOrigin, async (req, res): Promise<void> => {
+router.post("/finance/hmrc/connect", requireAuth, requireHmrcSameOrigin, async (req, res): Promise<void> => {
   const parsed = connectSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid HMRC connection request." });
@@ -427,16 +403,12 @@ router.get("/hmrc/callback", requireAuth, async (req, res): Promise<void> => {
   // Atomically claim the state before the external token exchange. Concurrent
   // callbacks can no longer both use the same state, and failed exchanges stay
   // consumed rather than becoming replayable until their TTL expires.
-  const [claimedState] = await db.update(hmrcOauthStatesTable).set({ usedAt: new Date() })
-    .where(and(
-      eq(hmrcOauthStatesTable.id, oauthState.id),
-      eq(hmrcOauthStatesTable.stateHash, stateHash),
-      eq(hmrcOauthStatesTable.companyId, company.id),
-      eq(hmrcOauthStatesTable.ownerUserId, userId!),
-      isNull(hmrcOauthStatesTable.usedAt),
-      gt(hmrcOauthStatesTable.expiresAt, new Date()),
-    ))
-    .returning();
+  const claimedState = await claimHmrcOauthState({
+    id: oauthState.id,
+    stateHash,
+    companyId: company.id,
+    ownerUserId: userId!,
+  });
   if (!claimedState) {
     res.status(400).send("This HMRC sandbox authorisation has expired or has already been used.");
     return;
@@ -503,7 +475,7 @@ router.get("/hmrc/callback", requireAuth, async (req, res): Promise<void> => {
   }
 });
 
-router.post("/finance/hmrc/sync", requireAuth, requireSameOrigin, async (req, res): Promise<void> => {
+router.post("/finance/hmrc/sync", requireAuth, requireHmrcSameOrigin, async (req, res): Promise<void> => {
   const parsed = syncSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid HMRC sync request." });
@@ -543,7 +515,7 @@ router.post("/finance/hmrc/sync", requireAuth, requireSameOrigin, async (req, re
   }
 });
 
-router.delete("/finance/hmrc", requireAuth, requireSameOrigin, async (req, res): Promise<void> => {
+router.delete("/finance/hmrc", requireAuth, requireHmrcSameOrigin, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const company = await businessFor(userId!);
   if (!company) {
