@@ -452,20 +452,9 @@ router.get("/hmrc/callback", requireAuth, async (req, res): Promise<void> => {
       afterData: { status: connection.status, scopes: connection.scopes.split(/\s+/) },
     });
 
-    try {
-      await synchronise(connection, config, claimedState.fraudContext as StoredFraudContext);
-    } catch (error) {
-      const message = safeError(error);
-      await db.update(hmrcConnectionsTable).set({ lastError: message }).where(eq(hmrcConnectionsTable.id, connection.id));
-      await writeAudit({
-        companyId: company.id,
-        ownerUserId: userId!,
-        entityId: connection.id,
-        action: "sync_error",
-        afterData: { message },
-      });
-      req.log.warn({ companyId: company.id }, "HMRC sandbox connected but initial sync needs attention");
-    }
+    // OAuth validation is intentionally separate from HMRC data retrieval.
+    // The connection is usable after encrypted token storage, while the
+    // explicit sync endpoint remains fail-closed on fraud-prevention evidence.
     await db.delete(hmrcOauthStatesTable).where(eq(hmrcOauthStatesTable.id, claimedState.id));
     res.redirect(callbackRedirect(config, claimedState.returnPath, "connected"));
   } catch (error) {
