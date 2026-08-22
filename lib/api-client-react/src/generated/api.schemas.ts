@@ -195,6 +195,32 @@ export interface FinanceIncome {
   jobId?: number | null;
 }
 
+export interface FinanceIncomeUpdate {
+  /** @nullable */
+  jobId?: number | null;
+  receivedDate?: string;
+  description?: string;
+  /** @nullable */
+  category?: string | null;
+  grossAmount?: number;
+  /** @nullable */
+  netAmount?: number | null;
+  /** @nullable */
+  vatAmount?: number | null;
+  /** @nullable */
+  paymentMethod?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type FinanceIncomeRecord = FinanceIncomeInput & {
+  id: number;
+  companyId: number;
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type FinanceSummaryPeriod = {
   /** @nullable */
   from: string | null;
@@ -999,6 +1025,16 @@ to?: FinancePeriodToParameter;
 export type CompleteHmrcSandboxAuthorizationParams = {
 code: string;
 state: string;
+};
+
+export type ListFinanceExpensesParams = {
+from?: FinancePeriodFromParameter;
+to?: FinancePeriodToParameter;
+};
+
+export type ExportFinanceCsvParams = {
+from?: FinancePeriodFromParameter;
+to?: FinancePeriodToParameter;
 };
 
 export type ListFinanceTransactionsParams = {

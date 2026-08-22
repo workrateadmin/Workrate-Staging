@@ -2002,6 +2002,11 @@ export const CompleteHmrcSandboxAuthorizationResponse = zod.void()
 /**
  * @summary List finance expenses for the signed-in business
  */
+export const ListFinanceExpensesQueryParams = zod.object({
+  "from": zod.date().optional(),
+  "to": zod.date().optional()
+})
+
 export const ListFinanceExpensesResponseItem = zod.object({
   "jobId": zod.number().optional(),
   "transactionDate": zod.coerce.date().optional(),
@@ -2059,6 +2064,17 @@ export const CreateFinanceExpenseResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))
+
+
+/**
+ * @summary Export tenant-scoped finance activity as a spreadsheet-safe CSV
+ */
+export const ExportFinanceCsvQueryParams = zod.object({
+  "from": zod.date().optional(),
+  "to": zod.date().optional()
+})
+
+export const ExportFinanceCsvResponse = zod.unknown()
 
 
 /**
@@ -2317,6 +2333,44 @@ export const CreateFinanceIncomeResponse = zod.object({
   "sourceInvoiceId": zod.number().nullish(),
   "jobId": zod.number().nullish()
 })
+
+
+/**
+ * @summary Edit a manually recorded other-income record
+ */
+export const UpdateFinanceIncomeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateFinanceIncomeBody = zod.object({
+  "jobId": zod.number().nullish(),
+  "receivedDate": zod.coerce.date().optional(),
+  "description": zod.string().optional(),
+  "category": zod.string().nullish(),
+  "grossAmount": zod.number().optional(),
+  "netAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "paymentMethod": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateFinanceIncomeResponse = zod.object({
+  "jobId": zod.number().optional(),
+  "receivedDate": zod.coerce.date(),
+  "description": zod.string(),
+  "category": zod.string().optional(),
+  "grossAmount": zod.number(),
+  "netAmount": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "paymentMethod": zod.string().optional(),
+  "notes": zod.string().optional()
+}).and(zod.object({
+  "id": zod.number(),
+  "companyId": zod.number(),
+  "source": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
 
 
 /**

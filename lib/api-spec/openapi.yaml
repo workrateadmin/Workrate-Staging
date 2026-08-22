@@ -1411,6 +1411,9 @@ paths:
       operationId: listFinanceExpenses
       tags: [finance]
       summary: List finance expenses for the signed-in business
+      parameters:
+        - $ref: "#/components/parameters/FinancePeriodFrom"
+        - $ref: "#/components/parameters/FinancePeriodTo"
       responses:
         "200":
           description: Expense records
@@ -1437,6 +1440,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FinanceExpense"
+
+  /finance/export.csv:
+    get:
+      operationId: exportFinanceCsv
+      tags: [finance]
+      summary: Export tenant-scoped finance activity as a spreadsheet-safe CSV
+      parameters:
+        - $ref: "#/components/parameters/FinancePeriodFrom"
+        - $ref: "#/components/parameters/FinancePeriodTo"
+      responses:
+        "200":
+          description: Accountant-ready finance export for the selected period
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
 
   /finance/transactions:
     get:
@@ -1611,6 +1631,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FinanceIncome"
+
+  /finance/income/{id}:
+    patch:
+      operationId: updateFinanceIncome
+      tags: [finance]
+      summary: Edit a manually recorded other-income record
+      parameters:
+        - $ref: "#/components/parameters/FinanceRecordId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinanceIncomeUpdate"
+      responses:
+        "200":
+          description: Updated other-income record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceIncomeRecord"
 
   /finance/audit:
     get:
@@ -1942,6 +1983,48 @@ components:
         jobId:
           type: ["number", "null"]
       required: [id, type, date, description, grossAmount]
+
+    FinanceIncomeUpdate:
+      type: object
+      properties:
+        jobId:
+          type: ["number", "null"]
+        receivedDate:
+          type: string
+          format: date
+        description:
+          type: string
+        category:
+          type: ["string", "null"]
+        grossAmount:
+          type: number
+        netAmount:
+          type: ["number", "null"]
+        vatAmount:
+          type: ["number", "null"]
+        paymentMethod:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    FinanceIncomeRecord:
+      allOf:
+        - $ref: "#/components/schemas/FinanceIncomeInput"
+        - type: object
+          properties:
+            id:
+              type: number
+            companyId:
+              type: number
+            source:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+          required: [id, companyId, source, createdAt, updatedAt]
 
     FinanceSummary:
       type: object

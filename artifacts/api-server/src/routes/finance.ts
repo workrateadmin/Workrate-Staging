@@ -16,6 +16,15 @@ import {
 } from "@workspace/db";
 import { downloadBufferFromStorage, uploadBufferToStorage } from "../lib/storageUpload";
 import { extractReceiptSuggestion } from "../lib/receiptExtractor";
+import {
+  csvValue,
+  dateKey,
+  inPeriod,
+  isFinanceDate,
+  moneyString,
+  numberOrNull,
+  validateFinanceAmounts,
+} from "../lib/financeValidation";
 
 const router: IRouter = Router();
 
@@ -55,33 +64,6 @@ const receiptUpload = multer({
     else cb(new Error("Upload a JPG, PNG, WEBP, HEIC, or PDF receipt."));
   },
 });
-
-function numberOrNull(value: unknown): number | null {
-  if (value == null || value === "") return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? Math.round((parsed + Number.EPSILON) * 100) / 100 : null;
-}
-
-function moneyString(value: unknown): string | null {
-  const amount = numberOrNull(value);
-  return amount == null ? null : amount.toFixed(2);
-}
-
-function isDate(value: unknown): value is string {
-  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
-
-function dateKey(value: Date | string | null | undefined): string | null {
-  if (!value) return null;
-  if (typeof value === "string") return isDate(value) ? value : null;
-  return value.toISOString().slice(0, 10);
-}
-
-function inPeriod(value: Date | string | null | undefined, from?: string, to?: string): boolean {
-  const day = dateKey(value);
-  if (!day) return false;
-  return (!from || day >= from) && (!to || day <= to);
-}
 
 function parseExpense(expense: any) {
   return {
@@ -137,10 +119,21 @@ async function writeAudit(input: {
   });
 }
 
-function periodQuery(req: any): { from?: string; to?: string } {
-  const from = typeof req.query.from === "string" && isDate(req.query.from) ? req.query.from : undefined;
-  const to = typeof req.query.to === "string" && isDate(req.query.to) ? req.query.to : undefined;
+function periodQuery(req: any): { from?: string; to?: string; error?: string } {
+  const rawFrom = req.query.from;
+  const rawTo = req.query.to;
+  if (rawFrom != null && !isFinanceDate(rawFrom)) return { error: "from must be a valid YYYY-MM-DD date" };
+  if (rawTo != null && !isFinanceDate(rawTo)) return { error: "to must be a valid YYYY-MM-DD date" };
+  const from = rawFrom as string | undefined;
+  const to = rawTo as string | undefined;
+  if (from && to && from > to) return { error: "from must be on or before to" };
   return { from, to };
+}
+
+function respondToInvalidPeriod(period: { error?: string }, res: any): boolean {
+  if (!period.error) return false;
+  res.status(400).json({ error: period.error });
+  return true;
 }
 
 async function buildIncomeActivity(userId: string, companyId: number, from?: string, to?: string) {
@@ -223,6 +216,19 @@ async function ownedExpense(id: number, companyId: number, userId: string) {
   return expense ?? null;
 }
 
+async function ownedIncome(id: number, companyId: number, userId: string) {
+  const [income] = await db
+    .select()
+    .from(financeIncomeRecordsTable)
+    .where(and(
+      eq(financeIncomeRecordsTable.id, id),
+      eq(financeIncomeRecordsTable.companyId, companyId),
+      eq(financeIncomeRecordsTable.ownerUserId, userId),
+    ))
+    .limit(1);
+  return income ?? null;
+}
+
 // ── Finance reference data and summaries ───────────────────────────────────────
 
 router.get("/finance/categories", requireAuth, (_req, res): void => {
@@ -233,7 +239,9 @@ router.get("/finance/summary", requireAuth, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const company = await businessFor(userId!);
   if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
-  const { from, to } = periodQuery(req);
+  const period = periodQuery(req);
+  if (respondToInvalidPeriod(period, res)) return;
+  const { from, to } = period;
 
   const [income, expenses, receipts] = await Promise.all([
     buildIncomeActivity(userId!, company.id, from, to),
@@ -321,6 +329,8 @@ router.get("/finance/expenses", requireAuth, async (req, res): Promise<void> => 
   const { userId } = getAuth(req);
   const company = await businessFor(userId!);
   if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  const period = periodQuery(req);
+  if (respondToInvalidPeriod(period, res)) return;
   const expenses = await db
     .select()
     .from(financeExpensesTable)
@@ -329,7 +339,9 @@ router.get("/finance/expenses", requireAuth, async (req, res): Promise<void> => 
       eq(financeExpensesTable.ownerUserId, userId!),
     ))
     .orderBy(desc(financeExpensesTable.transactionDate), desc(financeExpensesTable.createdAt));
-  res.json(expenses.map(parseExpense));
+  res.json(expenses
+    .filter((expense) => inPeriod(expense.transactionDate, period.from, period.to))
+    .map(parseExpense));
 });
 
 // A filtered record-level view for Tax / MTD preparation. Summary cards never
@@ -339,7 +351,9 @@ router.get("/finance/transactions", requireAuth, async (req, res): Promise<void>
   const { userId } = getAuth(req);
   const company = await businessFor(userId!);
   if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
-  const { from, to } = periodQuery(req);
+  const period = periodQuery(req);
+  if (respondToInvalidPeriod(period, res)) return;
+  const { from, to } = period;
   const category = typeof req.query.category === "string" ? req.query.category : undefined;
   const reviewStatus = typeof req.query.reviewStatus === "string" ? req.query.reviewStatus : undefined;
   const hasReceipt = req.query.hasReceipt === "true" ? true : req.query.hasReceipt === "false" ? false : undefined;
@@ -371,22 +385,93 @@ router.get("/finance/transactions", requireAuth, async (req, res): Promise<void>
   res.json(records);
 });
 
+router.get("/finance/export.csv", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const company = await businessFor(userId!);
+  if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  const period = periodQuery(req);
+  if (respondToInvalidPeriod(period, res)) return;
+  const [expenses, receipts, income] = await Promise.all([
+    db.select().from(financeExpensesTable).where(and(
+      eq(financeExpensesTable.companyId, company.id),
+      eq(financeExpensesTable.ownerUserId, userId!),
+    )),
+    db.select().from(financeReceiptsTable).where(and(
+      eq(financeReceiptsTable.companyId, company.id),
+      eq(financeReceiptsTable.ownerUserId, userId!),
+    )),
+    buildIncomeActivity(userId!, company.id, period.from, period.to),
+  ]);
+  const receiptNamesByExpense = new Map<number, string[]>();
+  for (const receipt of receipts) {
+    receiptNamesByExpense.set(receipt.expenseId, [
+      ...(receiptNamesByExpense.get(receipt.expenseId) ?? []),
+      receipt.originalName,
+    ]);
+  }
+  const rows = [
+    ...expenses
+      .filter((expense) => inPeriod(expense.transactionDate, period.from, period.to))
+      .map((expense) => ({
+        date: expense.transactionDate,
+        type: "expense",
+        supplierOrCustomer: expense.supplierName,
+        description: expense.description,
+        category: expense.category,
+        net: expense.netAmount,
+        vat: expense.vatAmount,
+        gross: expense.grossAmount,
+        jobReference: expense.jobId ? `Job ${expense.jobId}` : "",
+        reviewStatus: expense.reviewStatus,
+        source: expense.source,
+        documentReference: (receiptNamesByExpense.get(expense.id) ?? []).join("; "),
+      })),
+    ...income.map((entry) => ({
+      date: entry.date,
+      type: entry.type,
+      supplierOrCustomer: "",
+      description: entry.description,
+      category: entry.category,
+      net: entry.netAmount,
+      vat: entry.vatAmount,
+      gross: entry.grossAmount,
+      jobReference: entry.jobId ? `Job ${entry.jobId}` : "",
+      reviewStatus: entry.type === "other_income" ? "recorded" : "derived",
+      source: entry.source ?? "WorkRate invoice",
+      documentReference: entry.sourceInvoiceId ? `Invoice ${entry.sourceInvoiceId}` : "",
+    })),
+  ].sort((left, right) => String(left.date ?? "").localeCompare(String(right.date ?? "")));
+
+  const headings = [
+    "date", "type", "supplier/customer", "description", "category", "net", "VAT", "gross",
+    "job reference", "review status", "source", "document reference",
+  ];
+  const csv = [
+    headings.map(csvValue).join(","),
+    ...rows.map((row) => [
+      row.date, row.type, row.supplierOrCustomer, row.description, row.category, row.net, row.vat, row.gross,
+      row.jobReference, row.reviewStatus, row.source, row.documentReference,
+    ].map(csvValue).join(",")),
+  ].join("\r\n");
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="workrate-finance-${period.from ?? "all"}-to-${period.to ?? "all"}.csv"`);
+  res.send(csv);
+});
+
 router.post("/finance/expenses", requireAuth, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const company = await businessFor(userId!);
   if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
   const body = req.body ?? {};
-  if (body.transactionDate != null && !isDate(body.transactionDate)) {
+  if (body.transactionDate != null && !isFinanceDate(body.transactionDate)) {
     res.status(400).json({ error: "transactionDate must be YYYY-MM-DD" }); return;
   }
   if (body.jobId != null && !(await jobBelongsToUser(Number(body.jobId), userId!))) {
     res.status(400).json({ error: "Job does not belong to this business" }); return;
   }
-  for (const field of ["grossAmount", "netAmount", "vatAmount"]) {
-    if (body[field] != null && numberOrNull(body[field]) == null) {
-      res.status(400).json({ error: `${field} must be a valid number` }); return;
-    }
-  }
+  const amountError = validateFinanceAmounts(body);
+  if (amountError) { res.status(400).json({ error: amountError }); return; }
 
   const completeEnough = Boolean(body.transactionDate) && numberOrNull(body.grossAmount) != null;
   const [expense] = await db.insert(financeExpensesTable).values({
@@ -423,7 +508,7 @@ router.patch("/finance/expenses/:id", requireAuth, async (req, res): Promise<voi
   const expense = await ownedExpense(id, company.id, userId!);
   if (!expense) { res.status(404).json({ error: "Expense not found" }); return; }
   const body = req.body ?? {};
-  if (body.transactionDate !== undefined && body.transactionDate !== null && !isDate(body.transactionDate)) {
+  if (body.transactionDate !== undefined && body.transactionDate !== null && !isFinanceDate(body.transactionDate)) {
     res.status(400).json({ error: "transactionDate must be YYYY-MM-DD" }); return;
   }
   if (body.jobId !== undefined && body.jobId !== null && !(await jobBelongsToUser(Number(body.jobId), userId!))) {
@@ -433,13 +518,15 @@ router.patch("/finance/expenses/:id", requireAuth, async (req, res): Promise<voi
   const directFields = ["transactionDate", "supplierName", "description", "category", "paymentMethod", "notes"];
   for (const field of directFields) if (body[field] !== undefined) updates[field] = body[field] || null;
   if (body.jobId !== undefined) updates.jobId = body.jobId == null || body.jobId === "" ? null : Number(body.jobId);
+  const nextAmounts = {
+    grossAmount: body.grossAmount !== undefined ? body.grossAmount : expense.grossAmount,
+    netAmount: body.netAmount !== undefined ? body.netAmount : expense.netAmount,
+    vatAmount: body.vatAmount !== undefined ? body.vatAmount : expense.vatAmount,
+  };
+  const amountError = validateFinanceAmounts(nextAmounts);
+  if (amountError) { res.status(400).json({ error: amountError }); return; }
   for (const field of ["grossAmount", "netAmount", "vatAmount"]) {
-    if (body[field] !== undefined) {
-      if (body[field] != null && numberOrNull(body[field]) == null) {
-        res.status(400).json({ error: `${field} must be a valid number` }); return;
-      }
-      updates[field] = moneyString(body[field]);
-    }
+    if (body[field] !== undefined) updates[field] = moneyString(body[field]);
   }
   const [updated] = await db.update(financeExpensesTable).set(updates)
     .where(and(eq(financeExpensesTable.id, id), eq(financeExpensesTable.companyId, company.id)))
@@ -466,6 +553,8 @@ router.post("/finance/expenses/:id/confirm", requireAuth, async (req, res): Prom
   if (!expense.transactionDate || expense.grossAmount == null) {
     res.status(400).json({ error: "Add the transaction date and total before confirming this expense" }); return;
   }
+  const amountError = validateFinanceAmounts(expense);
+  if (amountError) { res.status(400).json({ error: amountError }); return; }
   const status = req.body?.wasCorrected ? "corrected" : "confirmed";
   const [updated] = await db.update(financeExpensesTable).set({
     reviewStatus: status,
@@ -616,8 +705,9 @@ router.get("/finance/income", requireAuth, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const company = await businessFor(userId!);
   if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
-  const { from, to } = periodQuery(req);
-  res.json(await buildIncomeActivity(userId!, company.id, from, to));
+  const period = periodQuery(req);
+  if (respondToInvalidPeriod(period, res)) return;
+  res.json(await buildIncomeActivity(userId!, company.id, period.from, period.to));
 });
 
 router.post("/finance/income", requireAuth, async (req, res): Promise<void> => {
@@ -625,12 +715,14 @@ router.post("/finance/income", requireAuth, async (req, res): Promise<void> => {
   const company = await businessFor(userId!);
   const body = req.body ?? {};
   if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
-  if (!isDate(body.receivedDate) || numberOrNull(body.grossAmount) == null || !String(body.description ?? "").trim()) {
+  if (!isFinanceDate(body.receivedDate) || numberOrNull(body.grossAmount) == null || !String(body.description ?? "").trim()) {
     res.status(400).json({ error: "receivedDate, description, and grossAmount are required" }); return;
   }
   if (body.jobId != null && !(await jobBelongsToUser(Number(body.jobId), userId!))) {
     res.status(400).json({ error: "Job does not belong to this business" }); return;
   }
+  const amountError = validateFinanceAmounts(body);
+  if (amountError) { res.status(400).json({ error: amountError }); return; }
   const [income] = await db.insert(financeIncomeRecordsTable).values({
     companyId: company.id, ownerUserId: userId!, jobId: body.jobId != null ? Number(body.jobId) : null,
     receivedDate: body.receivedDate, description: String(body.description).trim(),
@@ -647,6 +739,56 @@ router.post("/finance/income", requireAuth, async (req, res): Promise<void> => {
     action: "created", actorUserId: userId!, afterData: parseIncome(income),
   });
   res.status(201).json(parseIncome(income));
+});
+
+router.patch("/finance/income/:id", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const company = await businessFor(userId!);
+  const id = Number(req.params.id);
+  if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid income id" }); return; }
+  const income = await ownedIncome(id, company.id, userId!);
+  if (!income) { res.status(404).json({ error: "Income record not found" }); return; }
+  const body = req.body ?? {};
+  if (body.receivedDate !== undefined && !isFinanceDate(body.receivedDate)) {
+    res.status(400).json({ error: "receivedDate must be a valid YYYY-MM-DD date" }); return;
+  }
+  if (body.description !== undefined && !String(body.description ?? "").trim()) {
+    res.status(400).json({ error: "description cannot be empty" }); return;
+  }
+  if (body.jobId !== undefined && body.jobId !== null && body.jobId !== "" && !(await jobBelongsToUser(Number(body.jobId), userId!))) {
+    res.status(400).json({ error: "Job does not belong to this business" }); return;
+  }
+  const nextAmounts = {
+    grossAmount: body.grossAmount !== undefined ? body.grossAmount : income.grossAmount,
+    netAmount: body.netAmount !== undefined ? body.netAmount : income.netAmount,
+    vatAmount: body.vatAmount !== undefined ? body.vatAmount : income.vatAmount,
+  };
+  const amountError = validateFinanceAmounts(nextAmounts);
+  if (amountError) { res.status(400).json({ error: amountError }); return; }
+  if (numberOrNull(nextAmounts.grossAmount) == null) {
+    res.status(400).json({ error: "grossAmount is required" }); return;
+  }
+  const updates: Record<string, unknown> = {};
+  for (const field of ["receivedDate", "description", "category", "paymentMethod", "notes"]) {
+    if (body[field] !== undefined) updates[field] = typeof body[field] === "string" ? body[field].trim() || null : body[field];
+  }
+  if (body.jobId !== undefined) updates.jobId = body.jobId == null || body.jobId === "" ? null : Number(body.jobId);
+  for (const field of ["grossAmount", "netAmount", "vatAmount"]) {
+    if (body[field] !== undefined) updates[field] = moneyString(body[field]);
+  }
+  const [updated] = await db.update(financeIncomeRecordsTable).set(updates)
+    .where(and(
+      eq(financeIncomeRecordsTable.id, id),
+      eq(financeIncomeRecordsTable.companyId, company.id),
+      eq(financeIncomeRecordsTable.ownerUserId, userId!),
+    ))
+    .returning();
+  await writeAudit({
+    companyId: company.id, ownerUserId: userId!, entityType: "income", entityId: id,
+    action: "updated", actorUserId: userId!, beforeData: parseIncome(income), afterData: parseIncome(updated),
+  });
+  res.json(parseIncome(updated));
 });
 
 router.get("/finance/audit", requireAuth, async (req, res): Promise<void> => {
