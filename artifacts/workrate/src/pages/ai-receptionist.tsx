@@ -7,6 +7,8 @@ import {
   useProcessAiCall,
   useCompleteDemoCall,
   useGetCompany,
+  useGetVapiSettings,
+  useConnectVapi,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +20,7 @@ import {
   CheckCircle2, Circle, ChevronDown, ChevronRight, AlertCircle,
   User, Timer, Sparkles, PhoneCall, PhoneForwarded, VolumeX,
   ToggleLeft, ToggleRight, Radio, FileText, TrendingUp, ChevronUp,
-  CalendarDays, Zap, Shield, Info, Send, X, PhoneIncoming,
+  CalendarDays, Zap, Shield, Info, Send, X, PhoneIncoming, ExternalLink,
 } from "lucide-react";
 import { format, parseISO, isToday } from "date-fns";
 import { Link } from "wouter";
@@ -73,12 +75,22 @@ function parseEnabledQuestions(json: string | null | undefined): string[] {
 
 function parseSummary(json: string | null | undefined): Record<string, string> | null {
   if (!json) return null;
-  try { return JSON.parse(json); } catch { return null; }
+  try {
+    const parsed = JSON.parse(json);
+    return parsed && typeof parsed === "object" ? parsed : { summary: json };
+  } catch {
+    return { summary: json };
+  }
 }
 
 function parseTranscript(json: string | null | undefined): Array<{ role: string; content: string }> {
   if (!json) return [];
-  try { return JSON.parse(json); } catch { return []; }
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : [{ role: "caller", content: json }];
+  } catch {
+    return [{ role: "caller", content: json }];
+  }
 }
 
 function formatDuration(seconds: number | null | undefined) {
@@ -221,6 +233,9 @@ function CallCard({ call, onUpdate }: { call: any; onUpdate: () => void }) {
               </span>
             </Link>
           )}
+          {call.providerId === "vapi" && (
+            <span className="inline-flex items-center text-xs font-semibold text-muted-foreground">Vapi</span>
+          )}
         </div>
       </div>
 
@@ -255,6 +270,11 @@ function CallCard({ call, onUpdate }: { call: any; onUpdate: () => void }) {
                   <div className="text-[10px] font-bold uppercase tracking-widest text-primary mb-2">Overview</div>
                   <p className="text-sm font-medium text-foreground leading-relaxed">{summary.summary}</p>
                 </div>
+              )}
+              {call.recordingUrl && (
+                <a href={call.recordingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:underline">
+                  <ExternalLink className="w-3.5 h-3.5" /> Open call recording
+                </a>
               )}
             </div>
           ) : (
@@ -777,6 +797,8 @@ export default function AiReceptionist() {
   const updateSettings = useUpdateAiReceptionistSettings();
   const { data: allCalls, refetch: refetchCalls } = useListAiCalls();
   const { data: company } = useGetCompany({ query: { queryKey: ["company"] } });
+  const { data: vapiSettings, refetch: refetchVapiSettings } = useGetVapiSettings();
+  const connectVapi = useConnectVapi();
 
   // Local state for editing
   const [welcomeType, setWelcomeType] = useState<string>("generate");
@@ -788,6 +810,17 @@ export default function AiReceptionist() {
   const [transferPhone, setTransferPhone] = useState("");
   const [enabledQs, setEnabledQs] = useState<string[]>(DEFAULT_QUESTIONS.map((q) => q.id));
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [vapiAssistantId, setVapiAssistantId] = useState("");
+  const [vapiPhoneNumberId, setVapiPhoneNumberId] = useState("");
+  const [vapiPhoneNumber, setVapiPhoneNumber] = useState("");
+  const [vapiWebhookSecret, setVapiWebhookSecret] = useState("");
+
+  useEffect(() => {
+    if (!vapiSettings) return;
+    setVapiAssistantId(vapiSettings.assistantId ?? "");
+    setVapiPhoneNumberId(vapiSettings.phoneNumberId ?? "");
+    setVapiPhoneNumber(vapiSettings.phoneNumber ?? "");
+  }, [vapiSettings]);
 
   // Sync settings into local state once loaded
   if (settings && !settingsLoaded) {
@@ -835,6 +868,25 @@ export default function AiReceptionist() {
     setEnabledQs((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
+  };
+
+  const saveVapiMapping = async () => {
+    try {
+      await connectVapi.mutateAsync({
+        data: {
+          assistantId: vapiAssistantId || undefined,
+          phoneNumberId: vapiPhoneNumberId || undefined,
+          phoneNumber: vapiPhoneNumber || undefined,
+          webhookSecret: vapiWebhookSecret,
+          enabled: true,
+        },
+      });
+      setVapiWebhookSecret("");
+      await refetchVapiSettings();
+      toast({ title: "Vapi mapping saved", description: "Use the shown webhook address in Vapi's server settings." });
+    } catch {
+      toast({ title: "Couldn't save Vapi mapping", description: "Check the mapping and use a webhook secret of at least 16 characters.", variant: "destructive" });
+    }
   };
 
   const todayCalls = (allCalls ?? []).filter((c) =>
@@ -908,8 +960,8 @@ export default function AiReceptionist() {
           <div className="mt-4 flex items-start gap-3 p-3 bg-background/80 rounded-xl border border-border/60">
             <Shield className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
             <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-              <span className="font-bold text-foreground">Ready for telephony integration.</span>{" "}
-              Connect a Twilio or similar provider in Integrations to assign a phone number. All settings and call data are stored and ready.
+              <span className="font-bold text-foreground">{vapiSettings?.connected ? "Vapi mapping connected." : "Ready for Vapi."}</span>{" "}
+              {vapiSettings?.connected ? "Completed calls will appear in the normal enquiry pipeline." : "Add your Vapi assistant or phone mapping below to receive secure completed-call reports."}
             </p>
           </div>
         </CardContent>
@@ -937,6 +989,46 @@ export default function AiReceptionist() {
       {/* ── Setup tab ── */}
       {activeTab === "setup" && (
         <div className="space-y-6">
+          <Card className="shadow-sm border-border/60 rounded-2xl">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-black flex items-center gap-2">
+                <PhoneCall className="w-5 h-5 text-primary" />
+                Vapi phone connection
+              </CardTitle>
+              <p className="text-sm text-muted-foreground font-medium">
+                Match a Vapi assistant or phone number to this business. The webhook secret is stored securely and never shown again.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-bold mb-2">Assistant ID</label>
+                  <input value={vapiAssistantId} onChange={(event) => setVapiAssistantId(event.target.value)} placeholder="assistant_…" className="w-full text-sm border border-border rounded-xl px-4 py-2.5 bg-background" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-2">Phone number ID</label>
+                  <input value={vapiPhoneNumberId} onChange={(event) => setVapiPhoneNumberId(event.target.value)} placeholder="phone_number_…" className="w-full text-sm border border-border rounded-xl px-4 py-2.5 bg-background" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold mb-2">Vapi phone number <span className="font-medium text-muted-foreground">(optional fallback)</span></label>
+                <input value={vapiPhoneNumber} onChange={(event) => setVapiPhoneNumber(event.target.value)} placeholder="+44 20 7946 0000" className="w-full text-sm border border-border rounded-xl px-4 py-2.5 bg-background" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold mb-2">{vapiSettings?.connected ? "New webhook secret (only to rotate)" : "Webhook secret"}</label>
+                <input type="password" value={vapiWebhookSecret} onChange={(event) => setVapiWebhookSecret(event.target.value)} placeholder="At least 16 characters" autoComplete="new-password" className="w-full text-sm border border-border rounded-xl px-4 py-2.5 bg-background" />
+              </div>
+              <div className="rounded-xl border border-border/60 bg-secondary/30 p-3 text-sm">
+                <span className="font-bold">Webhook address:</span>{" "}
+                <code className="break-all text-xs">{typeof window === "undefined" ? "/api/webhooks/vapi" : `${window.location.origin}/api/webhooks/vapi`}</code>
+                <p className="mt-1 text-xs text-muted-foreground">Configure Vapi Custom Credentials to send this secret as <code>x-vapi-secret</code>, then enable end-of-call reports.</p>
+              </div>
+              <Button onClick={saveVapiMapping} disabled={connectVapi.isPending || (!vapiWebhookSecret && !vapiSettings?.connected)} className="font-bold rounded-xl">
+                {connectVapi.isPending ? "Saving…" : vapiSettings?.connected ? "Update Vapi mapping" : "Connect Vapi"}
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card className="shadow-sm border-border/60 rounded-2xl">
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-black flex items-center gap-2">

@@ -2,8 +2,10 @@ import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, integrationsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { decryptIntegrationSecret, encryptIntegrationSecret } from "../lib/integration-secret";
 
 const router: IRouter = Router();
+const VAPI_WEBHOOK_PATH = "/api/webhooks/vapi";
 
 const requireAuth = (req: any, res: any, next: any) => {
   const auth = getAuth(req);
@@ -224,6 +226,97 @@ router.put("/integrations/whatsapp_business/settings", requireAuth, async (req, 
     .where(eq(integrationsTable.id, row.id));
 
   res.json({ success: true, settings: updated });
+});
+
+// ── Vapi phone integration ─────────────────────────────────────────────────────
+// The secret is stored only in config. Metadata is deliberately safe to return
+// to the browser so an owner can verify the mapping without ever re-reading it.
+router.get("/integrations/vapi/settings", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const [row] = await db
+    .select()
+    .from(integrationsTable)
+    .where(and(
+      eq(integrationsTable.ownerUserId, userId!),
+      eq(integrationsTable.provider, "vapi"),
+    ))
+    .limit(1);
+
+  const metadata = row?.metadata ? JSON.parse(row.metadata) : {};
+  res.json({
+    connected: row?.status === "connected",
+    assistantId: metadata.assistantId ?? null,
+    phoneNumberId: metadata.phoneNumberId ?? null,
+    phoneNumber: metadata.phoneNumber ?? null,
+    enabled: metadata.enabled !== false,
+    webhookPath: VAPI_WEBHOOK_PATH,
+  });
+});
+
+router.post("/integrations/vapi/connect", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const body = req.body ?? {};
+  const assistantId = typeof body.assistantId === "string" ? body.assistantId.trim() : "";
+  const phoneNumberId = typeof body.phoneNumberId === "string" ? body.phoneNumberId.trim() : "";
+  const phoneNumber = typeof body.phoneNumber === "string" ? body.phoneNumber.trim() : "";
+  const webhookSecret = typeof body.webhookSecret === "string" ? body.webhookSecret : "";
+  const enabled = body.enabled !== false;
+
+  const [existing] = await db
+    .select({ id: integrationsTable.id, config: integrationsTable.config })
+    .from(integrationsTable)
+    .where(and(
+      eq(integrationsTable.ownerUserId, userId!),
+      eq(integrationsTable.provider, "vapi"),
+    ))
+    .limit(1);
+  const existingConfig = existing?.config ? JSON.parse(existing.config) : {};
+  const secretToStore = webhookSecret || (
+    typeof existingConfig.encryptedWebhookSecret === "string"
+      ? decryptIntegrationSecret(existingConfig.encryptedWebhookSecret)
+      : undefined
+  );
+
+  if ((!assistantId && !phoneNumberId && !phoneNumber) || typeof secretToStore !== "string" || secretToStore.length < 16) {
+    res.status(400).json({
+      error: "Provide a Vapi assistant ID or phone mapping and a webhook secret of at least 16 characters",
+    });
+    return;
+  }
+
+  const config = JSON.stringify({
+    assistantId,
+    phoneNumberId,
+    phoneNumber,
+    encryptedWebhookSecret: encryptIntegrationSecret(secretToStore),
+    enabled,
+  });
+  const metadata = JSON.stringify({ assistantId: assistantId || null, phoneNumberId: phoneNumberId || null, phoneNumber: phoneNumber || null, enabled });
+
+  if (existing) {
+    await db
+      .update(integrationsTable)
+      .set({ config, metadata, status: "connected", connectedAt: new Date() })
+      .where(eq(integrationsTable.id, existing.id));
+  } else {
+    await db.insert(integrationsTable).values({
+      ownerUserId: userId!,
+      provider: "vapi",
+      status: "connected",
+      config,
+      metadata,
+      connectedAt: new Date(),
+    });
+  }
+
+  res.json({
+    connected: true,
+    assistantId: assistantId || null,
+    phoneNumberId: phoneNumberId || null,
+    phoneNumber: phoneNumber || null,
+    enabled,
+    webhookPath: VAPI_WEBHOOK_PATH,
+  });
 });
 
 // ── POST /integrations/:provider/connect ─────────────────────────────────────

@@ -90,3 +90,5 @@ export * from './recordProposalView200';
 export * from './uploadEnquiryAttachmentBody';
 export * from './uploadFinanceReceipt201';
 export * from './uploadFinanceReceiptBody';
+export * from './vapiConnectionInput';
+export * from './vapiSettings';

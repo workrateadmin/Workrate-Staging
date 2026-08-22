@@ -163,6 +163,7 @@ export const ListEnquiriesResponseItem = zod.object({
   "customerName": zod.string(),
   "customerEmail": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
+  "channel": zod.string().nullish(),
   "projectType": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -203,6 +204,7 @@ export const CreateEnquiryResponse = zod.object({
   "customerName": zod.string(),
   "customerEmail": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
+  "channel": zod.string().nullish(),
   "projectType": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -223,6 +225,43 @@ export const CreateEnquiryResponse = zod.object({
 
 
 /**
+ * @summary List phone-call activity linked to an enquiry
+ */
+export const ListEnquiryAiCallsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListEnquiryAiCallsResponseItem = zod.object({
+  "id": zod.number(),
+  "enquiryId": zod.number().nullish(),
+  "callStatus": zod.string(),
+  "callerPhone": zod.string().nullish(),
+  "callerName": zod.string().nullish(),
+  "durationSeconds": zod.number().nullish(),
+  "callStartedAt": zod.coerce.date().nullish(),
+  "callEndedAt": zod.coerce.date().nullish(),
+  "collectedData": zod.string().nullish(),
+  "transcript": zod.string().nullish(),
+  "aiSummary": zod.string().nullish(),
+  "confidenceScore": zod.number().nullish(),
+  "surveySuggested": zod.boolean().nullish(),
+  "followUpRequired": zod.boolean(),
+  "followUpNotes": zod.string().nullish(),
+  "providerId": zod.string().nullish(),
+  "providerCallId": zod.string().nullish(),
+  "assistantId": zod.string().nullish(),
+  "phoneNumberId": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "recordingUrl": zod.string().nullish(),
+  "endedReason": zod.string().nullish(),
+  "providerData": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListEnquiryAiCallsResponse = zod.array(ListEnquiryAiCallsResponseItem)
+
+
+/**
  * @summary Get enquiry by ID
  */
 export const GetEnquiryParams = zod.object({
@@ -234,6 +273,7 @@ export const GetEnquiryResponse = zod.object({
   "customerName": zod.string(),
   "customerEmail": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
+  "channel": zod.string().nullish(),
   "projectType": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -278,6 +318,7 @@ export const UpdateEnquiryResponse = zod.object({
   "customerName": zod.string(),
   "customerEmail": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
+  "channel": zod.string().nullish(),
   "projectType": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -390,6 +431,7 @@ export const GenerateEnquirySummaryResponse = zod.object({
   "customerName": zod.string(),
   "customerEmail": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
+  "channel": zod.string().nullish(),
   "projectType": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -1061,6 +1103,44 @@ export const ListIntegrationsResponse = zod.array(ListIntegrationsResponseItem)
 
 
 /**
+ * @summary Get the current user's safe Vapi phone mapping
+ */
+export const GetVapiSettingsResponse = zod.object({
+  "connected": zod.boolean(),
+  "assistantId": zod.string().nullish(),
+  "phoneNumberId": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "enabled": zod.boolean(),
+  "webhookPath": zod.string()
+})
+
+
+/**
+ * @summary Save a tenant-scoped Vapi phone mapping
+ */
+export const connectVapiBodyWebhookSecretMin = 16;
+
+
+
+export const ConnectVapiBody = zod.object({
+  "assistantId": zod.string().optional(),
+  "phoneNumberId": zod.string().optional(),
+  "phoneNumber": zod.string().optional(),
+  "webhookSecret": zod.string().min(connectVapiBodyWebhookSecretMin),
+  "enabled": zod.boolean().optional()
+})
+
+export const ConnectVapiResponse = zod.object({
+  "connected": zod.boolean(),
+  "assistantId": zod.string().nullish(),
+  "phoneNumberId": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "enabled": zod.boolean(),
+  "webhookPath": zod.string()
+})
+
+
+/**
  * @summary Get a specific integration provider
  */
 export const GetIntegrationParams = zod.object({
@@ -1127,6 +1207,7 @@ export const GetDashboardResponse = zod.object({
   "customerName": zod.string(),
   "customerEmail": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
+  "channel": zod.string().nullish(),
   "projectType": zod.string().nullish(),
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -1274,6 +1355,7 @@ export const ListAiCallsResponseItem = zod.object({
   "callerName": zod.string().nullish(),
   "durationSeconds": zod.number().nullish(),
   "callStartedAt": zod.coerce.date().nullish(),
+  "callEndedAt": zod.coerce.date().nullish(),
   "collectedData": zod.string().nullish(),
   "transcript": zod.string().nullish(),
   "aiSummary": zod.string().nullish(),
@@ -1282,6 +1364,12 @@ export const ListAiCallsResponseItem = zod.object({
   "followUpRequired": zod.boolean(),
   "followUpNotes": zod.string().nullish(),
   "providerId": zod.string().nullish(),
+  "providerCallId": zod.string().nullish(),
+  "assistantId": zod.string().nullish(),
+  "phoneNumberId": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "recordingUrl": zod.string().nullish(),
+  "endedReason": zod.string().nullish(),
   "providerData": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1317,6 +1405,7 @@ export const CreateAiCallResponse = zod.object({
   "callerName": zod.string().nullish(),
   "durationSeconds": zod.number().nullish(),
   "callStartedAt": zod.coerce.date().nullish(),
+  "callEndedAt": zod.coerce.date().nullish(),
   "collectedData": zod.string().nullish(),
   "transcript": zod.string().nullish(),
   "aiSummary": zod.string().nullish(),
@@ -1325,6 +1414,12 @@ export const CreateAiCallResponse = zod.object({
   "followUpRequired": zod.boolean(),
   "followUpNotes": zod.string().nullish(),
   "providerId": zod.string().nullish(),
+  "providerCallId": zod.string().nullish(),
+  "assistantId": zod.string().nullish(),
+  "phoneNumberId": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "recordingUrl": zod.string().nullish(),
+  "endedReason": zod.string().nullish(),
   "providerData": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1346,6 +1441,7 @@ export const GetAiCallResponse = zod.object({
   "callerName": zod.string().nullish(),
   "durationSeconds": zod.number().nullish(),
   "callStartedAt": zod.coerce.date().nullish(),
+  "callEndedAt": zod.coerce.date().nullish(),
   "collectedData": zod.string().nullish(),
   "transcript": zod.string().nullish(),
   "aiSummary": zod.string().nullish(),
@@ -1354,6 +1450,12 @@ export const GetAiCallResponse = zod.object({
   "followUpRequired": zod.boolean(),
   "followUpNotes": zod.string().nullish(),
   "providerId": zod.string().nullish(),
+  "providerCallId": zod.string().nullish(),
+  "assistantId": zod.string().nullish(),
+  "phoneNumberId": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "recordingUrl": zod.string().nullish(),
+  "endedReason": zod.string().nullish(),
   "providerData": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1383,6 +1485,7 @@ export const UpdateAiCallResponse = zod.object({
   "callerName": zod.string().nullish(),
   "durationSeconds": zod.number().nullish(),
   "callStartedAt": zod.coerce.date().nullish(),
+  "callEndedAt": zod.coerce.date().nullish(),
   "collectedData": zod.string().nullish(),
   "transcript": zod.string().nullish(),
   "aiSummary": zod.string().nullish(),
@@ -1391,6 +1494,12 @@ export const UpdateAiCallResponse = zod.object({
   "followUpRequired": zod.boolean(),
   "followUpNotes": zod.string().nullish(),
   "providerId": zod.string().nullish(),
+  "providerCallId": zod.string().nullish(),
+  "assistantId": zod.string().nullish(),
+  "phoneNumberId": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "recordingUrl": zod.string().nullish(),
+  "endedReason": zod.string().nullish(),
   "providerData": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1412,6 +1521,7 @@ export const ProcessAiCallResponse = zod.object({
   "callerName": zod.string().nullish(),
   "durationSeconds": zod.number().nullish(),
   "callStartedAt": zod.coerce.date().nullish(),
+  "callEndedAt": zod.coerce.date().nullish(),
   "collectedData": zod.string().nullish(),
   "transcript": zod.string().nullish(),
   "aiSummary": zod.string().nullish(),
@@ -1420,6 +1530,12 @@ export const ProcessAiCallResponse = zod.object({
   "followUpRequired": zod.boolean(),
   "followUpNotes": zod.string().nullish(),
   "providerId": zod.string().nullish(),
+  "providerCallId": zod.string().nullish(),
+  "assistantId": zod.string().nullish(),
+  "phoneNumberId": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "recordingUrl": zod.string().nullish(),
+  "endedReason": zod.string().nullish(),
   "providerData": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1461,6 +1577,7 @@ export const CompleteDemoCallResponse = zod.object({
   "callerName": zod.string().nullish(),
   "durationSeconds": zod.number().nullish(),
   "callStartedAt": zod.coerce.date().nullish(),
+  "callEndedAt": zod.coerce.date().nullish(),
   "collectedData": zod.string().nullish(),
   "transcript": zod.string().nullish(),
   "aiSummary": zod.string().nullish(),
@@ -1469,6 +1586,12 @@ export const CompleteDemoCallResponse = zod.object({
   "followUpRequired": zod.boolean(),
   "followUpNotes": zod.string().nullish(),
   "providerId": zod.string().nullish(),
+  "providerCallId": zod.string().nullish(),
+  "assistantId": zod.string().nullish(),
+  "phoneNumberId": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "recordingUrl": zod.string().nullish(),
+  "endedReason": zod.string().nullish(),
   "providerData": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()

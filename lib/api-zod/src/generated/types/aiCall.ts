@@ -20,6 +20,8 @@ export interface AiCall {
   /** @nullable */
   callStartedAt?: Date | null;
   /** @nullable */
+  callEndedAt?: Date | null;
+  /** @nullable */
   collectedData?: string | null;
   /** @nullable */
   transcript?: string | null;
@@ -34,6 +36,18 @@ export interface AiCall {
   followUpNotes?: string | null;
   /** @nullable */
   providerId?: string | null;
+  /** @nullable */
+  providerCallId?: string | null;
+  /** @nullable */
+  assistantId?: string | null;
+  /** @nullable */
+  phoneNumberId?: string | null;
+  /** @nullable */
+  phoneNumber?: string | null;
+  /** @nullable */
+  recordingUrl?: string | null;
+  /** @nullable */
+  endedReason?: string | null;
   /** @nullable */
   providerData?: string | null;
   createdAt: Date;

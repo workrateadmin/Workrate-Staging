@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -18,6 +18,7 @@ export type AiCallStatus = (typeof AI_CALL_STATUSES)[number];
 
 export const aiCallsTable = pgTable("ai_calls", {
   id: serial("id").primaryKey(),
+  ownerUserId: text("owner_user_id"),
   // Link to CRM once enquiry is created
   enquiryId: integer("enquiry_id"),
   // Call metadata
@@ -26,6 +27,7 @@ export const aiCallsTable = pgTable("ai_calls", {
   callerName: text("caller_name"),
   durationSeconds: integer("duration_seconds"),
   callStartedAt: timestamp("call_started_at", { withTimezone: true }),
+  callEndedAt: timestamp("call_ended_at", { withTimezone: true }),
   // Collected data stored as JSON: {customerName, phone, address, postcode, ...}
   collectedData: text("collected_data"),
   // Full call transcript as JSON array: [{role: "ai"|"caller", content: string, ts: number}]
@@ -41,10 +43,21 @@ export const aiCallsTable = pgTable("ai_calls", {
   followUpNotes: text("follow_up_notes"),
   // Provider integration (Twilio, Vonage, etc) — for future use
   providerId: text("provider_id"),
+  providerCallId: text("provider_call_id"),
+  assistantId: text("assistant_id"),
+  phoneNumberId: text("phone_number_id"),
+  phoneNumber: text("phone_number"),
+  recordingUrl: text("recording_url"),
+  endedReason: text("ended_reason"),
   providerData: text("provider_data"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (table) => ({
+  providerCallUnique: uniqueIndex("ai_calls_provider_call_unique")
+    .on(table.providerId, table.providerCallId),
+  ownerCreatedIdx: index("ai_calls_owner_created_idx")
+    .on(table.ownerUserId, table.createdAt),
+}));
 
 export const insertAiCallSchema = createInsertSchema(aiCallsTable).omit({
   id: true,

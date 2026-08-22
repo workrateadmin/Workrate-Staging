@@ -9,6 +9,7 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "test:hmrc-security": "node ./test/build-and-run-hmrc-security-tests.mjs",
     "test:finance-validation": "node ./test/build-and-run-finance-validation-tests.mjs",
+    "test:vapi-security": "node ./test/build-and-run-vapi-security-tests.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

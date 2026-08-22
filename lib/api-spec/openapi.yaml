@@ -109,6 +109,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/Enquiry"
 
+  /enquiries/{id}/calls:
+    get:
+      operationId: listEnquiryAiCalls
+      tags: [enquiries, ai-receptionist]
+      summary: List phone-call activity linked to an enquiry
+      security:
+        - ClerkAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Tenant-scoped calls linked to the enquiry
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AiCall"
+        "404":
+          description: Enquiry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /enquiries/{id}:
     get:
       operationId: getEnquiry
@@ -720,6 +749,48 @@ paths:
                 items:
                   $ref: "#/components/schemas/IntegrationStatus"
 
+  /integrations/vapi/settings:
+    get:
+      operationId: getVapiSettings
+      tags: [integrations, ai-receptionist]
+      summary: Get the current user's safe Vapi phone mapping
+      security:
+        - ClerkAuth: []
+      responses:
+        "200":
+          description: Vapi mapping without its webhook secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VapiSettings"
+
+  /integrations/vapi/connect:
+    post:
+      operationId: connectVapi
+      tags: [integrations, ai-receptionist]
+      summary: Save a tenant-scoped Vapi phone mapping
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VapiConnectionInput"
+      responses:
+        "200":
+          description: Saved Vapi mapping without its webhook secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VapiSettings"
+        "400":
+          description: Invalid connection settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /integrations/{provider}:
     get:
       operationId: getIntegration
@@ -953,6 +1024,8 @@ paths:
       operationId: createAiCall
       tags: [ai-receptionist]
       summary: Create a new AI call record (used by telephony providers)
+      security:
+        - ClerkAuth: []
       requestBody:
         required: true
         content:
@@ -2394,6 +2467,8 @@ components:
           type: ["string", "null"]
         customerPhone:
           type: ["string", "null"]
+        channel:
+          type: ["string", "null"]
         projectType:
           type: ["string", "null"]
         location:
@@ -3153,6 +3228,9 @@ components:
         callStartedAt:
           type: ["string", "null"]
           format: date-time
+        callEndedAt:
+          type: ["string", "null"]
+          format: date-time
         collectedData:
           type: ["string", "null"]
         transcript:
@@ -3168,6 +3246,18 @@ components:
         followUpNotes:
           type: ["string", "null"]
         providerId:
+          type: ["string", "null"]
+        providerCallId:
+          type: ["string", "null"]
+        assistantId:
+          type: ["string", "null"]
+        phoneNumberId:
+          type: ["string", "null"]
+        phoneNumber:
+          type: ["string", "null"]
+        recordingUrl:
+          type: ["string", "null"]
+        endedReason:
           type: ["string", "null"]
         providerData:
           type: ["string", "null"]
@@ -3230,6 +3320,39 @@ components:
           type: string
         enquiryId:
           type: number
+
+    VapiSettings:
+      type: object
+      required: [connected, enabled, webhookPath]
+      properties:
+        connected:
+          type: boolean
+        assistantId:
+          type: ["string", "null"]
+        phoneNumberId:
+          type: ["string", "null"]
+        phoneNumber:
+          type: ["string", "null"]
+        enabled:
+          type: boolean
+        webhookPath:
+          type: string
+
+    VapiConnectionInput:
+      type: object
+      required: [webhookSecret]
+      properties:
+        assistantId:
+          type: string
+        phoneNumberId:
+          type: string
+        phoneNumber:
+          type: string
+        webhookSecret:
+          type: string
+          minLength: 16
+        enabled:
+          type: boolean
 
     AiReceptionistSettings:
       type: object

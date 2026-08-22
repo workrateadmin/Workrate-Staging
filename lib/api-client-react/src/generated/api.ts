@@ -83,7 +83,9 @@ import type {
   RecordProposalView200,
   UploadEnquiryAttachmentBody,
   UploadFinanceReceipt201,
-  UploadFinanceReceiptBody
+  UploadFinanceReceiptBody,
+  VapiConnectionInput,
+  VapiSettings
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -493,6 +495,83 @@ export const useCreateEnquiry = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateEnquiryMutationOptions(options));
     }
+
+export const getListEnquiryAiCallsUrl = (id: number,) => {
+
+
+
+
+  return `/api/enquiries/${id}/calls`
+}
+
+/**
+ * @summary List phone-call activity linked to an enquiry
+ */
+export const listEnquiryAiCalls = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<AiCall[]> => {
+
+  return customFetch<AiCall[]>(getListEnquiryAiCallsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEnquiryAiCallsQueryKey = (id: number,) => {
+    return [
+    `/api/enquiries/${id}/calls`
+    ] as const;
+    }
+
+
+export const getListEnquiryAiCallsQueryOptions = <TData = Awaited<ReturnType<typeof listEnquiryAiCalls>>, TError = ErrorType<ApiError>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEnquiryAiCalls>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEnquiryAiCallsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEnquiryAiCalls>>> = ({ signal }) => listEnquiryAiCalls(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEnquiryAiCalls>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEnquiryAiCallsQueryResult = NonNullable<Awaited<ReturnType<typeof listEnquiryAiCalls>>>
+export type ListEnquiryAiCallsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List phone-call activity linked to an enquiry
+ */
+
+export function useListEnquiryAiCalls<TData = Awaited<ReturnType<typeof listEnquiryAiCalls>>, TError = ErrorType<ApiError>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEnquiryAiCalls>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEnquiryAiCallsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetEnquiryUrl = (id: number,) => {
 
@@ -2256,6 +2335,154 @@ export function useListIntegrations<TData = Awaited<ReturnType<typeof listIntegr
 
 
 
+
+export const getGetVapiSettingsUrl = () => {
+
+
+
+
+  return `/api/integrations/vapi/settings`
+}
+
+/**
+ * @summary Get the current user's safe Vapi phone mapping
+ */
+export const getVapiSettings = async ( options?: Parameters<typeof customFetch>[1]): Promise<VapiSettings> => {
+
+  return customFetch<VapiSettings>(getGetVapiSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVapiSettingsQueryKey = () => {
+    return [
+    `/api/integrations/vapi/settings`
+    ] as const;
+    }
+
+
+export const getGetVapiSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getVapiSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVapiSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVapiSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVapiSettings>>> = ({ signal }) => getVapiSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVapiSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVapiSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getVapiSettings>>>
+export type GetVapiSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current user's safe Vapi phone mapping
+ */
+
+export function useGetVapiSettings<TData = Awaited<ReturnType<typeof getVapiSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVapiSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVapiSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getConnectVapiUrl = () => {
+
+
+
+
+  return `/api/integrations/vapi/connect`
+}
+
+/**
+ * @summary Save a tenant-scoped Vapi phone mapping
+ */
+export const connectVapi = async (vapiConnectionInput: VapiConnectionInput, options?: Parameters<typeof customFetch>[1]): Promise<VapiSettings> => {
+
+  return customFetch<VapiSettings>(getConnectVapiUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(vapiConnectionInput)
+  }
+);}
+
+
+
+
+
+export const getConnectVapiMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof connectVapi>>, TError,{data: BodyType<VapiConnectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof connectVapi>>, TError,{data: BodyType<VapiConnectionInput>}, TContext> => {
+
+const mutationKey = ['connectVapi'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof connectVapi>>, {data: BodyType<VapiConnectionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  connectVapi(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConnectVapiMutationResult = NonNullable<Awaited<ReturnType<typeof connectVapi>>>
+    export type ConnectVapiMutationBody = BodyType<VapiConnectionInput>
+    export type ConnectVapiMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Save a tenant-scoped Vapi phone mapping
+ */
+export const useConnectVapi = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof connectVapi>>, TError,{data: BodyType<VapiConnectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof connectVapi>>,
+        TError,
+        {data: BodyType<VapiConnectionInput>},
+        TContext
+      > => {
+      return useMutation(getConnectVapiMutationOptions(options));
+    }
 
 export const getGetIntegrationUrl = (provider: string,) => {
 

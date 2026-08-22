@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, aiCallsTable, aiReceptionistSettingsTable, enquiriesTable, companiesTable } from "@workspace/db";
-import { eq, desc, sql, isNull, and } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import OpenAI from "openai";
 
 const router: IRouter = Router();
@@ -94,9 +94,11 @@ router.put("/ai-receptionist/settings", requireAuth, async (req, res): Promise<v
 
 // GET /ai-calls
 router.get("/ai-calls", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   let rows = await db
     .select()
     .from(aiCallsTable)
+    .where(eq(aiCallsTable.ownerUserId, userId!))
     .orderBy(desc(aiCallsTable.createdAt));
 
   const { date, followUpRequired } = req.query as Record<string, string | undefined>;
@@ -115,10 +117,13 @@ router.get("/ai-calls", requireAuth, async (req, res): Promise<void> => {
   res.json(rows);
 });
 
-// POST /ai-calls  (telephony webhook — no auth required for provider callbacks)
-router.post("/ai-calls", async (req, res): Promise<void> => {
+// Manual call creation. Provider callbacks must use their dedicated authenticated
+// webhook routes (for example /webhooks/vapi), never this user-facing endpoint.
+router.post("/ai-calls", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const body = req.body ?? {};
   const [created] = await db.insert(aiCallsTable).values({
+    ownerUserId: userId!,
     callStatus: body.callStatus ?? "completed",
     callerPhone: body.callerPhone,
     callerName: body.callerName,
@@ -140,15 +145,20 @@ router.post("/ai-calls", async (req, res): Promise<void> => {
 
 // GET /ai-calls/:id
 router.get("/ai-calls/:id", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  const [call] = await db.select().from(aiCallsTable).where(eq(aiCallsTable.id, id));
+  const [call] = await db.select().from(aiCallsTable).where(and(
+    eq(aiCallsTable.id, id),
+    eq(aiCallsTable.ownerUserId, userId!),
+  ));
   if (!call) { res.status(404).json({ error: "Call not found" }); return; }
   res.json(call);
 });
 
 // PATCH /ai-calls/:id
 router.patch("/ai-calls/:id", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const body = req.body ?? {};
@@ -163,7 +173,10 @@ router.patch("/ai-calls/:id", requireAuth, async (req, res): Promise<void> => {
   const [updated] = await db
     .update(aiCallsTable)
     .set(updates)
-    .where(eq(aiCallsTable.id, id))
+    .where(and(
+      eq(aiCallsTable.id, id),
+      eq(aiCallsTable.ownerUserId, userId!),
+    ))
     .returning();
 
   if (!updated) { res.status(404).json({ error: "Call not found" }); return; }
@@ -173,10 +186,14 @@ router.patch("/ai-calls/:id", requireAuth, async (req, res): Promise<void> => {
 // POST /ai-calls/:id/process
 // Creates an enquiry from the call's collected data and generates an AI summary
 router.post("/ai-calls/:id/process", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [call] = await db.select().from(aiCallsTable).where(eq(aiCallsTable.id, id));
+  const [call] = await db.select().from(aiCallsTable).where(and(
+    eq(aiCallsTable.id, id),
+    eq(aiCallsTable.ownerUserId, userId!),
+  ));
   if (!call) { res.status(404).json({ error: "Call not found" }); return; }
 
   let collected: Record<string, string> = {};
@@ -193,6 +210,7 @@ router.post("/ai-calls/:id/process", requireAuth, async (req, res): Promise<void
 
   // Create enquiry
   const [enquiry] = await db.insert(enquiriesTable).values({
+    ownerUserId: userId!,
     customerName,
     customerPhone: collected.phone || call.callerPhone || undefined,
     location: collected.address
@@ -202,11 +220,16 @@ router.post("/ai-calls/:id/process", requireAuth, async (req, res): Promise<void
     description: description || undefined,
     budget: collected.budget || undefined,
     timescale: collected.timescale || undefined,
+    channel: "phone",
     status: "new_enquiry",
   }).returning();
 
   // Generate AI summary using WorkRate Brain
-  const [company] = await db.select().from(companiesTable).limit(1);
+  const [company] = await db
+    .select()
+    .from(companiesTable)
+    .where(eq(companiesTable.ownerUserId, userId!))
+    .limit(1);
   const brainLines: string[] = [];
   if (company) {
     brainLines.push(`Business: ${company.name} (${company.tradeType})`);
@@ -289,10 +312,45 @@ Return ONLY a valid JSON object with these exact keys:
       confidenceScore: confidenceScore ?? undefined,
       surveySuggested: surveySuggested ?? undefined,
     })
-    .where(eq(aiCallsTable.id, id))
+    .where(and(
+      eq(aiCallsTable.id, id),
+      eq(aiCallsTable.ownerUserId, userId!),
+    ))
     .returning();
 
   res.json(updated);
+});
+
+// List phone activity for one enquiry. Enquiry ownership is checked before the
+// call query so recording URLs and transcripts never cross tenant boundaries.
+router.get("/enquiries/:id/calls", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid enquiry id" });
+    return;
+  }
+  const [enquiry] = await db
+    .select({ id: enquiriesTable.id })
+    .from(enquiriesTable)
+    .where(and(
+      eq(enquiriesTable.id, id),
+      eq(enquiriesTable.ownerUserId, userId!),
+    ))
+    .limit(1);
+  if (!enquiry) {
+    res.status(404).json({ error: "Enquiry not found" });
+    return;
+  }
+  const calls = await db
+    .select()
+    .from(aiCallsTable)
+    .where(and(
+      eq(aiCallsTable.enquiryId, id),
+      eq(aiCallsTable.ownerUserId, userId!),
+    ))
+    .orderBy(desc(aiCallsTable.callStartedAt));
+  res.json(calls);
 });
 
 // ── Demo / simulation mode ────────────────────────────────────────────────────
@@ -381,6 +439,7 @@ router.post("/ai-receptionist/demo/message", requireAuth, async (req, res): Prom
 
 // POST /ai-receptionist/demo/complete
 router.post("/ai-receptionist/demo/complete", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
   const { messages = [], durationSeconds } = req.body ?? {};
 
   // Build transcript
@@ -468,6 +527,7 @@ Return ONLY a valid JSON object with these exact keys:
   }
 
   const [created] = await db.insert(aiCallsTable).values({
+    ownerUserId: userId!,
     callStatus: "completed",
     callerName: collectedData.customerName || null,
     callerPhone: collectedData.phone || null,

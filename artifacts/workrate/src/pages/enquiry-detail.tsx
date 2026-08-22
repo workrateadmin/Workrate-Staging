@@ -3,7 +3,7 @@ import {
   useListEnquiryMessages, useGenerateQuote, useGetQuote,
   useListEnquiryAttachments, useUploadEnquiryAttachment, useDeleteEnquiryAttachment,
   useConvertEnquiryToJob, useDeleteEnquiry, useMarkDepositPaid,
-  getGetQuoteQueryKey, getListEnquiryAttachmentsQueryKey,
+  useListEnquiryAiCalls, getGetQuoteQueryKey, getListEnquiryAttachmentsQueryKey,
 } from "@workspace/api-client-react";
 import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, MapPin, Hammer, Calendar, Phone, Mail, Sparkles, Plus, Clock,
   PoundSterling, MessageSquare, ChevronDown, Save, ImageIcon, X, FileText,
-  Upload, Trash2, ExternalLink, Paperclip, Briefcase, CheckCircle2, Copy,
+  Upload, Trash2, ExternalLink, Paperclip, Briefcase, CheckCircle2, Copy, PhoneCall,
 } from "lucide-react";
 import { SummaryCard, SummaryCardSkeleton } from "@/components/summary-card";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -43,6 +43,7 @@ export default function EnquiryDetail() {
 
   const { data: enquiry, isLoading: isLoadingEnquiry } = useGetEnquiry(id);
   const { data: messages, isLoading: isLoadingMessages } = useListEnquiryMessages(id);
+  const { data: phoneCalls } = useListEnquiryAiCalls(id);
   const { data: quote, isLoading: isLoadingQuote } = useGetQuote(id, { query: { retry: false, queryKey: getGetQuoteQueryKey(id) } });
 
   const updateStatus = useUpdateEnquiry({
@@ -166,6 +167,7 @@ export default function EnquiryDetail() {
                   <h1 className="text-3xl font-black tracking-tight mb-3 text-foreground">{enquiry.customerName}</h1>
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm font-semibold text-muted-foreground">
                     <span className="flex items-center gap-2 text-foreground/80 bg-background/50 px-3 py-1.5 rounded-md border border-border/40"><Hammer className="w-4 h-4"/> {enquiry.projectType || "General"}</span>
+                    {enquiry.channel === "phone" && <span className="flex items-center gap-1.5 text-primary"><PhoneCall className="w-4 h-4" /> Phone enquiry</span>}
                     <span className="flex items-center gap-2 text-foreground/80"><MapPin className="w-4 h-4"/> {enquiry.location || "No location"}</span>
                     <span className="flex items-center gap-2 text-foreground/80"><Calendar className="w-4 h-4"/> {formatDate(enquiry.createdAt)}</span>
                   </div>
@@ -210,6 +212,35 @@ export default function EnquiryDetail() {
                 <div className="pt-6 border-t border-border/60">
                   <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-4">Job Description</h3>
                   <p className="text-base leading-relaxed whitespace-pre-wrap font-medium">{enquiry.description}</p>
+                </div>
+              )}
+
+              {phoneCalls && phoneCalls.length > 0 && (
+                <div className="pt-6 mt-6 border-t border-border/60 space-y-4">
+                  <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2"><PhoneCall className="w-4 h-4" /> Phone call activity</h3>
+                  {phoneCalls.map((call) => (
+                    <div key={call.id} className="rounded-xl border border-border/60 bg-secondary/20 p-4 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="font-bold">{call.callerName || call.callerPhone || "Phone caller"}</div>
+                        <div className="text-xs font-semibold text-muted-foreground">{call.callStartedAt ? formatDate(call.callStartedAt) : formatDate(call.createdAt)} · {call.durationSeconds ? `${Math.round(call.durationSeconds / 60)} min` : "Duration unavailable"}</div>
+                      </div>
+                      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                        Status: {call.callStatus}{call.endedReason ? ` · ${call.endedReason}` : ""}
+                      </div>
+                      {call.aiSummary && <p className="text-sm leading-relaxed">{call.aiSummary}</p>}
+                      {call.transcript && (
+                        <details className="text-sm">
+                          <summary className="cursor-pointer font-bold text-primary">View call transcript</summary>
+                          <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap rounded-lg bg-background p-3 text-xs font-sans">{call.transcript}</pre>
+                        </details>
+                      )}
+                      {call.recordingUrl && (
+                        <a href={call.recordingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:underline">
+                          <ExternalLink className="w-3.5 h-3.5" /> Open recording
+                        </a>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
 

@@ -423,6 +423,8 @@ export interface Enquiry {
   /** @nullable */
   customerPhone?: string | null;
   /** @nullable */
+  channel?: string | null;
+  /** @nullable */
   projectType?: string | null;
   /** @nullable */
   location?: string | null;
@@ -867,6 +869,8 @@ export interface AiCall {
   /** @nullable */
   callStartedAt?: string | null;
   /** @nullable */
+  callEndedAt?: string | null;
+  /** @nullable */
   collectedData?: string | null;
   /** @nullable */
   transcript?: string | null;
@@ -881,6 +885,18 @@ export interface AiCall {
   followUpNotes?: string | null;
   /** @nullable */
   providerId?: string | null;
+  /** @nullable */
+  providerCallId?: string | null;
+  /** @nullable */
+  assistantId?: string | null;
+  /** @nullable */
+  phoneNumberId?: string | null;
+  /** @nullable */
+  phoneNumber?: string | null;
+  /** @nullable */
+  recordingUrl?: string | null;
+  /** @nullable */
+  endedReason?: string | null;
   /** @nullable */
   providerData?: string | null;
   createdAt: string;
@@ -910,6 +926,27 @@ export interface AiCallUpdate {
   followUpRequired?: boolean;
   followUpNotes?: string;
   enquiryId?: number;
+}
+
+export interface VapiSettings {
+  connected: boolean;
+  /** @nullable */
+  assistantId?: string | null;
+  /** @nullable */
+  phoneNumberId?: string | null;
+  /** @nullable */
+  phoneNumber?: string | null;
+  enabled: boolean;
+  webhookPath: string;
+}
+
+export interface VapiConnectionInput {
+  assistantId?: string;
+  phoneNumberId?: string;
+  phoneNumber?: string;
+  /** @minLength 16 */
+  webhookSecret: string;
+  enabled?: boolean;
 }
 
 export interface AiReceptionistSettings {

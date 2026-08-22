@@ -14,6 +14,8 @@ export interface Enquiry {
   /** @nullable */
   customerPhone?: string | null;
   /** @nullable */
+  channel?: string | null;
+  /** @nullable */
   projectType?: string | null;
   /** @nullable */
   location?: string | null;
