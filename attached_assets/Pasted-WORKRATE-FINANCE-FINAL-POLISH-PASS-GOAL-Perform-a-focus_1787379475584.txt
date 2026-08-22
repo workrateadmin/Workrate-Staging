@@ -1,0 +1,114 @@
+WORKRATE FINANCE — FINAL POLISH PASS
+
+GOAL:
+Perform a focused final polish of the existing Finance / Tax / MTD workspace.
+
+Do NOT redesign Finance.
+Do NOT add live HMRC submissions.
+Do NOT alter existing invoice, payment, job, enquiry or proposal flows.
+Do NOT add broad new accounting features.
+
+First inspect the current Finance implementation, then fix only clear usability, correctness or readiness gaps.
+
+CHECK AND POLISH:
+
+1. RECEIPTS
+- image and PDF upload works
+- original document remains privately accessible
+- duplicate-upload handling is clear to the user
+- AI extraction status is obvious
+- user can review, correct and confirm values easily
+- unconfirmed records remain excluded from totals
+
+2. EXPENSES
+- manual expense creation works
+- supplier, date, category, net, VAT and gross fields behave correctly
+- custom categories remain supported
+- job linking is clear
+- editing an expense preserves audit history
+- deletion/void behaviour is safe and explicit
+
+3. INCOME
+- invoices, deposits and payments are not double-counted
+- other income can be added and edited safely
+- income source is visible
+- date filtering behaves correctly
+
+4. TAX / MTD PREPARATION
+- selected tax period is obvious
+- confirmed income and expenses reconcile to underlying records
+- category breakdown totals correctly
+- missing receipts and unreviewed items are clearly flagged
+- every summary figure can be drilled into
+- HMRC sandbox connection status is shown clearly
+- connected does not imply submitted or filed
+- downstream HMRC reads remain fail-closed where required
+
+5. ACCOUNTANT / EXPORT READINESS
+Inspect whether there is already:
+- CSV export
+- accountant-friendly transaction export
+- receipt/document references in exports
+
+If export is missing, implement only a simple, safe CSV export containing:
+- date
+- type
+- supplier/customer
+- description
+- category
+- net
+- VAT
+- gross
+- job reference
+- review status
+- source
+- receipt/document reference
+
+Do not build Xero integration in this task.
+
+6. MOBILE / GENERAL UX
+- test Finance on mobile-sized screens
+- remove obvious overflow, clipped controls or unreadable tables
+- use clear empty states
+- show useful loading and error states
+- keep terminology simple for tradespeople
+
+7. SECURITY / DATA INTEGRITY
+- tenant isolation remains enforced
+- receipt URLs cannot bypass Finance authorization
+- no secrets/tokens appear in frontend responses or logs
+- edits and confirmations remain auditable
+- existing finance migrations remain idempotent
+
+8. TESTING
+Run focused development tests for:
+- create manual expense
+- upload and review receipt
+- confirm corrected expense
+- tax totals update
+- date filter
+- category drill-down
+- duplicate receipt
+- job link
+- CSV export if added
+- mobile Finance view
+- cross-tenant denial
+
+IMPORTANT:
+Use test/dev data only.
+Do not modify production customer records.
+Do not publish automatically.
+Do not perform unnecessary live demos.
+
+WORKFLOW:
+inspect → smallest fixes → automated/local tests → concise report
+
+At completion report:
+
+A. issues found
+B. fixes made
+C. files/schema changed
+D. tests passed
+E. anything genuinely still missing
+F. whether “Finance polish” can now be marked COMPLETE on the WorkRate checklist
+G. whether one final production publish is safe
