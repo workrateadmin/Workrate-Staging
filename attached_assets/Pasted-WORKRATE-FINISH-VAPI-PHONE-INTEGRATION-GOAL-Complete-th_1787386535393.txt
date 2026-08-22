@@ -1,0 +1,260 @@
+WORKRATE — FINISH VAPI PHONE INTEGRATION
+
+GOAL:
+Complete the Vapi → WorkRate integration so a finished phone call automatically creates or updates the correct WorkRate enquiry.
+
+IMPORTANT:
+Do NOT redesign the enquiry system.
+Do NOT hardcode Huntley Bespoke.
+This must be multi-tenant from day one.
+Do NOT change the working Vapi assistant unless required for integration.
+
+==================================================
+1. INSPECT CURRENT STATE
+==================================================
+
+First inspect:
+
+- existing Vapi integration code
+- webhook routes
+- enquiry schema
+- channel handling
+- company/integration mapping
+- customer matching logic
+- transcript / activity storage
+- existing phone-related work already completed
+
+Report briefly what already exists and what is genuinely missing.
+
+Then implement only the missing pieces.
+
+==================================================
+2. VAPI WEBHOOK
+==================================================
+
+Create or finish the secure Vapi webhook endpoint.
+
+Example:
+POST /api/webhooks/vapi
+
+Handle the relevant Vapi call events, especially final/end-of-call events.
+
+Validate webhook authenticity using Vapi's current supported server authentication/signature method.
+
+Do not accept arbitrary unauthenticated payloads.
+
+==================================================
+3. MULTI-TENANT BUSINESS RESOLUTION
+==================================================
+
+Map each Vapi assistant / phone number to one WorkRate business.
+
+Support fields such as:
+
+- WorkRate business/company ID
+- Vapi assistant ID
+- Vapi phone number ID
+- phone number
+- enabled status
+
+Never globally assume Huntley Bespoke.
+
+Future WorkRate customers must be connectable without code changes.
+
+==================================================
+4. STORE CALL DATA
+==================================================
+
+For each completed call store, where available:
+
+- Vapi call ID
+- WorkRate business ID
+- caller phone number
+- assistant ID
+- phone number ID
+- call start
+- call end
+- duration
+- transcript
+- Vapi summary
+- recording URL if enabled
+- call status
+- ended/disconnect reason
+
+Preserve the raw transcript.
+
+Make processing idempotent:
+Vapi retries must not create duplicate call records or enquiries.
+
+==================================================
+5. CREATE / UPDATE ENQUIRY
+==================================================
+
+Use the EXISTING WorkRate enquiry system.
+
+Do not build a separate phone CRM.
+
+For a genuine new caller:
+- create one enquiry
+- channel = phone
+- save caller number
+- populate only information supported by the transcript
+
+Extract where available:
+
+- customer name
+- phone
+- email
+- project/job type
+- description
+- postcode/location
+- measurements
+- timing
+- budget
+- useful requirements
+
+Do not invent missing values.
+
+For an existing caller:
+- match sensibly by phone number and current/relevant enquiry
+- update/link rather than creating unnecessary duplicates
+
+Do not combine clearly unrelated jobs solely because the phone number matches.
+
+==================================================
+6. AI CALL SUMMARY
+==================================================
+
+Save a concise internal summary such as:
+
+Customer:
+Project:
+Location:
+Key requirements:
+Measurements:
+Timing:
+Budget:
+Follow-up needed:
+
+Use the transcript as evidence.
+
+Do not invent facts.
+
+==================================================
+7. WORKRATE DASHBOARD
+==================================================
+
+Phone enquiries should appear in the normal enquiry dashboard.
+
+Show:
+Channel: Phone
+
+On enquiry detail show:
+
+- call date/time
+- caller number
+- duration
+- call summary
+- transcript
+- recording link if available
+- call status
+
+Do not create a separate phone-only dashboard.
+
+==================================================
+8. SAME CUSTOMER TIMELINE
+==================================================
+
+Phone activity must feed the same WorkRate customer/enquiry history used by:
+
+- website enquiries
+- WhatsApp
+- email
+- manual enquiries
+
+Phone must not become a silo.
+
+==================================================
+9. FOLLOW-UP
+==================================================
+
+Where the existing WorkRate messaging system supports it, allow the completed phone enquiry to trigger the normal follow-up workflow.
+
+Examples:
+- acknowledgement
+- request for photos
+- continuation link
+- follow-up required flag
+
+Do not build a separate messaging platform for Vapi.
+
+==================================================
+10. SECURITY
+==================================================
+
+Confirm:
+
+- tenant isolation
+- webhook authentication
+- Vapi credentials server-side only
+- transcripts/recordings cannot be accessed across businesses
+- recording URLs are handled safely
+- no secrets exposed in frontend responses/logs
+
+==================================================
+11. TESTING
+==================================================
+
+Use development/test data first.
+
+Run these tests:
+
+1. completed new-customer call → exactly one enquiry
+2. channel = phone
+3. transcript saved
+4. summary saved
+5. caller number saved
+6. duration/status saved
+7. repeat webhook → no duplicate
+8. second call from same caller → sensible existing-customer handling
+9. clearly new job from same caller can remain separate where appropriate
+10. tenant isolation
+11. dashboard display
+12. enquiry detail display
+
+Then run ONE real Vapi test call using Huntley Bespoke as the first test tenant only.
+
+Real test success criteria:
+
+Vapi call
+→ customer speaks naturally
+→ call ends
+→ webhook received
+→ correct WorkRate business resolved
+→ exactly one enquiry created/updated
+→ phone channel visible
+→ transcript visible
+→ summary visible
+→ no duplicates
+
+==================================================
+12. PUBLISHING
+==================================================
+
+Do not publish automatically.
+
+After all development and real-call tests pass, report:
+
+A. what was already present
+B. what was added
+C. schema/files changed
+D. webhook authentication method
+E. business mapping method
+F. duplicate/idempotency handling
+G. tests passed
+H. whether ONE final production publish is safe
+I. anything still genuinely blocking Vapi completion
+
+Do not perform unnecessary live demos.
+Do not ask me for repeated republishing.
+Aim for one final publish after the integration is proven.
