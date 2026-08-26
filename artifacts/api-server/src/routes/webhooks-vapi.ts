@@ -247,8 +247,29 @@ router.post("/webhooks/vapi", async (req: Request, res: Response): Promise<void>
       res.status(200).json({ error: "This line is not fully configured yet. Please try again shortly." });
       return;
     }
-    req.log.info({ providerCallId: call.providerCallId, assistantId }, "Resolved Vapi assistant-request");
-    res.status(200).json({ assistantId });
+
+    // The assistant's prompt/firstMessage use {{businessName}}, {{tradeType}}, {{serviceArea}}
+    // Liquid template variables. Vapi only fills these in from assistantOverrides.variableValues
+    // supplied in this response — resolving assistantId alone leaves them at their prompt-defined
+    // defaults (e.g. "this business"), so the tenant's company profile must be attached here too.
+    const [company] = await db
+      .select({ name: companiesTable.name, tradeType: companiesTable.tradeType, serviceArea: companiesTable.serviceArea })
+      .from(companiesTable)
+      .where(eq(companiesTable.ownerUserId, mapping.business.ownerUserId))
+      .limit(1);
+    const variableValues: Record<string, string> = {};
+    if (company?.name) variableValues.businessName = company.name;
+    if (company?.tradeType) variableValues.tradeType = company.tradeType;
+    if (company?.serviceArea) variableValues.serviceArea = company.serviceArea;
+
+    req.log.info(
+      { providerCallId: call.providerCallId, assistantId, variableValues },
+      "Resolved Vapi assistant-request",
+    );
+    res.status(200).json({
+      assistantId,
+      ...(Object.keys(variableValues).length ? { assistantOverrides: { variableValues } } : {}),
+    });
     return;
   }
 
