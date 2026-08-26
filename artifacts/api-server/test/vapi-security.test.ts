@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import test from "node:test";
 import {
   extractVapiCallData,
+  isVapiAssistantRequestEvent,
   isVapiEndOfCallEvent,
   normalizePhone,
   parseVapiIntegrationConfig,
@@ -60,6 +61,29 @@ test("Vapi ignores incomplete updates and normalizes caller numbers for conserva
   assert.equal(isVapiEndOfCallEvent({ message: { type: "status-update", call: { id: "call_x", status: "ringing" } } }), false);
   assert.equal(normalizePhone("+44 7700 900123"), "447700900123");
   assert.equal(normalizePhone("short"), null);
+});
+
+test("Vapi assistant-request events are detected and resolved to the mapped assistant ID", () => {
+  const assistantRequestPayload = {
+    message: {
+      type: "assistant-request",
+      call: {
+        id: "call_vapi_assistant_request_1",
+        phoneNumberId: "phone_number_test",
+        phoneNumber: { number: "+442045771693" },
+      },
+    },
+  };
+
+  assert.equal(isVapiAssistantRequestEvent(assistantRequestPayload), true);
+  assert.equal(isVapiEndOfCallEvent(assistantRequestPayload), false);
+  assert.equal(isVapiAssistantRequestEvent(payload), false);
+
+  const call = extractVapiCallData(assistantRequestPayload);
+  assert.ok(call);
+  assert.equal(call.providerCallId, "call_vapi_assistant_request_1");
+  assert.equal(call.assistantId, null);
+  assert.equal(call.phoneNumberId, "phone_number_test");
 });
 
 test("Vapi tenant mappings parse the JSON config persisted by the integrations route", () => {

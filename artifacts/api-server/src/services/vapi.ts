@@ -104,6 +104,13 @@ export function normalizePhone(value: string | null | undefined): string | null 
   return digits.length >= 7 ? digits : null;
 }
 
+export function isVapiAssistantRequestEvent(payload: unknown): boolean {
+  const body = asRecord(payload);
+  const message = nested(body, "message");
+  const eventType = String(message.type ?? body.type ?? "").toLowerCase();
+  return eventType === "assistant-request";
+}
+
 export function isVapiEndOfCallEvent(payload: unknown): boolean {
   const body = asRecord(payload);
   const message = nested(body, "message");

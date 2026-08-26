@@ -5,6 +5,7 @@ import { handleEnquiryCompletion } from "./chat";
 import {
   extractVapiCallData,
   findVapiBusiness,
+  isVapiAssistantRequestEvent,
   isVapiEndOfCallEvent,
   normalizePhone,
   verifyVapiWebhookAuthentication,
@@ -233,6 +234,21 @@ router.post("/webhooks/vapi", async (req: Request, res: Response): Promise<void>
   if (!verifyVapiWebhookAuthentication(mapping.business.config.webhookSecret, req.headers, rawBody)) {
     req.log.warn({ providerCallId: call.providerCallId }, "Rejected Vapi webhook authentication");
     res.status(403).json({ error: "Invalid webhook authentication" });
+    return;
+  }
+
+  if (isVapiAssistantRequestEvent(req.body)) {
+    const { assistantId } = mapping.business.config;
+    if (!assistantId) {
+      req.log.error(
+        { providerCallId: call.providerCallId },
+        "Rejected Vapi assistant-request: mapped tenant has no assistantId configured",
+      );
+      res.status(200).json({ error: "This line is not fully configured yet. Please try again shortly." });
+      return;
+    }
+    req.log.info({ providerCallId: call.providerCallId, assistantId }, "Resolved Vapi assistant-request");
+    res.status(200).json({ assistantId });
     return;
   }
 
