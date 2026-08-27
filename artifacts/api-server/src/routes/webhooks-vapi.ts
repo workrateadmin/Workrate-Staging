@@ -11,6 +11,9 @@ import {
   verifyVapiWebhookAuthentication,
   type VapiCallData,
 } from "../services/vapi";
+import { extractEmailFromTranscript, isValidEmailAddress } from "../services/vapi-email";
+
+const EMAIL_NEEDS_CONFIRMATION_NOTE = "Email needs confirmation — the transcript did not contain one clearly confirmed email address.";
 
 const router: IRouter = Router();
 
@@ -26,6 +29,7 @@ type EnquiryDetails = {
   budget?: string;
   timescale?: string;
   description?: string;
+  emailNeedsConfirmation: boolean;
 };
 
 function firstString(...values: unknown[]): string | undefined {
@@ -35,12 +39,37 @@ function firstString(...values: unknown[]): string | undefined {
   return undefined;
 }
 
+// Resolves the customer's email with a strict "never guess" rule: Vapi's own
+// structured-data extraction is trusted first (it already reasoned over the
+// call), but only when it is a syntactically valid address. Otherwise we fall
+// back to parsing the raw transcript ourselves (see services/vapi-email.ts),
+// which understands literal, spoken, and spelled-out emails. If neither source
+// yields one confident, unambiguous address, the email is left blank rather
+// than saving a guess, and the caller is told to flag it for confirmation.
+function resolveCustomerEmail(call: VapiCallData): { email: string | undefined; needsConfirmation: boolean } {
+  const structured = firstString(call.collectedData.customerEmail, call.collectedData.email);
+  if (structured && isValidEmailAddress(structured)) {
+    return { email: structured.toLowerCase(), needsConfirmation: false };
+  }
+
+  const extracted = extractEmailFromTranscript(call.transcript);
+  if (extracted.status === "confident" && extracted.email) {
+    return { email: extracted.email, needsConfirmation: false };
+  }
+
+  // "none" (nothing spoken) and "ambiguous" (conflicting candidates, no
+  // correction) both leave the email blank and ask a human to confirm it —
+  // per the brief, absence and conflict are treated the same way.
+  return { email: undefined, needsConfirmation: true };
+}
+
 function detailsFromCall(call: VapiCallData): EnquiryDetails {
   const data = call.collectedData;
   const location = firstString(data.location, data.address, data.postcode);
+  const resolvedEmail = resolveCustomerEmail(call);
   return {
     customerName: firstString(data.customerName, data.name, call.callerName),
-    customerEmail: firstString(data.customerEmail, data.email),
+    customerEmail: resolvedEmail.email,
     customerPhone: firstString(data.customerPhone, data.phone, call.callerPhone),
     postcode: location,
     projectType: firstString(data.projectType, data.jobType, data.project),
@@ -50,6 +79,7 @@ function detailsFromCall(call: VapiCallData): EnquiryDetails {
     budget: firstString(data.budget),
     timescale: firstString(data.timescale, data.timing),
     description: firstString(data.description, data.requirements, data.notes),
+    emailNeedsConfirmation: resolvedEmail.needsConfirmation,
   };
 }
 
@@ -196,6 +226,7 @@ async function processCompletedCall(call: VapiCallData, ownerUserId: string) {
         enquiryId: enquiry.id,
         callerPhone: details.customerPhone ?? call.callerPhone,
         callerName: details.customerName ?? call.callerName,
+        followUpNotes: details.emailNeedsConfirmation ? EMAIL_NEEDS_CONFIRMATION_NOTE : null,
       })
       .where(eq(aiCallsTable.id, claimed.id))
       .returning();

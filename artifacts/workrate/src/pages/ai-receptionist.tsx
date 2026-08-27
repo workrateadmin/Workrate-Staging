@@ -221,7 +221,11 @@ function CallCard({ call, onUpdate }: { call: any; onUpdate: () => void }) {
               <Zap className="w-3 h-3" /> Survey recommended
             </span>
           )}
-          {call.followUpRequired && (
+          {call.followUpNotes?.includes("Email needs confirmation") ? (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+              <AlertCircle className="w-3 h-3" /> Email needs confirmation
+            </span>
+          ) : call.followUpRequired && (
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
               <AlertCircle className="w-3 h-3" /> Follow-up needed
             </span>

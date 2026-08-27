@@ -1,0 +1,158 @@
+VAPI PHONE ENQUIRY POLISH — EMAIL EXTRACTION + NATURAL CALL ENDING
+
+GOAL:
+Make two small improvements to ALL future Vapi phone enquiries:
+
+1. Reliably extract customer email addresses from transcripts
+2. Make the AI receptionist end calls naturally and politely
+
+Do NOT redesign the phone flow.
+Do NOT change Zadarma routing.
+Do NOT create a new assistant.
+Do NOT hardcode Huntley Bespoke.
+Do NOT publish automatically.
+
+==================================================
+1. EMAIL EXTRACTION
+==================================================
+
+CURRENT ISSUE:
+The customer’s email is often present in the Vapi call transcript, but WorkRate does not reliably extract and save it into the enquiry/customer email field.
+
+REAL EXAMPLE:
+Transcript:
+"Is jaman, J-M-A-N, dot hunsley. H-U-N-T-L-E-Y, at gmail.COM"
+
+Expected normalized email:
+jman.huntley@gmail.com
+
+IMPLEMENT reusable transcript-email parsing for ALL future phone enquiries.
+
+Rules:
+
+- "at" → @
+- "dot" → .
+- "underscore" → _
+- "dash" / "hyphen" → -
+- "plus" → +
+
+IMPORTANT:
+If a speech-recognized word is immediately followed by explicit letter-by-letter spelling, prefer the spelled letters.
+
+Examples:
+"jaman, J-M-A-N" → jman
+"hunsley, H-U-N-T-L-E-Y" → huntley
+
+Explicit spelling should override a likely speech-to-text error.
+
+Support:
+- literal emails
+- spoken emails
+- spelled emails
+- underscores
+- hyphens
+- plus addressing
+- customer corrections
+
+Validate the final candidate before saving.
+
+If one valid email is confidently identified:
+- save it to the existing enquiry/customer email field
+- preserve transcript as source evidence
+
+If conflicting candidates exist:
+- do not guess
+- flag "Email needs confirmation"
+
+If no valid email is found:
+- leave email blank
+- keep the phone enquiry
+- flag "Email needs confirmation"
+
+Do not create duplicate enquiries/customers.
+
+==================================================
+2. NATURAL CALL ENDING
+==================================================
+
+CURRENT ISSUE:
+The AI receptionist sometimes ends the call too abruptly with wording like:
+"Bye"
+
+GOAL:
+End every completed call in a warm, professional way.
+
+Preferred behaviour:
+
+After confirming the enquiry is captured, the assistant should say something natural such as:
+
+"Perfect, I've got all of that. Someone from {{businessName | default: "the business"}} will be in touch. Have a good day."
+
+or:
+
+"Thanks for calling {{businessName | default: "us"}}. We'll be in touch soon. Have a good day."
+
+Then end the call.
+
+RULES:
+
+- Do not abruptly say only "bye"
+- Do not end while the customer is still speaking
+- Do not repeat the farewell
+- Do not overdo it or sound robotic
+- One short natural closing sentence is enough
+- If the customer says goodbye first, respond briefly and politely before ending
+- Use the actual business name dynamically where available
+- Keep the existing multi-tenant assistant design
+
+==================================================
+3. TESTING
+==================================================
+
+Test:
+
+EMAIL:
+- john.smith@gmail.com
+- "john dot smith at gmail dot com"
+- spelled local-part
+- spelled surname/domain component
+- underscore
+- hyphen
+- plus addressing
+- correction after mishearing
+- conflicting candidates
+- no email
+
+REAL EMAIL TEST:
+Input:
+"Is jaman, J-M-A-N, dot hunsley. H-U-N-T-L-E-Y, at gmail.COM"
+
+Expected:
+jman.huntley@gmail.com
+
+CALL ENDING:
+- normal completed enquiry
+- customer says "thanks, bye"
+- customer pauses before finishing
+- missing email but enquiry still completes
+- confirm assistant gives one polite closing such as:
+  "Have a good day."
+
+==================================================
+4. SUCCESS CRITERIA
+==================================================
+
+For all future Vapi phone enquiries:
+
+- correctly stated/spelled emails populate WorkRate automatically
+- uncertain emails are flagged instead of guessed
+- the enquiry still completes if email is missing
+- the AI ends the call politely and naturally
+- no abrupt standalone "bye"
+
+Report:
+1. files/config changed
+2. email extraction approach
+3. assistant closing behaviour
+4. tests passed
+5. whether one final publish is required
