@@ -11,7 +11,7 @@ import {
   verifyVapiWebhookAuthentication,
   type VapiCallData,
 } from "../services/vapi";
-import { extractEmailFromTranscript, isValidEmailAddress } from "../services/vapi-email";
+import { extractEmailWithFallback, isValidEmailAddress } from "../services/vapi-email";
 
 const EMAIL_NEEDS_CONFIRMATION_NOTE = "Email needs confirmation — the transcript did not contain one clearly confirmed email address.";
 
@@ -39,34 +39,55 @@ function firstString(...values: unknown[]): string | undefined {
   return undefined;
 }
 
-// Resolves the customer's email with a strict "never guess" rule: Vapi's own
-// structured-data extraction is trusted first (it already reasoned over the
-// call), but only when it is a syntactically valid address. Otherwise we fall
-// back to parsing the raw transcript ourselves (see services/vapi-email.ts),
-// which understands literal, spoken, and spelled-out emails. If neither source
-// yields one confident, unambiguous address, the email is left blank rather
-// than saving a guess, and the caller is told to flag it for confirmation.
-function resolveCustomerEmail(call: VapiCallData): { email: string | undefined; needsConfirmation: boolean } {
+// Resolves the customer's email with a strict "never guess" rule, in three
+// stages: (1) Vapi's own structured-data extraction, trusted only when it's
+// already a syntactically valid address; (2) our own deterministic transcript
+// parser (services/vapi-email.ts), which understands literal, spoken, and
+// spelled-out emails; (3) only when that parser isn't confident, a narrow
+// LLM fallback scoped to just the transcript text around the email statement,
+// for the real-world transcripts garbled badly enough that no fixed pattern
+// can safely recover them. If nothing across all three stages yields one
+// confident, unambiguous address, the email is left blank rather than saving
+// a guess, and the caller is told to flag it for confirmation. The resolved
+// semantic candidate (if any) is preserved in `semanticCandidate` purely for
+// internal follow-up review — it is never written to customerEmail itself.
+async function resolveCustomerEmail(call: VapiCallData): Promise<{
+  email: string | undefined;
+  needsConfirmation: boolean;
+  semanticCandidate?: { email: string; confidence: string; evidence: string };
+}> {
   const structured = firstString(call.collectedData.customerEmail, call.collectedData.email);
   if (structured && isValidEmailAddress(structured)) {
     return { email: structured.toLowerCase(), needsConfirmation: false };
   }
 
-  const extracted = extractEmailFromTranscript(call.transcript);
-  if (extracted.status === "confident" && extracted.email) {
-    return { email: extracted.email, needsConfirmation: false };
+  const { deterministic, semantic } = await extractEmailWithFallback(call.transcript);
+  if (deterministic.status === "confident" && deterministic.email) {
+    return { email: deterministic.email, needsConfirmation: false };
   }
 
-  // "none" (nothing spoken) and "ambiguous" (conflicting candidates, no
-  // correction) both leave the email blank and ask a human to confirm it —
-  // per the brief, absence and conflict are treated the same way.
-  return { email: undefined, needsConfirmation: true };
+  if (semantic && semantic.email && !semantic.needsConfirmation) {
+    return { email: semantic.email, needsConfirmation: false };
+  }
+
+  // Nothing crossed the confidence bar. If the semantic fallback produced a
+  // plausible-but-unconfirmed candidate, keep it around for a human to review
+  // — but never write it to customerEmail itself.
+  return {
+    email: undefined,
+    needsConfirmation: true,
+    semanticCandidate: semantic?.email
+      ? { email: semantic.email, confidence: semantic.confidence, evidence: semantic.evidence }
+      : undefined,
+  };
 }
 
-function detailsFromCall(call: VapiCallData): EnquiryDetails {
+async function detailsFromCall(call: VapiCallData): Promise<EnquiryDetails & {
+  semanticCandidate?: { email: string; confidence: string; evidence: string };
+}> {
   const data = call.collectedData;
   const location = firstString(data.location, data.address, data.postcode);
-  const resolvedEmail = resolveCustomerEmail(call);
+  const resolvedEmail = await resolveCustomerEmail(call);
   return {
     customerName: firstString(data.customerName, data.name, call.callerName),
     customerEmail: resolvedEmail.email,
@@ -80,6 +101,7 @@ function detailsFromCall(call: VapiCallData): EnquiryDetails {
     timescale: firstString(data.timescale, data.timing),
     description: firstString(data.description, data.requirements, data.notes),
     emailNeedsConfirmation: resolvedEmail.needsConfirmation,
+    semanticCandidate: resolvedEmail.semanticCandidate,
   };
 }
 
@@ -116,8 +138,12 @@ async function findRelatedPhoneEnquiry(
   )) ?? null;
 }
 
-async function createOrUpdateEnquiry(call: VapiCallData, ownerUserId: string, database: any = db) {
-  const details = detailsFromCall(call);
+async function createOrUpdateEnquiry(
+  call: VapiCallData,
+  ownerUserId: string,
+  details: EnquiryDetails & { semanticCandidate?: { email: string; confidence: string; evidence: string } },
+  database: any = db,
+) {
   const existing = await findRelatedPhoneEnquiry(ownerUserId, details.customerPhone, details.projectType, database);
   if (existing) {
     const [updated] = await database
@@ -160,18 +186,34 @@ async function createOrUpdateEnquiry(call: VapiCallData, ownerUserId: string, da
   return { enquiry: created, created: true, details };
 }
 
-async function processCompletedCall(call: VapiCallData, ownerUserId: string) {
-  const result = await db.transaction(async (tx: any) => {
-    const [existing] = await tx
-      .select()
-      .from(aiCallsTable)
-      .where(and(
-        eq(aiCallsTable.providerId, "vapi"),
-        eq(aiCallsTable.providerCallId, call.providerCallId),
-      ))
-      .limit(1);
-    if (existing) return { call: existing, duplicated: true };
+function buildFollowUpNotes(details: EnquiryDetails & { semanticCandidate?: { email: string; confidence: string; evidence: string } }): string | null {
+  if (!details.emailNeedsConfirmation) return null;
+  if (details.semanticCandidate) {
+    return `${EMAIL_NEEDS_CONFIRMATION_NOTE} Possible candidate from AI review (unconfirmed, ${details.semanticCandidate.confidence} confidence): ${details.semanticCandidate.email}.`;
+  }
+  return EMAIL_NEEDS_CONFIRMATION_NOTE;
+}
 
+async function processCompletedCall(call: VapiCallData, ownerUserId: string) {
+  // Cheap pre-check outside any transaction: a duplicated/retried webhook
+  // delivery for a call we've already processed should never pay for
+  // transcript extraction (and possibly an LLM call) below.
+  const [alreadyProcessed] = await db
+    .select()
+    .from(aiCallsTable)
+    .where(and(
+      eq(aiCallsTable.providerId, "vapi"),
+      eq(aiCallsTable.providerCallId, call.providerCallId),
+    ))
+    .limit(1);
+  if (alreadyProcessed) return { call: alreadyProcessed, duplicated: true };
+
+  // Email resolution can call out to an LLM (the semantic fallback in
+  // services/vapi-email.ts). Resolve it before opening a DB transaction so
+  // that network call never holds a transaction/connection open.
+  const details = await detailsFromCall(call);
+
+  const result = await db.transaction(async (tx: any) => {
     let claimed: any;
     try {
       [claimed] = await tx
@@ -212,7 +254,7 @@ async function processCompletedCall(call: VapiCallData, ownerUserId: string) {
       return { call: duplicate, duplicated: true };
     }
 
-    const { enquiry, created, details } = await createOrUpdateEnquiry(call, ownerUserId, tx);
+    const { enquiry, created } = await createOrUpdateEnquiry(call, ownerUserId, details, tx);
     await tx.insert(enquiryMessagesTable).values({
       enquiryId: enquiry.id,
       role: "customer",
@@ -226,15 +268,15 @@ async function processCompletedCall(call: VapiCallData, ownerUserId: string) {
         enquiryId: enquiry.id,
         callerPhone: details.customerPhone ?? call.callerPhone,
         callerName: details.customerName ?? call.callerName,
-        followUpNotes: details.emailNeedsConfirmation ? EMAIL_NEEDS_CONFIRMATION_NOTE : null,
+        followUpNotes: buildFollowUpNotes(details),
       })
       .where(eq(aiCallsTable.id, claimed.id))
       .returning();
-    return { call: stored, duplicated: false, enquiry, created, details };
+    return { call: stored, duplicated: false, enquiry, created };
   });
 
   if (!result.duplicated && result.created) {
-    await handleEnquiryCompletion(result.enquiry, result.details);
+    await handleEnquiryCompletion(result.enquiry, details);
   }
   return { call: result.call, duplicated: result.duplicated };
 }

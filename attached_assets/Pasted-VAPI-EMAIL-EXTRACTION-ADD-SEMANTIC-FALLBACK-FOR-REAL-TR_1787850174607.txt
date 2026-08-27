@@ -1,0 +1,114 @@
+VAPI EMAIL EXTRACTION — ADD SEMANTIC FALLBACK FOR REAL TRANSCRIPTS
+
+CURRENT REAL PRODUCTION ISSUE:
+
+A new phone enquiry was created successfully.
+
+The customer email is present in the transcript, but enquiry.email is still blank.
+
+Real transcript example:
+
+"Perfect. Yeah, um, my email is— O-R-Hansley. H-U. N-T-L-E-Y at gmail. Com."
+
+The existing deterministic parser is not robust enough for this kind of real STT output.
+
+IMPORTANT:
+Do NOT hardcode this example.
+Do NOT guess the customer's email.
+Do NOT replace the existing deterministic parser.
+
+GOAL:
+Keep the existing parser as the first pass, but add a semantic/LLM fallback when the parser cannot confidently produce a valid email.
+
+FLOW:
+
+1. Run existing deterministic email parser first.
+
+2. If it produces one valid, confident email:
+   - keep current behaviour
+   - save it normally
+
+3. If deterministic parsing fails or is ambiguous:
+   - send ONLY the relevant transcript context around the customer's email statement to the existing WorkRate AI extraction layer
+   - ask it to reconstruct the email using explicit spoken/spelled evidence only
+
+4. The semantic extractor must return structured output:
+
+{
+  "email": string | null,
+  "confidence": "high" | "medium" | "low",
+  "evidence": string,
+  "needsConfirmation": boolean
+}
+
+5. RULES FOR THE AI:
+- Prefer explicit letter-by-letter spelling over speech-recognition guesses
+- Understand spoken:
+  - at
+  - dot
+  - underscore
+  - hyphen/dash
+  - plus
+- Handle pauses and punctuation inserted incorrectly by STT
+- Handle spelling split across adjacent transcript fragments
+- Use conversational context such as:
+  "my email is..."
+- Do NOT invent missing letters
+- Do NOT infer someone's surname/name unless the transcript supports it
+- If the local part or domain cannot be reconstructed confidently, return email = null
+- Never silently guess
+
+6. SAVE BEHAVIOUR:
+
+If:
+- email is valid
+- confidence = high
+- needsConfirmation = false
+
+then populate the existing enquiry.customer_email field.
+
+If medium/low confidence:
+- leave enquiry email blank
+- flag:
+  "Email needs confirmation"
+- preserve the suggested candidate internally for review if appropriate
+
+7. TRACE THE LATEST REAL ENQUIRY FIRST
+
+For the newest production phone enquiry:
+
+Report:
+- call ID
+- enquiry ID
+- deterministic parser result
+- semantic fallback result
+- confidence
+- whether email was written
+- exact reason if not
+
+Do not expose private customer data unnecessarily in logs.
+
+8. TESTS
+
+Test realistic STT examples including:
+
+- "john dot smith at gmail dot com"
+- letter-by-letter spelling
+- spelling split by sentence punctuation
+- correction halfway through
+- false speech-recognition words followed by spelling
+- ambiguous local-part
+- multiple conflicting candidates
+
+SUCCESS CRITERIA:
+
+A clearly stated/spelled email in a real Vapi transcript should populate WorkRate automatically.
+
+An ambiguous email must be flagged for confirmation rather than guessed.
+
+Do not publish automatically.
+
+After implementation:
+1. run deterministic + semantic extraction tests
+2. run synthetic end-of-call webhook → enquiry email write
+3. report whether ONE publish is required
