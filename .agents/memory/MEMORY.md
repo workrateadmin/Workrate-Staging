@@ -20,3 +20,4 @@
 - [WorkRate Vapi phone integration](workrate-vapi-phone-integration.md) — tenant mapping via integrations table; `assistant-request` webhook event is required, not optional, once a number uses server-based assistant resolution
 - [WorkRate Vapi email extraction](workrate-vapi-email-extraction.md) — spoken/spelled email parsing from call transcripts; ambiguous/no-candidate cases must flag for confirmation, never guess
 - [WorkRate Vapi live assistant edits](workrate-vapi-live-assistant-edits.md) — assistant prompt lives on Vapi, not in repo; changes are immediate live PATCHes, separate from WorkRate's own publish gate
+- [api-server dev workflow has no hot reload](workrate-api-server-no-hotreload.md) — dev script is build-once-then-start; must restart the workflow after editing api-server source before any live/synthetic test

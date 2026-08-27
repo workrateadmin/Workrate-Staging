@@ -20,6 +20,16 @@ test("real example: word-then-spelled-letters overrides the misheard word for bo
   assert.equal(result.email, "jman.huntley@gmail.com");
 });
 
+test("spelled letters split by a stray sentence break (real-world STT quirk) are still rejoined correctly", () => {
+  // Speech-to-text sometimes inserts a spurious full stop right after the first
+  // spelled letter (e.g. a caller pause), splitting "W-A-L-S-H" into "W. A-L-S-H".
+  // Without rejoining, the lone "w" is discarded as if it were its own misheard
+  // word, silently truncating the surname to "alsh" instead of "walsh".
+  const result = extractEmailFromText("It's sam, S-A-M, dot walsh. W. A-L-S-H, at hotmail.com");
+  assert.equal(result.status, "confident");
+  assert.equal(result.email, "sam.walsh@hotmail.com");
+});
+
 test("standalone spelled local part with no preceding attempted word", () => {
   const result = extractEmailFromText("Caller: J-O-H-N dot smith at gmail dot com");
   assert.equal(result.status, "confident");

@@ -34,12 +34,27 @@ function isValidEmail(value: string): boolean {
   return true;
 }
 
+// Real transcripts sometimes insert a spurious sentence break in the middle of
+// a spelled-out run (e.g. speech-to-text renders "H-U-N-T-L-E-Y" as "H. U-N-T-L-E-Y"
+// because of a caller pause after the first letter). Without this, the lone "H."
+// gets treated by the override regex below as a separate misheard "word" and is
+// silently discarded, truncating the result (e.g. "huntley" -> "untley") instead
+// of leaving it for a human to confirm. Splicing a single stray letter back onto
+// an immediately-following hyphenated run keeps the two regexes below unchanged.
+function rejoinInterruptedSpelling(text: string): string {
+  return text.replace(
+    /\b([a-z])[.,]?\s+((?:[a-z]-){1,}[a-z]\b)/gi,
+    (_match, letter: string, rest: string) => `${letter}-${rest}`,
+  );
+}
+
 // Collapses "<misheard word>, <L-E-T-T-E-R-S>" into the spelled letters, since an
 // explicit spelling always overrides a likely speech-to-text error (e.g.
 // "jaman, J-M-A-N" -> "jman"). Then collapses any remaining standalone spelled
 // sequence (no preceding word) the same way.
 function applyLetterSpelling(text: string): string {
-  const withOverrides = text.replace(
+  const rejoined = rejoinInterruptedSpelling(text);
+  const withOverrides = rejoined.replace(
     /\b([a-z]+)\b\s*[,.]?\s*((?:[a-z]-){1,}[a-z])\b/gi,
     (_match, _word, letters: string) => letters.replace(/-/g, "").toLowerCase(),
   );
