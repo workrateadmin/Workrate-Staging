@@ -1,0 +1,233 @@
+WORKRATE DOCUMENT PDFs — DOWNLOAD + EMAIL ATTACHMENTS FOR QUOTES AND INVOICES
+
+GOAL:
+Make WorkRate-generated quotes/proposals and invoices available as proper PDFs, and automatically attach the correct PDF to customer emails.
+
+IMPORTANT:
+Do NOT redesign the quote/proposal/invoice systems.
+Do NOT change calculations, proposal acceptance, deposits, VAT, payments, or existing email delivery logic.
+Reuse the existing WorkRate branded document layouts and existing email provider.
+
+==================================================
+1. PDF GENERATION
+==================================================
+
+Add server-side PDF generation for:
+
+- Quotes / proposals
+- Invoices
+
+The generated PDF should visually match the existing WorkRate customer-facing document as closely as practical.
+
+QUOTE / PROPOSAL PDF SHOULD INCLUDE:
+- business logo
+- business details
+- customer details
+- quote/proposal number
+- issue date
+- expiry date where applicable
+- scope / description
+- line items
+- subtotal
+- VAT where applicable
+- total
+- deposit terms where applicable
+- payment/acceptance terms
+- footer / terms
+- proposal status where appropriate
+
+INVOICE PDF SHOULD INCLUDE:
+- business logo
+- business details
+- customer details
+- invoice number
+- issue date
+- due date
+- line items
+- subtotal
+- VAT
+- total
+- deposits/payments already received
+- remaining balance
+- payment instructions
+- footer / terms
+- payment status where appropriate
+
+==================================================
+2. DOWNLOAD PDF
+==================================================
+
+Add visible:
+
+"Download PDF"
+
+actions for:
+- quote/proposal detail / preview
+- invoice detail / preview
+
+Existing documents must also be downloadable.
+
+Use sensible filenames, for example:
+
+Quote-Q-000123-Customer-Name.pdf
+Invoice-INV-000123-Customer-Name.pdf
+
+Do not rely solely on browser print-to-PDF.
+
+==================================================
+3. CUSTOMER EMAIL ATTACHMENTS
+==================================================
+
+Whenever WorkRate emails a customer a:
+
+- quote/proposal
+- invoice
+
+automatically generate and attach the matching PDF to the outgoing email.
+
+The existing email body and View Proposal / View Invoice link should remain.
+
+So the customer receives BOTH:
+
+1. branded email + online link
+2. attached PDF copy
+
+==================================================
+4. RESEND BEHAVIOUR
+==================================================
+
+When the user selects:
+
+- Resend Proposal / Quote
+- Resend Invoice
+
+regenerate the PDF from the CURRENT document data and attach that version.
+
+Do not attach stale PDFs from earlier versions.
+
+If a document is edited before resend, the new attachment must reflect the updated document.
+
+==================================================
+5. EMAIL PROVIDER
+==================================================
+
+Reuse WorkRate's existing email infrastructure.
+
+Do not create a second email service.
+
+Use the supported attachment functionality of the existing provider.
+
+Do not expose storage URLs or private document credentials to customers.
+
+==================================================
+6. DOCUMENT CONSISTENCY
+==================================================
+
+Use one shared document-rendering source where practical so:
+
+online document
+downloaded PDF
+emailed PDF attachment
+
+all contain the same values.
+
+Avoid maintaining three separate calculation implementations.
+
+All totals must come from the existing quote/invoice calculations.
+
+==================================================
+7. SECURITY
+==================================================
+
+Confirm:
+
+- tenant isolation
+- only the owning business can generate/download private PDFs
+- customer attachment contains only that customer's document
+- no cross-business document access
+- no secrets or private storage credentials embedded in PDFs
+- public proposal/invoice links remain appropriately scoped
+
+==================================================
+8. FAILURE HANDLING
+==================================================
+
+If PDF generation fails:
+
+- do not silently send an incomplete/broken attachment
+- show/log a clear non-secret failure
+- do not mark the email as successfully sent if the required attachment was not produced
+
+Avoid duplicate emails on retry.
+
+==================================================
+9. TESTING
+==================================================
+
+Test:
+
+QUOTES / PROPOSALS
+- simple quote
+- VAT quote
+- deposit terms
+- long quote
+- resend after edit
+- customer receives PDF attachment
+- online proposal link still works
+
+INVOICES
+- simple invoice
+- VAT invoice
+- invoice with deposit already paid
+- partially paid invoice
+- fully paid invoice
+- long invoice
+- resend after edit
+- customer receives PDF attachment
+
+GENERAL
+- Download PDF desktop
+- Download PDF mobile
+- tenant isolation
+- attachment belongs to correct customer/document
+- PDF generation failure does not produce false "sent" state
+
+==================================================
+10. EXISTING DOCUMENTS
+==================================================
+
+This must work for existing WorkRate quotes/proposals and invoices, not only newly created documents.
+
+==================================================
+11. BEFORE IMPLEMENTING
+==================================================
+
+First inspect:
+
+- existing proposal/quote rendering
+- existing invoice rendering
+- current email sending functions
+- current email provider attachment support
+- existing branding/document helpers
+
+Then implement the smallest shared PDF architecture.
+
+Do not redesign the commercial workflow.
+
+==================================================
+12. COMPLETION REPORT
+==================================================
+
+At completion report:
+
+A. PDF generation approach
+B. shared rendering approach
+C. files/schema changed
+D. quote/proposal email attachment path
+E. invoice email attachment path
+F. resend behaviour
+G. tests passed
+H. whether existing documents work
+I. whether ONE final publish is required
+
+Do not publish automatically.
