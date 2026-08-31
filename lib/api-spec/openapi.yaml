@@ -481,6 +481,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /enquiries/{id}/quote/pdf:
+    get:
+      operationId: downloadQuotePdf
+      tags: [quotes]
+      summary: Download a quote or proposal as a PDF
+      security:
+        - ClerkAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Branded quote or proposal PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Quote not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /enquiries/{id}/quote/mark-deposit-paid:
     post:
       operationId: markDepositPaid

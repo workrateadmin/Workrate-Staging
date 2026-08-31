@@ -1527,6 +1527,83 @@ export const useResendProposalEmail = <TError = ErrorType<ApiError>,
       return useMutation(getResendProposalEmailMutationOptions(options));
     }
 
+export const getDownloadQuotePdfUrl = (id: number,) => {
+
+
+
+
+  return `/api/enquiries/${id}/quote/pdf`
+}
+
+/**
+ * @summary Download a quote or proposal as a PDF
+ */
+export const downloadQuotePdf = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadQuotePdfUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadQuotePdfQueryKey = (id: number,) => {
+    return [
+    `/api/enquiries/${id}/quote/pdf`
+    ] as const;
+    }
+
+
+export const getDownloadQuotePdfQueryOptions = <TData = Awaited<ReturnType<typeof downloadQuotePdf>>, TError = ErrorType<ApiError>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadQuotePdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadQuotePdfQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadQuotePdf>>> = ({ signal }) => downloadQuotePdf(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadQuotePdf>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadQuotePdfQueryResult = NonNullable<Awaited<ReturnType<typeof downloadQuotePdf>>>
+export type DownloadQuotePdfQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Download a quote or proposal as a PDF
+ */
+
+export function useDownloadQuotePdf<TData = Awaited<ReturnType<typeof downloadQuotePdf>>, TError = ErrorType<ApiError>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadQuotePdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadQuotePdfQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getMarkDepositPaidUrl = (id: number,) => {
 
 

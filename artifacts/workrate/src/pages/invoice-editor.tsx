@@ -202,9 +202,21 @@ export default function InvoiceEditor() {
 
   const sendInvoice = useSendInvoice({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         queryClient.invalidateQueries({ queryKey: getGetInvoiceQueryKey(id) });
-        toast({ title: "Invoice sent" });
+        const deliveryStatus = (data as any).emailDeliveryStatus;
+        if (deliveryStatus === "sent") {
+          toast({ title: "Invoice sent with PDF attached" });
+        } else if (deliveryStatus === "no_recipient") {
+          toast({ title: "No customer email address on file", variant: "destructive" });
+        } else if (deliveryStatus === "not_configured") {
+          toast({ title: "Email sending is not configured", variant: "destructive" });
+        } else {
+          toast({
+            title: `Invoice was not sent: ${(data as any).emailError ?? "Could not prepare or send the email"}`,
+            variant: "destructive",
+          });
+        }
       },
       onError: () => toast({ title: "Failed to send", variant: "destructive" }),
     },

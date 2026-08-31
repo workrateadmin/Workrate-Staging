@@ -16,6 +16,7 @@ type PdfBranding = {
   brandColourSecondary?: string | null;
   paymentTerms?: string | null;
   termsAndConditions?: string | null;
+  quoteFooter?: string | null;
   invoiceFooter?: string | null;
   logoUrl?: string | null;
 };
@@ -51,6 +52,33 @@ export type InvoicePdfInput = {
   company?: PdfBranding | null;
 };
 
+export type QuotePdfInput = {
+  quoteRef?: string | null;
+  quoteDate?: string | null;
+  validUntil?: string | null;
+  customerDetails?: string | null;
+  projectDescription?: string | null;
+  lineItems?: string | null;
+  materialsAllowance?: number | string | null;
+  labourAllowance?: number | string | null;
+  estimatedTotal?: number | string | null;
+  vatRate?: number | string | null;
+  vatAmount?: number | string | null;
+  totalWithVat?: number | string | null;
+  notes?: string | null;
+  assumptions?: string | null;
+  status?: string | null;
+  proposalStatus?: string | null;
+  brandingSnapshot?: string | null;
+  depositType?: string | null;
+  depositPercent?: number | string | null;
+  depositAmount?: number | string | null;
+  remainingBalance?: number | string | null;
+  depositPaidAmount?: number | string | null;
+  company?: PdfBranding | null;
+};
+
+type PdfDocumentInput = InvoicePdfInput | QuotePdfInput;
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const MARGIN = 48;
@@ -94,16 +122,16 @@ function isLight(hex: string): boolean {
   return 0.299 * r + 0.587 * g + 0.114 * b > 160;
 }
 
-function parseBranding(invoice: InvoicePdfInput): PdfBranding {
-  if (invoice.brandingSnapshot) {
+function parseBranding(document: PdfDocumentInput): PdfBranding {
+  if (document.brandingSnapshot) {
     try {
-      const snapshot = JSON.parse(invoice.brandingSnapshot);
+      const snapshot = JSON.parse(document.brandingSnapshot);
       if (snapshot && typeof snapshot === "object") return snapshot as PdfBranding;
     } catch {
       // Fall back to the company's current branding for draft invoices.
     }
   }
-  return invoice.company ?? {};
+  return document.company ?? {};
 }
 
 function parseLines(value: unknown): PdfLine[] {
@@ -159,12 +187,12 @@ function drawLabel(doc: PDFKit.PDFDocument, value: string, x: number, y: number,
     .text(value.toUpperCase(), x, y, { width, characterSpacing: 0.8 });
 }
 
-function drawPageFooter(doc: PDFKit.PDFDocument, pageNumber: number): void {
+function drawPageFooter(doc: PDFKit.PDFDocument, pageNumber: number, title = "INVOICE"): void {
   doc
     .font("Helvetica")
     .fontSize(7)
     .fillColor("#94a3b8")
-    .text(`WorkRate invoice • Page ${pageNumber}`, MARGIN, PAGE_HEIGHT - 28, {
+    .text(`WorkRate ${title.toLowerCase()} • Page ${pageNumber}`, MARGIN, PAGE_HEIGHT - 28, {
       width: CONTENT_WIDTH,
       align: "center",
     });
@@ -175,9 +203,10 @@ function ensureSpace(
   y: number,
   required: number,
   pageNumber: { value: number },
+  title = "INVOICE",
 ): number {
   if (y + required <= PAGE_HEIGHT - 52) return y;
-  drawPageFooter(doc, pageNumber.value);
+  drawPageFooter(doc, pageNumber.value, title);
   doc.addPage({ size: "A4", margin: 0 });
   pageNumber.value += 1;
   return MARGIN;
@@ -197,8 +226,15 @@ function drawTableHeader(doc: PDFKit.PDFDocument, y: number): number {
   return y + 28;
 }
 
-function drawInvoicePdf(doc: PDFKit.PDFDocument, invoice: InvoicePdfInput, logo: Buffer | null): void {
-  const branding = parseBranding(invoice);
+function drawDocumentPdf(
+  doc: PDFKit.PDFDocument,
+  document: PdfDocumentInput,
+  logo: Buffer | null,
+  kind: "invoice" | "quote",
+): void {
+  const branding = parseBranding(document);
+  const isInvoice = kind === "invoice";
+  const title = isInvoice ? "INVOICE" : "QUOTATION";
   const isCustom = (branding.documentMode ?? "workrate") === "custom";
   const headerBg = isCustom
     ? safeColour(branding.brandColourPrimary, DARK)
@@ -209,19 +245,33 @@ function drawInvoicePdf(doc: PDFKit.PDFDocument, invoice: InvoicePdfInput, logo:
   const headerText = isLight(headerBg) ? "#111827" : "#ffffff";
   const headerSubText = isLight(headerBg) ? "#64748b" : "#94a3b8";
   const companyName = text(branding.name, "Your Trade Business");
-  const invoiceNumber = text(invoice.invoiceNumber, "INVOICE");
-  const status = text(invoice.status, "draft");
+  const invoiceNumber = text(
+    isInvoice ? (document as InvoicePdfInput).invoiceNumber : (document as QuotePdfInput).quoteRef,
+    title,
+  );
+  const status = text(
+    isInvoice
+      ? (document as InvoicePdfInput).status
+      : (document as QuotePdfInput).proposalStatus ?? (document as QuotePdfInput).status,
+    "draft",
+  );
   const statusLabel = status === "paid" ? "PAID" : status.toUpperCase();
-  const lines = parseLines(invoice.lineItems);
-  const subtotal = numberValue(invoice.materialsAllowance);
-  const vatRate = numberValue(invoice.vatRate, 20);
-  const vatAmount = numberValue(invoice.vatAmount);
-  const total = numberValue(invoice.totalWithVat);
-  const depositAmount = numberValue(invoice.depositAmount);
-  const depositPaidAmount = numberValue(invoice.depositPaidAmount);
+  const lines = parseLines(document.lineItems);
+  const subtotal = isInvoice
+    ? numberValue((document as InvoicePdfInput).materialsAllowance)
+    : numberValue(
+        (document as QuotePdfInput).estimatedTotal,
+        numberValue((document as QuotePdfInput).materialsAllowance) +
+          numberValue((document as QuotePdfInput).labourAllowance),
+      );
+  const vatRate = numberValue(document.vatRate, 20);
+  const vatAmount = numberValue(document.vatAmount);
+  const total = numberValue(document.totalWithVat);
+  const depositAmount = numberValue(document.depositAmount);
+  const depositPaidAmount = numberValue(document.depositPaidAmount);
   const remainingBalance = status === "paid"
     ? 0
-    : numberValue(invoice.remainingBalance, Math.max(0, total - depositPaidAmount));
+    : numberValue(document.remainingBalance, Math.max(0, total - depositPaidAmount));
   const pageNumber = { value: 1 };
 
   doc.rect(0, 0, PAGE_WIDTH, 178).fill(headerBg);
@@ -269,7 +319,7 @@ function drawInvoicePdf(doc: PDFKit.PDFDocument, invoice: InvoicePdfInput, logo:
     .font("Helvetica-Bold")
     .fontSize(25)
     .fillColor(headerText)
-    .text("INVOICE", PAGE_WIDTH - MARGIN - 190, 38, { width: 190, align: "right" });
+    .text(title, PAGE_WIDTH - MARGIN - 190, 38, { width: 190, align: "right" });
   doc
     .font("Courier-Bold")
     .fontSize(10)
@@ -284,40 +334,48 @@ function drawInvoicePdf(doc: PDFKit.PDFDocument, invoice: InvoicePdfInput, logo:
 
   let y = 206;
   doc.roundedRect(MARGIN, y, CONTENT_WIDTH, 76, 4).fill(LIGHT_BG);
-  drawLabel(doc, "Bill To", MARGIN + 14, y + 13, 220);
+  drawLabel(doc, isInvoice ? "Bill To" : "Prepared For", MARGIN + 14, y + 13, 220);
   doc
     .font("Helvetica-Bold")
     .fontSize(10)
     .fillColor("#1f2937")
-    .text(text(invoice.customerDetails, "—"), MARGIN + 14, y + 30, { width: 230, lineGap: 2 });
-  drawLabel(doc, "Invoice Date", PAGE_WIDTH - MARGIN - 190, y + 13, 82);
+    .text(text(document.customerDetails, "—"), MARGIN + 14, y + 30, { width: 230, lineGap: 2 });
+  drawLabel(doc, isInvoice ? "Invoice Date" : "Quote Date", PAGE_WIDTH - MARGIN - 190, y + 13, 82);
   doc
     .font("Helvetica-Bold")
     .fontSize(9)
     .fillColor("#1f2937")
-    .text(text(invoice.invoiceDate, "—"), PAGE_WIDTH - MARGIN - 190, y + 30, { width: 82, align: "right" });
-  if (text(invoice.dueDate)) {
-    drawLabel(doc, "Due Date", PAGE_WIDTH - MARGIN - 92, y + 13, 92);
+    .text(
+      text(isInvoice ? (document as InvoicePdfInput).invoiceDate : (document as QuotePdfInput).quoteDate, "—"),
+      PAGE_WIDTH - MARGIN - 190,
+      y + 30,
+      { width: 82, align: "right" },
+    );
+  const secondDate = isInvoice
+    ? (document as InvoicePdfInput).dueDate
+    : (document as QuotePdfInput).validUntil;
+  if (text(secondDate)) {
+    drawLabel(doc, isInvoice ? "Due Date" : "Valid Until", PAGE_WIDTH - MARGIN - 92, y + 13, 92);
     doc
       .font("Helvetica-Bold")
       .fontSize(9)
       .fillColor("#dc2626")
-      .text(text(invoice.dueDate), PAGE_WIDTH - MARGIN - 92, y + 30, { width: 92, align: "right" });
+      .text(text(secondDate), PAGE_WIDTH - MARGIN - 92, y + 30, { width: 92, align: "right" });
   }
   y += 102;
 
-  if (text(invoice.projectDescription)) {
-    drawLabel(doc, "Description", MARGIN, y, CONTENT_WIDTH);
+  if (text(document.projectDescription)) {
+    drawLabel(doc, isInvoice ? "Description" : "Description of Works", MARGIN, y, CONTENT_WIDTH);
     y += 14;
-    doc.font("Helvetica").fontSize(9).fillColor("#475569").text(text(invoice.projectDescription), MARGIN, y, {
+    doc.font("Helvetica").fontSize(9).fillColor("#475569").text(text(document.projectDescription), MARGIN, y, {
       width: CONTENT_WIDTH,
       lineGap: 2,
     });
-    y += doc.heightOfString(text(invoice.projectDescription), { width: CONTENT_WIDTH, lineGap: 2 }) + 17;
+    y += doc.heightOfString(text(document.projectDescription), { width: CONTENT_WIDTH, lineGap: 2 }) + 17;
     drawRule(doc, y - 8);
   }
 
-  y = ensureSpace(doc, y, 55, pageNumber);
+  y = ensureSpace(doc, y, 55, pageNumber, title);
   if (lines.length > 0) {
     y = drawTableHeader(doc, y);
     for (const line of lines) {
@@ -325,7 +383,7 @@ function drawInvoicePdf(doc: PDFKit.PDFDocument, invoice: InvoicePdfInput, logo:
       doc.font("Helvetica").fontSize(8.5);
       const descriptionHeight = doc.heightOfString(description, { width: 230, lineGap: 2 });
       const rowHeight = Math.max(27, descriptionHeight + 13);
-      y = ensureSpace(doc, y, rowHeight + 8, pageNumber);
+      y = ensureSpace(doc, y, rowHeight + 8, pageNumber, title);
       if (y === MARGIN) y = drawTableHeader(doc, y);
       doc
         .font("Helvetica")
@@ -359,7 +417,7 @@ function drawInvoicePdf(doc: PDFKit.PDFDocument, invoice: InvoicePdfInput, logo:
     y += 34;
   }
 
-  y = ensureSpace(doc, y, 140, pageNumber);
+  y = ensureSpace(doc, y, 140, pageNumber, title);
   const totalsX = PAGE_WIDTH - MARGIN - 190;
   drawLabel(doc, "Subtotal", totalsX, y, 90);
   doc.font("Helvetica").fontSize(9).fillColor("#475569").text(money(subtotal), totalsX + 100, y, { width: 90, align: "right" });
@@ -374,10 +432,10 @@ function drawInvoicePdf(doc: PDFKit.PDFDocument, invoice: InvoicePdfInput, logo:
   y += 28;
 
   if (depositAmount > 0) {
-    y = ensureSpace(doc, y, 54, pageNumber);
+    y = ensureSpace(doc, y, 54, pageNumber, title);
     doc.roundedRect(totalsX, y - 5, 190, 48, 5).fill("#f0fdfa");
     doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#115e59").text(
-      `${depositPaidAmount > 0 ? "Deposit received" : "Deposit due now"}${invoice.depositType === "percentage" && numberValue(invoice.depositPercent) ? ` (${numberValue(invoice.depositPercent)}%)` : ""}`,
+      `${depositPaidAmount > 0 ? "Deposit received" : "Deposit due now"}${document.depositType === "percentage" && numberValue(document.depositPercent) ? ` (${numberValue(document.depositPercent)}%)` : ""}`,
       totalsX + 10,
       y + 3,
       { width: 110 },
@@ -388,22 +446,27 @@ function drawInvoicePdf(doc: PDFKit.PDFDocument, invoice: InvoicePdfInput, logo:
     y += 64;
   }
 
-  const footerText = isCustom && text(branding.invoiceFooter)
-    ? text(branding.invoiceFooter)
-    : "Payment is due by the date stated above. Thank you for your business.";
+  const footerText = isCustom && text(isInvoice ? branding.invoiceFooter : branding.quoteFooter)
+    ? text(isInvoice ? branding.invoiceFooter : branding.quoteFooter)
+    : isInvoice
+      ? "Payment is due by the date stated above. Thank you for your business."
+      : "This quotation is valid for 30 days from the date of issue. All prices are in GBP.";
   const paymentInstructions = depositAmount > 0
     ? (depositPaidAmount > 0 ? text(branding.bankPaymentDetails) : text(branding.depositPaymentInstructions) || text(branding.bankPaymentDetails))
-    : isCustom ? text(branding.bankPaymentDetails) : "";
+    : isCustom || !isInvoice ? text(branding.bankPaymentDetails) : "";
 
   const sections: Array<{ label: string; value: string }> = [];
-  if (text(invoice.notes)) sections.push({ label: "Notes", value: text(invoice.notes) });
+  if (text(document.notes)) sections.push({ label: "Notes", value: text(document.notes) });
   if (paymentInstructions) sections.push({ label: "Payment Details", value: paymentInstructions });
   if (isCustom && text(branding.paymentTerms)) sections.push({ label: "Payment Terms", value: text(branding.paymentTerms) });
   if (isCustom && text(branding.termsAndConditions)) sections.push({ label: "Terms & Conditions", value: text(branding.termsAndConditions) });
+  if (!isInvoice && text((document as QuotePdfInput).assumptions)) {
+    sections.push({ label: "Assumptions & Exclusions", value: text((document as QuotePdfInput).assumptions) });
+  }
 
   for (const section of sections) {
     const sectionHeight = Math.max(43, doc.heightOfString(section.value, { width: CONTENT_WIDTH, lineGap: 2 }) + 29);
-    y = ensureSpace(doc, y, sectionHeight, pageNumber);
+    y = ensureSpace(doc, y, sectionHeight, pageNumber, title);
     drawRule(doc, y);
     y += 12;
     drawLabel(doc, section.label, MARGIN, y, CONTENT_WIDTH);
@@ -415,18 +478,26 @@ function drawInvoicePdf(doc: PDFKit.PDFDocument, invoice: InvoicePdfInput, logo:
     y += sectionHeight - 28;
   }
 
-  y = ensureSpace(doc, y, 42, pageNumber);
+  y = ensureSpace(doc, y, 42, pageNumber, title);
   drawRule(doc, y, `${accent}55`);
   doc
     .font("Helvetica")
     .fontSize(8)
     .fillColor("#64748b")
     .text(footerText, MARGIN, y + 13, { width: CONTENT_WIDTH, align: "center" });
-  drawPageFooter(doc, pageNumber.value);
+  drawPageFooter(doc, pageNumber.value, title);
 }
 
 export async function renderInvoicePdf(invoice: InvoicePdfInput): Promise<Buffer> {
-  const logo = await loadLogo(parseBranding(invoice).logoUrl);
+  return renderDocumentPdf(invoice, "invoice");
+}
+
+export async function renderQuotePdf(quote: QuotePdfInput): Promise<Buffer> {
+  return renderDocumentPdf(quote, "quote");
+}
+
+async function renderDocumentPdf(document: PdfDocumentInput, kind: "invoice" | "quote"): Promise<Buffer> {
+  const logo = await loadLogo(parseBranding(document).logoUrl);
   const doc = new PDFDocument({ size: "A4", margin: 0, autoFirstPage: true });
   const chunks: Buffer[] = [];
   const output = new Promise<Buffer>((resolve, reject) => {
@@ -435,7 +506,7 @@ export async function renderInvoicePdf(invoice: InvoicePdfInput): Promise<Buffer
     doc.on("error", reject);
   });
 
-  drawInvoicePdf(doc, invoice, logo);
+  drawDocumentPdf(doc, document, logo, kind);
   doc.end();
   return output;
 }

@@ -6,6 +6,7 @@ import {
   useGetCompany,
   useApproveAndSendProposal,
   useResendProposalEmail,
+  downloadQuotePdf,
   getGetQuoteQueryKey,
   getGetEnquiryQueryKey,
 } from "@workspace/api-client-react";
@@ -32,7 +33,7 @@ import {
   Save,
   Sparkles,
   Send,
-  Printer,
+  Download,
   Eye,
   Pencil,
   RefreshCw,
@@ -74,6 +75,7 @@ export default function QuoteEditor() {
   const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const initialized = useRef(false);
   const basePath = (import.meta.env.BASE_URL ?? "").replace(/\/$/, "");
 
@@ -121,7 +123,19 @@ export default function QuoteEditor() {
   const approveAndSend = useApproveAndSendProposal({
     mutation: {
       onSuccess: (data) => {
-        toast({ title: "Proposal sent! Share the link with your customer." });
+        const status = (data as any).emailDeliveryStatus;
+        if (status === "sent") {
+          toast({ title: "Proposal sent with PDF attached" });
+        } else if (status === "no_recipient") {
+          toast({ title: "Proposal ready, but no customer email address is on file", variant: "destructive" });
+        } else if (status === "not_configured") {
+          toast({ title: "Proposal ready, but email sending is not configured", variant: "destructive" });
+        } else {
+          toast({
+            title: `Proposal ready, but the email was not sent: ${(data as any).emailError ?? "Unknown error"}`,
+            variant: "destructive",
+          });
+        }
         queryClient.setQueryData([`/api/enquiries/${id}/quote`], data);
         setApproveDialogOpen(true);
       },
@@ -199,9 +213,9 @@ export default function QuoteEditor() {
   const vatAmount = Math.round(subtotal * (vatRate / 100) * 100) / 100;
   const total = subtotal + vatAmount;
 
-  function onSave(status?: "draft" | "sent" | "accepted") {
+  function buildQuoteUpdate(status?: "draft" | "sent" | "accepted") {
     const values = form.getValues();
-    updateQuote.mutate({
+    return {
       id,
       data: {
         ...values,
@@ -212,11 +226,53 @@ export default function QuoteEditor() {
         totalWithVat: total,
         ...(status ? { status } : {}),
       },
-    });
+    };
   }
 
-  function handlePrint() {
-    window.print();
+  function onSave(status?: "draft" | "sent" | "accepted") {
+    updateQuote.mutate(buildQuoteUpdate(status));
+  }
+
+  async function handleDownloadPdf() {
+    setDownloadingPdf(true);
+    try {
+      await updateQuote.mutateAsync(buildQuoteUpdate());
+      const blob = await downloadQuotePdf(id, { responseType: "blob" });
+      const url = URL.createObjectURL(blob);
+      const customerName = (form.getValues("customerDetails") || "Customer")
+        .split("\n")[0]
+        .normalize("NFKD")
+        .replace(/[^\w\s-]/g, "")
+        .trim()
+        .replace(/[\s-]+/g, "-")
+        .slice(0, 80) || "Customer";
+      const link = document.createElement("a");
+      link.href = url;
+      const documentName = quote?.proposalToken || quote?.proposalStatus !== "draft" ? "Proposal" : "Quotation";
+      link.download = `${documentName}-ENQ-${id}-${customerName}.pdf`;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+      const downloadedLabel = quote?.proposalToken || quote?.proposalStatus !== "draft"
+        ? "Proposal"
+        : "Quotation";
+      toast({ title: `${downloadedLabel} PDF downloaded` });
+    } catch {
+      toast({ title: "Could not download proposal PDF", variant: "destructive" });
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
+  async function handleApproveAndSend() {
+    try {
+      await updateQuote.mutateAsync(buildQuoteUpdate());
+      approveAndSend.mutate({ id });
+    } catch {
+      toast({ title: "Save the quote before sending", variant: "destructive" });
+    }
   }
 
   if (isLoadingQuote) {
@@ -292,10 +348,12 @@ export default function QuoteEditor() {
           <Button
             variant="outline"
             size="sm"
-            onClick={handlePrint}
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf || updateQuote.isPending}
             className="font-bold bg-background border-border/60 rounded-xl h-10"
           >
-            <Printer className="w-4 h-4 mr-2" /> Print / PDF
+            <Download className="w-4 h-4 mr-2" />
+            {downloadingPdf ? "Preparing PDF…" : "Download PDF"}
           </Button>
           <Button
             variant="outline"
@@ -341,11 +399,8 @@ export default function QuoteEditor() {
           ) : (
             <Button
               size="sm"
-              onClick={() => {
-                onSave(); // save draft first
-                setTimeout(() => approveAndSend.mutate({ id }), 300);
-              }}
-              disabled={approveAndSend.isPending}
+              onClick={handleApproveAndSend}
+              disabled={approveAndSend.isPending || updateQuote.isPending}
               className="font-bold shadow-md hover-elevate rounded-xl h-10 bg-teal-600 hover:bg-teal-700 text-white"
             >
               <Send className="w-4 h-4 mr-2" />

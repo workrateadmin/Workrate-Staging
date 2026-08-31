@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, enquiriesTable, quotesTable, companiesTable } from "@workspace/db";
 import { sendProposalEmail } from "../services/customer-comms";
+import { renderQuotePdf } from "../services/invoice-pdf";
 import { eq, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import {
@@ -65,6 +66,39 @@ function getProposalBaseUrl(): string {
 
   const devDomain = process.env.REPLIT_DEV_DOMAIN?.trim();
   return devDomain ? `https://${devDomain}` : "";
+}
+
+function pdfFilenamePart(value: unknown, fallback: string): string {
+  const normalized = String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/[\s-]+/g, "-")
+    .slice(0, 80);
+  return normalized || fallback;
+}
+
+function companyForComms(company: any) {
+  return {
+    name: company?.name ?? "Your tradesperson",
+    address: company?.address ?? null,
+    email: company?.email ?? null,
+    phone: company?.phone ?? null,
+    website: company?.website ?? null,
+    logoUrl: company?.logoUrl ?? null,
+    companyRegNumber: company?.companyRegNumber ?? null,
+    vatNumber: company?.vatNumber ?? null,
+    brandColourPrimary: company?.brandColourPrimary ?? null,
+    brandColourSecondary: company?.brandColourSecondary ?? null,
+    notificationsFromEmail: company?.notificationsFromEmail ?? null,
+    proposalEmailEnabled: company?.proposalEmailEnabled ?? true,
+    bankPaymentDetails: company?.bankPaymentDetails ?? null,
+    depositPaymentInstructions: company?.depositPaymentInstructions ?? null,
+    paymentTerms: company?.paymentTerms ?? null,
+    termsAndConditions: company?.termsAndConditions ?? null,
+    quoteFooter: company?.quoteFooter ?? null,
+    invoiceFooter: company?.invoiceFooter ?? null,
+  };
 }
 
 /** Calculate deposit amount from company settings and total */
@@ -143,6 +177,70 @@ router.get("/enquiries/:id/quote", requireAuth, async (req, res): Promise<void> 
   }
 
   res.json(GetQuoteResponse.parse(parseQuote(quote)));
+});
+
+// Download quote/proposal PDF
+router.get("/enquiries/:id/quote/pdf", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid enquiry id" }); return; }
+
+  const [enquiry] = await db
+    .select({ id: enquiriesTable.id })
+    .from(enquiriesTable)
+    .where(and(eq(enquiriesTable.id, id), eq(enquiriesTable.ownerUserId, userId!)));
+  if (!enquiry) { res.status(404).json({ error: "Enquiry not found" }); return; }
+
+  const [quote] = await db
+    .select()
+    .from(quotesTable)
+    .where(and(eq(quotesTable.enquiryId, id), eq(quotesTable.documentType, "quote")));
+  if (!quote) { res.status(404).json({ error: "Quote not found" }); return; }
+
+  const [company] = await db
+    .select()
+    .from(companiesTable)
+    .where(eq(companiesTable.ownerUserId, userId!))
+    .limit(1);
+
+  try {
+    const pdf = await renderQuotePdf({
+      quoteRef: `ENQ-${id}`,
+      quoteDate: quote.updatedAt.toISOString().slice(0, 10),
+      customerDetails: quote.customerDetails,
+      projectDescription: quote.projectDescription,
+      lineItems: quote.lineItems,
+      materialsAllowance: quote.materialsAllowance,
+      labourAllowance: quote.labourAllowance,
+      estimatedTotal: quote.estimatedTotal,
+      vatRate: quote.vatRate,
+      vatAmount: quote.vatAmount,
+      totalWithVat: quote.totalWithVat,
+      notes: quote.notes,
+      assumptions: quote.assumptions,
+      status: quote.status,
+      proposalStatus: quote.proposalStatus,
+      brandingSnapshot: quote.brandingSnapshot,
+      depositType: quote.depositType,
+      depositPercent: quote.depositPercent,
+      depositAmount: quote.depositAmount,
+      remainingBalance: quote.remainingBalance,
+      depositPaidAmount: quote.depositPaidAmount,
+      company: company ?? null,
+    });
+    const customerName = pdfFilenamePart(quote.customerDetails?.split("\n")[0], "Customer");
+    const isProposal = Boolean(quote.proposalToken) || quote.proposalStatus !== "draft";
+    const filename = `${isProposal ? "Proposal" : "Quotation"}-ENQ-${id}-${customerName}.pdf`;
+
+    res.status(200);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdf.length);
+    res.end(pdf);
+  } catch (error) {
+    req.log.error({ err: error, quoteId: quote.id }, "Failed to generate quote PDF");
+    res.status(500).json({ error: "Failed to generate quote PDF" });
+  }
 });
 
 // Generate quote via AI
@@ -406,39 +504,23 @@ router.post("/enquiries/:id/quote/approve-and-send", requireAuth, async (req, re
     .set({ status: "quote_sent" })
     .where(eq(enquiriesTable.id, id));
 
-  // Send proposal email to customer (fire-and-forget — never fails the request)
-  Promise.resolve().then(async () => {
-    try {
-      const proposalBaseUrl = getProposalBaseUrl();
+  const proposalBaseUrl = getProposalBaseUrl();
+  await sendProposalEmail(
+    updated.id,
+    {
+      customerName: enquiry.customerName,
+      customerEmail: enquiry.customerEmail ?? null,
+      projectType: enquiry.projectType ?? null,
+      totalWithVat: Number(updated.totalWithVat),
+      depositAmount: updated.depositAmount != null ? Number(updated.depositAmount) : null,
+      proposalToken: token,
+      proposalBaseUrl,
+    },
+    companyForComms(company),
+  );
 
-      await sendProposalEmail(
-        updated.id,
-        {
-          customerName: enquiry.customerName,
-          customerEmail: enquiry.customerEmail ?? null,
-          projectType: enquiry.projectType ?? null,
-          totalWithVat: Number(updated.totalWithVat),
-          depositAmount: updated.depositAmount != null ? Number(updated.depositAmount) : null,
-          proposalToken: token,
-          proposalBaseUrl,
-        },
-        {
-          name: company?.name ?? "Your tradesperson",
-          email: company?.email ?? null,
-          phone: company?.phone ?? null,
-          website: company?.website ?? null,
-          logoUrl: company?.logoUrl ?? null,
-          brandColourPrimary: company?.brandColourPrimary ?? null,
-          notificationsFromEmail: company?.notificationsFromEmail ?? null,
-          proposalEmailEnabled: company?.proposalEmailEnabled ?? true,
-        }
-      );
-    } catch (err) {
-      console.error("[comms] proposal email failed:", err);
-    }
-  });
-
-  res.json(parseQuote(updated));
+  const [sentQuote] = await db.select().from(quotesTable).where(eq(quotesTable.id, updated.id));
+  res.json(parseQuote(sentQuote));
 });
 
 // Re-send proposal email — retry on failure or resend to customer
@@ -481,16 +563,7 @@ router.post("/enquiries/:id/quote/resend-proposal-email", requireAuth, async (re
       proposalToken: existing.proposalToken,
       proposalBaseUrl,
     },
-    {
-      name: company?.name ?? "Your tradesperson",
-      email: company?.email ?? null,
-      phone: company?.phone ?? null,
-      website: company?.website ?? null,
-      logoUrl: company?.logoUrl ?? null,
-      brandColourPrimary: company?.brandColourPrimary ?? null,
-      notificationsFromEmail: company?.notificationsFromEmail ?? null,
-      proposalEmailEnabled: company?.proposalEmailEnabled ?? true,
-    }
+    companyForComms(company),
   );
 
   // Reload and return updated quote

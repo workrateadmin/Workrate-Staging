@@ -404,48 +404,54 @@ router.post("/invoices/:id/send", requireAuth, async (req, res): Promise<void> =
   // Snapshot branding at send time
   const brandingSnapshot = await snapshotBranding(userId!);
 
-  // Mark a draft as sent, but never reopen a settled invoice just to resend it.
+  // Persist the branding that the attachment will use. The sent status is only
+  // applied after Resend accepts the email.
   await db
     .update(quotesTable)
     .set({
-      status: invoice.status === "draft" ? "sent" : invoice.status,
       brandingSnapshot,
     })
     .where(eq(quotesTable.id, id));
 
-  // Send email (fire-and-forget safe)
-  Promise.resolve().then(async () => {
-    try {
-      await sendInvoiceEmail(
-        id,
-        {
-          customerEmail: invoice.emailRecipient ?? null,
-          customerName: invoice.customerDetails?.split("\n")[0]?.trim() ?? null,
-          invoiceNumber: (invoice as any).invoiceNumber ?? `INV-${id}`,
-          invoiceDate: (invoice as any).invoiceDate ?? null,
-          dueDate: (invoice as any).dueDate ?? null,
-          totalWithVat: Number(invoice.totalWithVat),
-          depositAmount: invoice.depositAmount != null ? Number(invoice.depositAmount) : null,
-          remainingBalance: invoice.remainingBalance != null ? Number(invoice.remainingBalance) : null,
-          depositPaidAmount: invoice.depositPaidAmount != null ? Number(invoice.depositPaidAmount) : null,
-          projectDescription: invoice.projectDescription ?? null,
-        },
-        {
-          name: company?.name ?? "Your tradesperson",
-          email: company?.email ?? null,
-          phone: company?.phone ?? null,
-          website: (company as any)?.website ?? null,
-          logoUrl: company?.logoUrl ?? null,
-          brandColourPrimary: (company as any)?.brandColourPrimary ?? null,
-          bankPaymentDetails: (company as any)?.bankPaymentDetails ?? null,
-          paymentTerms: (company as any)?.paymentTerms ?? null,
-          depositPaymentInstructions: (company as any)?.depositPaymentInstructions ?? null,
-        },
-      );
-    } catch (err) {
-      console.error("[comms] invoice email failed:", err);
-    }
-  });
+  const delivery = await sendInvoiceEmail(
+    id,
+    {
+      customerEmail: invoice.emailRecipient ?? null,
+      customerName: invoice.customerDetails?.split("\n")[0]?.trim() ?? null,
+      invoiceNumber: (invoice as any).invoiceNumber ?? `INV-${id}`,
+      invoiceDate: (invoice as any).invoiceDate ?? null,
+      dueDate: (invoice as any).dueDate ?? null,
+      totalWithVat: Number(invoice.totalWithVat),
+      depositAmount: invoice.depositAmount != null ? Number(invoice.depositAmount) : null,
+      remainingBalance: invoice.remainingBalance != null ? Number(invoice.remainingBalance) : null,
+      depositPaidAmount: invoice.depositPaidAmount != null ? Number(invoice.depositPaidAmount) : null,
+      projectDescription: invoice.projectDescription ?? null,
+    },
+    {
+      name: company?.name ?? "Your tradesperson",
+      address: company?.address ?? null,
+      email: company?.email ?? null,
+      phone: company?.phone ?? null,
+      website: (company as any)?.website ?? null,
+      logoUrl: company?.logoUrl ?? null,
+      companyRegNumber: (company as any)?.companyRegNumber ?? null,
+      vatNumber: (company as any)?.vatNumber ?? null,
+      brandColourPrimary: (company as any)?.brandColourPrimary ?? null,
+      brandColourSecondary: (company as any)?.brandColourSecondary ?? null,
+      bankPaymentDetails: (company as any)?.bankPaymentDetails ?? null,
+      paymentTerms: (company as any)?.paymentTerms ?? null,
+      depositPaymentInstructions: (company as any)?.depositPaymentInstructions ?? null,
+      termsAndConditions: (company as any)?.termsAndConditions ?? null,
+      invoiceFooter: (company as any)?.invoiceFooter ?? null,
+    },
+  );
+
+  if (delivery.emailStatus === "sent" && invoice.status === "draft") {
+    await db
+      .update(quotesTable)
+      .set({ status: "sent" })
+      .where(and(eq(quotesTable.id, id), eq(quotesTable.status, "draft")));
+  }
 
   const [updated] = await db
     .select()

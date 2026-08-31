@@ -647,6 +647,16 @@ export const ResendProposalEmailResponse = zod.object({
 
 
 /**
+ * @summary Download a quote or proposal as a PDF
+ */
+export const DownloadQuotePdfParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DownloadQuotePdfResponse = zod.unknown()
+
+
+/**
  * @summary Tradesperson manually marks the deposit as received
  */
 export const MarkDepositPaidParams = zod.object({

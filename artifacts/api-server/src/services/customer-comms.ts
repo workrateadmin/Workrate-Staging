@@ -9,6 +9,7 @@
 
 import { db, enquiriesTable, quotesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { renderInvoicePdf, renderQuotePdf } from "./invoice-pdf";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,11 +23,15 @@ export interface CommResult {
 
 interface CompanyBranding {
   name: string;
+  address?: string | null;
   email?: string | null;
   phone?: string | null;
   website?: string | null;
   logoUrl?: string | null;
+  companyRegNumber?: string | null;
+  vatNumber?: string | null;
   brandColourPrimary?: string | null;
+  brandColourSecondary?: string | null;
   notificationsFromEmail?: string | null;
   enquiryConfirmationEnabled?: boolean | null;
   enquiryEmailEnabled?: boolean | null;
@@ -36,6 +41,9 @@ interface CompanyBranding {
   bankPaymentDetails?: string | null;
   paymentTerms?: string | null;
   depositPaymentInstructions?: string | null;
+  termsAndConditions?: string | null;
+  quoteFooter?: string | null;
+  invoiceFooter?: string | null;
 }
 
 // ── Email provider ────────────────────────────────────────────────────────────
@@ -50,6 +58,7 @@ async function sendViaResend(opts: {
   replyTo?: string;
   subject: string;
   html: string;
+  attachments?: Array<{ filename: string; content: Buffer }>;
 }): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -65,6 +74,7 @@ async function sendViaResend(opts: {
       replyTo: opts.replyTo || undefined,
       subject: opts.subject,
       html: opts.html,
+      attachments: opts.attachments,
     });
     if (result.error) {
       return { ok: false, error: result.error.message ?? "Unknown Resend error" };
@@ -129,6 +139,22 @@ function buildEmailShell(opts: {
 
 const DEFAULT_ENQUIRY_MESSAGE =
   "We've received your enquiry and we'll be in touch as soon as possible to discuss your project. Our team typically responds within 1–2 business days.";
+
+function pdfFilenamePart(value: unknown, fallback: string): string {
+  const normalized = String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/[\s-]+/g, "-")
+    .slice(0, 80);
+  return normalized || fallback;
+}
+
+function pdfDate(value: unknown): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value);
+}
 
 function buildEnquiryConfirmationHtml(opts: {
   customerFirstName: string;
@@ -316,7 +342,7 @@ export async function sendEnquiryConfirmation(
 
 export async function sendProposalEmail(
   quoteId: number,
-  params: {
+  requestParams: {
     customerName: string | null;
     customerEmail: string | null;
     projectType: string | null;
@@ -327,6 +353,40 @@ export async function sendProposalEmail(
   },
   company: CompanyBranding
 ): Promise<{ emailStatus: CommStatus; emailError?: string }> {
+  const [quote] = await db
+    .select()
+    .from(quotesTable)
+    .where(eq(quotesTable.id, quoteId))
+    .limit(1);
+  if (!quote || quote.documentType !== "quote") {
+    return { emailStatus: "failed", emailError: "Proposal record not found" };
+  }
+  const enquiry =
+    quote.enquiryId == null
+      ? null
+      : (
+          await db
+            .select()
+            .from(enquiriesTable)
+            .where(eq(enquiriesTable.id, quote.enquiryId))
+            .limit(1)
+        )[0] ?? null;
+  const params = {
+    customerName:
+      enquiry?.customerName ??
+      quote.customerDetails?.split("\n")[0]?.trim() ??
+      requestParams.customerName,
+    customerEmail: enquiry?.customerEmail ?? requestParams.customerEmail,
+    projectType:
+      enquiry?.projectType ??
+      quote.projectDescription ??
+      requestParams.projectType,
+    totalWithVat: Number(quote.totalWithVat ?? 0),
+    depositAmount:
+      quote.depositAmount == null ? null : Number(quote.depositAmount),
+    proposalToken: quote.proposalToken ?? requestParams.proposalToken,
+    proposalBaseUrl: requestParams.proposalBaseUrl,
+  };
   const proposalUrl = `${params.proposalBaseUrl}/proposal/${params.proposalToken}`;
 
   let emailStatus: CommStatus;
@@ -350,16 +410,50 @@ export async function sendProposalEmail(
       company,
     });
 
-    const sent = await sendViaResend({
-      to: params.customerEmail,
-      fromName: `${company.name} via WorkRate`,
-      replyTo: company.email ?? undefined,
-      subject: `Your proposal from ${company.name} is ready`,
-      html,
-    });
+    try {
+      const pdf = await renderQuotePdf({
+        quoteRef: `ENQ-${quote.enquiryId ?? quote.id}`,
+        quoteDate: pdfDate(quote.updatedAt),
+        customerDetails: quote.customerDetails,
+        projectDescription: quote.projectDescription,
+        lineItems: quote.lineItems,
+        materialsAllowance: quote.materialsAllowance,
+        labourAllowance: quote.labourAllowance,
+        estimatedTotal: quote.estimatedTotal,
+        vatRate: quote.vatRate,
+        vatAmount: quote.vatAmount,
+        totalWithVat: quote.totalWithVat,
+        notes: quote.notes,
+        assumptions: quote.assumptions,
+        status: quote.status,
+        proposalStatus: quote.proposalStatus,
+        brandingSnapshot: quote.brandingSnapshot,
+        depositType: quote.depositType,
+        depositPercent: quote.depositPercent,
+        depositAmount: quote.depositAmount,
+        remainingBalance: quote.remainingBalance,
+        depositPaidAmount: quote.depositPaidAmount,
+        company,
+      });
+      const customerName = pdfFilenamePart(quote.customerDetails?.split("\n")[0], "Customer");
+      const filename = `Proposal-ENQ-${quote.enquiryId ?? quote.id}-${customerName}.pdf`;
 
-    emailStatus = sent.ok ? "sent" : "failed";
-    if (!sent.ok) emailError = sent.error;
+      const sent = await sendViaResend({
+        to: params.customerEmail,
+        fromName: `${company.name} via WorkRate`,
+        replyTo: company.email ?? undefined,
+        subject: `Your proposal from ${company.name} is ready`,
+        html,
+        attachments: [{ filename, content: pdf }],
+      });
+
+      emailStatus = sent.ok ? "sent" : "failed";
+      if (!sent.ok) emailError = sent.error;
+    } catch (err: any) {
+      console.error("[comms] proposal PDF/email preparation failed:", err);
+      emailStatus = "failed";
+      emailError = "Could not prepare the proposal PDF";
+    }
   }
 
   // Persist to DB
@@ -379,7 +473,7 @@ export async function sendProposalEmail(
 
 export async function sendInvoiceEmail(
   invoiceId: number,
-  params: {
+  requestParams: {
     customerEmail: string | null;
     customerName: string | null;
     invoiceNumber: string;
@@ -393,6 +487,36 @@ export async function sendInvoiceEmail(
   },
   company: CompanyBranding
 ): Promise<{ emailStatus: CommStatus; emailError?: string }> {
+  const [invoice] = await db
+    .select()
+    .from(quotesTable)
+    .where(eq(quotesTable.id, invoiceId))
+    .limit(1);
+  if (!invoice || invoice.documentType !== "invoice") {
+    return { emailStatus: "failed", emailError: "Invoice record not found" };
+  }
+  const params = {
+    customerEmail: invoice.emailRecipient ?? requestParams.customerEmail,
+    customerName:
+      invoice.customerDetails?.split("\n")[0]?.trim() ??
+      requestParams.customerName,
+    invoiceNumber: invoice.invoiceNumber ?? requestParams.invoiceNumber,
+    invoiceDate: invoice.invoiceDate ?? requestParams.invoiceDate,
+    dueDate: invoice.dueDate ?? requestParams.dueDate,
+    totalWithVat: Number(invoice.totalWithVat ?? 0),
+    depositAmount:
+      invoice.depositAmount == null ? null : Number(invoice.depositAmount),
+    remainingBalance:
+      invoice.remainingBalance == null
+        ? null
+        : Number(invoice.remainingBalance),
+    depositPaidAmount:
+      invoice.depositPaidAmount == null
+        ? null
+        : Number(invoice.depositPaidAmount),
+    projectDescription:
+      invoice.projectDescription ?? requestParams.projectDescription,
+  };
   let emailStatus: CommStatus;
   let emailError: string | undefined;
 
@@ -472,16 +596,47 @@ export async function sendInvoiceEmail(
       body,
     });
 
-    const sent = await sendViaResend({
-      to: params.customerEmail,
-      fromName: `${company.name} via WorkRate`,
-      replyTo: company.email ?? undefined,
-      subject: `Invoice ${params.invoiceNumber} from ${company.name} — ${params.depositAmount && params.depositAmount > 0 ? (params.depositPaidAmount && params.depositPaidAmount > 0 ? `${fmt(params.remainingBalance ?? 0)} balance due` : `${fmt(params.depositAmount)} deposit due`) : fmt(params.totalWithVat)}`,
-      html,
-    });
+    try {
+      const pdf = await renderInvoicePdf({
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: invoice.invoiceDate,
+        dueDate: invoice.dueDate,
+        customerDetails: invoice.customerDetails,
+        projectDescription: invoice.projectDescription,
+        lineItems: invoice.lineItems,
+        materialsAllowance: invoice.materialsAllowance,
+        vatRate: invoice.vatRate,
+        vatAmount: invoice.vatAmount,
+        totalWithVat: invoice.totalWithVat,
+        notes: invoice.notes,
+        status: invoice.status === "draft" ? "sent" : invoice.status,
+        brandingSnapshot: invoice.brandingSnapshot,
+        depositType: invoice.depositType,
+        depositPercent: invoice.depositPercent,
+        depositAmount: invoice.depositAmount,
+        remainingBalance: invoice.remainingBalance,
+        depositPaidAmount: invoice.depositPaidAmount,
+        company,
+      });
+      const customerName = pdfFilenamePart(invoice.customerDetails?.split("\n")[0], "Customer");
+      const filename = `Invoice-${pdfFilenamePart(invoice.invoiceNumber, `INV-${invoiceId}`)}-${customerName}.pdf`;
 
-    emailStatus = sent.ok ? "sent" : "failed";
-    if (!sent.ok) emailError = sent.error;
+      const sent = await sendViaResend({
+        to: params.customerEmail,
+        fromName: `${company.name} via WorkRate`,
+        replyTo: company.email ?? undefined,
+        subject: `Invoice ${params.invoiceNumber} from ${company.name} — ${params.depositAmount && params.depositAmount > 0 ? (params.depositPaidAmount && params.depositPaidAmount > 0 ? `${fmt(params.remainingBalance ?? 0)} balance due` : `${fmt(params.depositAmount)} deposit due`) : fmt(params.totalWithVat)}`,
+        html,
+        attachments: [{ filename, content: pdf }],
+      });
+
+      emailStatus = sent.ok ? "sent" : "failed";
+      if (!sent.ok) emailError = sent.error;
+    } catch (err: any) {
+      console.error("[comms] invoice PDF/email preparation failed:", err);
+      emailStatus = "failed";
+      emailError = "Could not prepare the invoice PDF";
+    }
   }
 
   // Persist email status to DB

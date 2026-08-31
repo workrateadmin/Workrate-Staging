@@ -7,7 +7,9 @@ import test from "node:test";
 import {
   isAllowedInvoiceLogoObjectPath,
   renderInvoicePdf,
+  renderQuotePdf,
   type InvoicePdfInput,
+  type QuotePdfInput,
 } from "../src/services/invoice-pdf";
 
 const company = {
@@ -71,6 +73,22 @@ async function pdfText(input: InvoicePdfInput): Promise<{ buffer: Buffer; text: 
   const textPath = path.join(directory, "invoice.txt");
   try {
     const buffer = await renderInvoicePdf(input);
+    await writeFile(pdfPath, buffer);
+    execFileSync("pdftotext", [pdfPath, textPath]);
+    const info = execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" });
+    const pages = Number(info.match(/^Pages:\s+(\d+)$/m)?.[1] ?? 0);
+    return { buffer, text: await readFile(textPath, "utf8"), pages };
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+async function quotePdfText(input: QuotePdfInput): Promise<{ buffer: Buffer; text: string; pages: number }> {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "workrate-quote-pdf-"));
+  const pdfPath = path.join(directory, "quote.pdf");
+  const textPath = path.join(directory, "quote.txt");
+  try {
+    const buffer = await renderQuotePdf(input);
     await writeFile(pdfPath, buffer);
     execFileSync("pdftotext", [pdfPath, textPath]);
     const info = execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" });
@@ -157,4 +175,57 @@ test("paginates a long itemised invoice and preserves quantities and rates", asy
   assert.match(result.text, /Detailed fitted item 45/);
   assert.match(result.text, /UNIT PRICE/);
   assert.match(result.text, /£25\.00/);
+});
+
+test("renders a customer-safe VAT proposal with deposit schedule and terms", async () => {
+  const result = await quotePdfText({
+    quoteRef: "ENQ-42",
+    quoteDate: "2026-08-31",
+    customerDetails: "Alex Customer\n42 Market Street\nBath BA1 1AA",
+    projectDescription: "Kitchen fitting and associated works",
+    estimatedTotal: 1000,
+    vatRate: 20,
+    vatAmount: 200,
+    totalWithVat: 1200,
+    depositType: "percentage",
+    depositPercent: 50,
+    depositAmount: 600,
+    remainingBalance: 600,
+    notes: "Access is required during working hours.",
+    assumptions: "Existing wiring is serviceable.",
+    proposalStatus: "sent",
+    company: { ...company, quoteFooter: "We look forward to working with you." },
+  });
+  assert.equal(result.buffer.subarray(0, 5).toString(), "%PDF-");
+  assert.match(result.text, /QUOTATION/);
+  assert.match(result.text, /ENQ-42/);
+  assert.match(result.text, /Alex Customer/);
+  assert.match(result.text, /VAT \(20%\)/);
+  assert.match(result.text, /Deposit due now \(50%\)/);
+  assert.match(result.text, /ASSUMPTIONS & EXCLUSIONS/);
+  assert.match(result.text, /Existing wiring is serviceable/);
+  assert.match(result.text, /We look forward to working with you/);
+});
+
+test("paginates a long quote without dropping the final scope text", async () => {
+  const projectDescription = Array.from(
+    { length: 110 },
+    (_, index) => `Scope item ${index + 1}: detailed customer-facing works description.`,
+  ).join("\n");
+  const result = await quotePdfText({
+    quoteRef: "ENQ-99",
+    quoteDate: "2026-08-31",
+    customerDetails: "Long Quote Customer",
+    projectDescription,
+    estimatedTotal: 2500,
+    vatRate: 20,
+    vatAmount: 500,
+    totalWithVat: 3000,
+    proposalStatus: "sent",
+    company,
+  });
+  assert.ok(result.pages >= 2, `expected at least two pages, got ${result.pages}`);
+  assert.match(result.text, /Scope item 1:/);
+  assert.match(result.text, /Scope item 110:/);
+  assert.match(result.text, /£3000\.00/);
 });
