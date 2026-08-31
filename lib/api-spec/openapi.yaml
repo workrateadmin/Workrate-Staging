@@ -1243,6 +1243,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /invoices/{id}/pdf:
+    get:
+      operationId: downloadInvoicePdf
+      tags: [invoices]
+      summary: Download an invoice as a PDF
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Branded invoice PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /invoices/{id}/send:
     post:
       operationId: sendInvoice

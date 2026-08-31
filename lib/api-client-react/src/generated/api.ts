@@ -3963,6 +3963,83 @@ export const useUpdateInvoice = <TError = ErrorType<ApiError>,
       return useMutation(getUpdateInvoiceMutationOptions(options));
     }
 
+export const getDownloadInvoicePdfUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/pdf`
+}
+
+/**
+ * @summary Download an invoice as a PDF
+ */
+export const downloadInvoicePdf = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadInvoicePdfUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadInvoicePdfQueryKey = (id: number,) => {
+    return [
+    `/api/invoices/${id}/pdf`
+    ] as const;
+    }
+
+
+export const getDownloadInvoicePdfQueryOptions = <TData = Awaited<ReturnType<typeof downloadInvoicePdf>>, TError = ErrorType<ApiError>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadInvoicePdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadInvoicePdfQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadInvoicePdf>>> = ({ signal }) => downloadInvoicePdf(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadInvoicePdf>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadInvoicePdfQueryResult = NonNullable<Awaited<ReturnType<typeof downloadInvoicePdf>>>
+export type DownloadInvoicePdfQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Download an invoice as a PDF
+ */
+
+export function useDownloadInvoicePdf<TData = Awaited<ReturnType<typeof downloadInvoicePdf>>, TError = ErrorType<ApiError>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadInvoicePdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadInvoicePdfQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getSendInvoiceUrl = (id: number,) => {
 
 

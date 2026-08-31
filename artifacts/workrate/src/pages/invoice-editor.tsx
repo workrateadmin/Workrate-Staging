@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetInvoice, useUpdateInvoice, useSendInvoice, useMarkInvoicePaid, useMarkInvoiceDepositPaid,
-  useGetCompany, getGetInvoiceQueryKey,
+  useGetCompany, getGetInvoiceQueryKey, downloadInvoicePdf,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils";
 import {
-  ArrowLeft, Save, Send, CheckCircle2, Plus, Trash2, PoundSterling,
+  ArrowLeft, Save, Send, CheckCircle2, Plus, Trash2, PoundSterling, Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InvoiceDocument, InvoiceLine } from "@/components/invoice-document";
@@ -56,6 +56,16 @@ type DepositChoice = "none" | "fifty" | "custom";
 
 function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function downloadFilenamePart(value: string, fallback: string): string {
+  const normalized = value
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/[\s-]+/g, "-")
+    .slice(0, 80);
+  return normalized || fallback;
 }
 
 // ── Section card ──────────────────────────────────────────────────────────────
@@ -120,6 +130,7 @@ export default function InvoiceEditor() {
   const [paidDialogOpen,  setPaidDialogOpen]  = useState(false);
   const [depositDialogOpen, setDepositDialogOpen] = useState(false);
   const [paidAmount,      setPaidAmount]      = useState("");
+  const [downloadingPdf,  setDownloadingPdf]  = useState(false);
 
   // Initialise form from fetched invoice (once)
   const initialized = useCallback(
@@ -269,6 +280,37 @@ export default function InvoiceEditor() {
     });
   }
 
+  async function onDownloadPdf() {
+    setDownloadingPdf(true);
+    try {
+      if (dirty) {
+        if (!depositIsValid) {
+          toast({ title: "Enter a deposit percentage between 1% and 100%", variant: "destructive" });
+          return;
+        }
+        await updateInvoice.mutateAsync({ id, data: buildBody() as any });
+      }
+
+      const blob = await downloadInvoicePdf(id, { responseType: "blob" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const customerName = downloadFilenamePart(customerDetails.split("\n")[0] ?? "", "Customer");
+      const number = downloadFilenamePart(invoiceNumber || `INV-${id}`, `INV-${id}`);
+      link.href = url;
+      link.download = `Invoice-${number}-${customerName}.pdf`;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+      toast({ title: "Invoice PDF downloaded" });
+    } catch {
+      toast({ title: "Could not download invoice PDF", variant: "destructive" });
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
   function onMarkPaid() {
     const amount = Number(paidAmount);
     if (!amount || amount <= 0) {
@@ -361,20 +403,33 @@ export default function InvoiceEditor() {
         <span className="text-sm font-bold">{invoiceNumber || `Invoice #${id}`}</span>
         <StatusChip status={invoice.status} />
 
-        {/* Mobile tab toggle */}
-        <div className="ml-auto xl:hidden flex gap-1 bg-secondary rounded-lg p-1">
-          {(["edit", "preview"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setMobileTab(t)}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-xs font-bold capitalize transition-all",
-                mobileTab === t ? "bg-background shadow-sm" : "text-muted-foreground",
-              )}
-            >
-              {t}
-            </button>
-          ))}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="font-bold rounded-xl"
+            onClick={onDownloadPdf}
+            disabled={downloadingPdf || updateInvoice.isPending}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            {downloadingPdf ? "Preparing PDF…" : "Download PDF"}
+          </Button>
+
+          {/* Mobile tab toggle */}
+          <div className="xl:hidden flex gap-1 bg-secondary rounded-lg p-1">
+            {(["edit", "preview"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setMobileTab(t)}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-bold capitalize transition-all",
+                  mobileTab === t ? "bg-background shadow-sm" : "text-muted-foreground",
+                )}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -1802,6 +1802,16 @@ export const UpdateInvoiceResponse = zod.object({
 
 
 /**
+ * @summary Download an invoice as a PDF
+ */
+export const DownloadInvoicePdfParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DownloadInvoicePdfResponse = zod.unknown()
+
+
+/**
  * @summary Send invoice email to customer and mark as sent
  */
 export const SendInvoiceParams = zod.object({

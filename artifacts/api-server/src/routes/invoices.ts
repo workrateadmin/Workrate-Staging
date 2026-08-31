@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, quotesTable, companiesTable } from "@workspace/db";
 import { sendInvoiceEmail } from "../services/customer-comms";
+import { renderInvoicePdf } from "../services/invoice-pdf";
 import { eq, and, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -31,6 +32,16 @@ function parseInvoice(q: any) {
     remainingBalance: q.remainingBalance != null ? Number(q.remainingBalance) : null,
     depositPaidAmount: q.depositPaidAmount != null ? Number(q.depositPaidAmount) : null,
   };
+}
+
+function pdfFilenamePart(value: unknown, fallback: string): string {
+  const normalized = String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/[\s-]+/g, "-")
+    .slice(0, 80);
+  return normalized || fallback;
 }
 
 function roundMoney(value: number): number {
@@ -187,6 +198,51 @@ router.post("/invoices", requireAuth, async (req, res): Promise<void> => {
     .returning();
 
   res.status(201).json(parseInvoice(final));
+});
+
+// ── Download invoice PDF ───────────────────────────────────────────────────────
+
+router.get("/invoices/:id/pdf", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid invoice id" }); return; }
+
+  const [invoice] = await db
+    .select()
+    .from(quotesTable)
+    .where(
+      and(
+        eq(quotesTable.id, id),
+        eq(quotesTable.documentType, "invoice"),
+        eq(quotesTable.ownerUserId, userId!),
+      ),
+    );
+  if (!invoice) { res.status(404).json({ error: "Invoice not found" }); return; }
+
+  const [company] = await db
+    .select()
+    .from(companiesTable)
+    .where(eq(companiesTable.ownerUserId, userId!))
+    .limit(1);
+
+  try {
+    const pdf = await renderInvoicePdf({
+      ...parseInvoice(invoice),
+      company: company ?? null,
+    });
+    const invoiceNumber = pdfFilenamePart(invoice.invoiceNumber, `INV-${id}`);
+    const customerName = pdfFilenamePart(invoice.customerDetails?.split("\n")[0], "Customer");
+    const filename = `Invoice-${invoiceNumber}-${customerName}.pdf`;
+
+    res.status(200);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdf.length);
+    res.end(pdf);
+  } catch (error) {
+    req.log.error({ err: error, invoiceId: id }, "Failed to generate invoice PDF");
+    res.status(500).json({ error: "Failed to generate invoice PDF" });
+  }
 });
 
 // ── Get invoice ────────────────────────────────────────────────────────────────
