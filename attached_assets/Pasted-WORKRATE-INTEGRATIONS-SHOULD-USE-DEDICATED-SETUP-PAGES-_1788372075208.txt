@@ -1,0 +1,242 @@
+WORKRATE — INTEGRATIONS SHOULD USE DEDICATED SETUP PAGES
+
+IMPORTANT:
+There is already an Integrations overview page.
+
+KEEP that page as the integrations dashboard.
+
+DO NOT put all configuration forms directly inside the overview page.
+
+GOAL:
+Each integration card should open its own dedicated setup/manage page.
+
+==================================================
+1. INTEGRATIONS OVERVIEW
+==================================================
+
+Keep the existing Integrations page.
+
+Each card should show only:
+
+- integration icon/name
+- short description
+- status
+- Set up / Manage button
+- optional small status message
+
+Examples:
+
+Website Widget
+Not connected
+[Set up]
+
+AI Receptionist
+Connected
+[Manage]
+
+Instagram
+Coming soon / Setup required
+[Set up]
+
+==================================================
+2. DEDICATED ROUTES
+==================================================
+
+Create dedicated integration pages using the existing app routing pattern.
+
+Suggested structure:
+
+/settings/integrations/website-widget
+/settings/integrations/phone
+/settings/integrations/whatsapp
+/settings/integrations/instagram
+/settings/integrations/facebook
+/settings/integrations/hmrc
+/settings/integrations/email
+/settings/integrations/xero
+
+Use existing route conventions if WorkRate already follows another pattern.
+
+==================================================
+3. STANDARD PAGE STRUCTURE
+==================================================
+
+Each integration page should use a consistent layout:
+
+A. Header
+- back to Integrations
+- integration name
+- plain-English description
+- current status
+
+B. Setup
+- simple guided setup steps
+- minimal technical input
+
+C. Test
+- Test connection
+- Send test / test call / detect widget where appropriate
+
+D. Advanced setup
+- technical IDs
+- webhook information
+- secrets/token rotation
+- troubleshooting details
+
+E. Connection management
+- reconnect
+- disconnect
+- delete configuration where appropriate
+
+==================================================
+4. WEBSITE WIDGET PAGE
+==================================================
+
+This is the priority integration page.
+
+Include:
+
+- website platform selector:
+  Wix
+  WordPress
+  Squarespace
+  Shopify
+  GoDaddy
+  Other / Custom
+
+- business-specific widget install code
+- Copy Code
+- platform-specific instructions
+- Send instructions to web designer
+- Test installation
+- real Connected state after WorkRate detects the widget
+
+Do not require users to manually modify IDs or API keys.
+
+==================================================
+5. AI RECEPTIONIST PAGE
+==================================================
+
+Reuse existing Vapi setup.
+
+Show:
+
+- connected phone number
+- status
+- setup/manage controls
+- test call / test connection where practical
+
+Move technical fields such as Assistant ID, Phone Number ID and webhook secret under:
+
+Advanced setup
+
+Do not expose saved secrets.
+
+==================================================
+6. HMRC PAGE
+==================================================
+
+Reuse existing HMRC OAuth.
+
+Show:
+
+- status
+- environment
+- Connect HMRC
+- Disconnect
+- connection information
+
+Make clear:
+
+Connected to HMRC
+
+does NOT automatically mean:
+
+MTD filing enabled
+
+==================================================
+7. META PAGES
+==================================================
+
+Create separate pages for:
+
+- WhatsApp
+- Instagram
+- Facebook Messenger
+
+Each should have its own setup/status area.
+
+Support states such as:
+
+Not connected
+Setup in progress
+Verification pending
+Connected
+Needs attention
+Rejected
+
+Do not fake provider connectivity.
+
+==================================================
+8. EMAIL + XERO
+==================================================
+
+Give these their own pages as well.
+
+If integration is not built yet, the page can explain what will be available and show:
+
+Coming soon
+
+Do not build unrelated backend functionality in this task.
+
+==================================================
+9. MOBILE
+==================================================
+
+All integration setup pages must work properly on mobile.
+
+Use the existing WorkRate design system.
+
+==================================================
+10. REUSE EXISTING LOGIC
+==================================================
+
+Before implementing:
+
+Inspect all existing integration routes, forms, API endpoints and components.
+
+Move/reuse existing configuration UI where possible.
+
+Do not duplicate:
+
+- Vapi configuration logic
+- HMRC OAuth
+- widget logic
+- existing secrets storage
+- provider connection code
+
+==================================================
+11. TEST
+==================================================
+
+Test:
+
+- overview → setup page navigation
+- back navigation
+- fresh account
+- existing configured account
+- mobile
+- tenant isolation
+- statuses remain correct after refresh
+- no secrets exposed
+
+Do not publish automatically.
+
+At completion report:
+
+A. routes created
+B. existing UI moved/reused
+C. integrations with working setup pages
+D. integrations still placeholders
+E. tests passed
+F. whether one publish is required

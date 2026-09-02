@@ -28,6 +28,18 @@ import InvoiceEditor from "./pages/invoice-editor";
 import FinancePage from "./pages/finance";
 import { DevBanner } from "@/components/dev-banner";
 
+// Integration detail pages
+import WebsiteWidgetPage from "./pages/integrations/website-widget";
+import PhonePage from "./pages/integrations/phone";
+import WhatsAppPage from "./pages/integrations/whatsapp";
+import InstagramPage from "./pages/integrations/instagram";
+import FacebookPage from "./pages/integrations/facebook";
+import HmrcPage from "./pages/integrations/hmrc";
+import EmailIntegrationPage from "./pages/integrations/email-integration";
+import XeroPage from "./pages/integrations/xero";
+import QuickBooksPage from "./pages/integrations/quickbooks";
+import StripePage from "./pages/integrations/stripe";
+
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
   import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
@@ -274,6 +286,18 @@ function ClerkProviderWithRoutes() {
           <Route path="/invoices"><ProtectedRoute component={InvoicesPage} /></Route>
           <Route path="/invoices/:id"><ProtectedRoute component={InvoiceEditor} /></Route>
           <Route path="/finance"><ProtectedRoute component={FinancePage} /></Route>
+
+          {/* Integration detail pages */}
+          <Route path="/settings/integrations/website-widget"><ProtectedRoute component={WebsiteWidgetPage} /></Route>
+          <Route path="/settings/integrations/phone"><ProtectedRoute component={PhonePage} /></Route>
+          <Route path="/settings/integrations/whatsapp"><ProtectedRoute component={WhatsAppPage} /></Route>
+          <Route path="/settings/integrations/instagram"><ProtectedRoute component={InstagramPage} /></Route>
+          <Route path="/settings/integrations/facebook"><ProtectedRoute component={FacebookPage} /></Route>
+          <Route path="/settings/integrations/hmrc"><ProtectedRoute component={HmrcPage} /></Route>
+          <Route path="/settings/integrations/email"><ProtectedRoute component={EmailIntegrationPage} /></Route>
+          <Route path="/settings/integrations/xero"><ProtectedRoute component={XeroPage} /></Route>
+          <Route path="/settings/integrations/quickbooks"><ProtectedRoute component={QuickBooksPage} /></Route>
+          <Route path="/settings/integrations/stripe"><ProtectedRoute component={StripePage} /></Route>
 
           <Route><NotFound /></Route>
         </Switch>

@@ -993,7 +993,12 @@ export default function AiReceptionist() {
       {/* ── Setup tab ── */}
       {activeTab === "setup" && (
         <div className="space-y-6">
-          <Card className="shadow-sm border-border/60 rounded-2xl">
+          <details className="group">
+            <summary className="cursor-pointer list-none flex items-center justify-between rounded-2xl border border-border/60 bg-card px-6 py-4 font-black">
+              <span className="flex items-center gap-2"><PhoneCall className="w-5 h-5 text-primary" /> Advanced setup — Vapi connection</span>
+              <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+          <Card className="mt-3 shadow-sm border-border/60 rounded-2xl">
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-black flex items-center gap-2">
                 <PhoneCall className="w-5 h-5 text-primary" />
@@ -1032,6 +1037,7 @@ export default function AiReceptionist() {
               </Button>
             </CardContent>
           </Card>
+          </details>
 
           <Card className="shadow-sm border-border/60 rounded-2xl">
             <CardHeader className="pb-4">

@@ -28,6 +28,13 @@ All integrations are "coming soon" — `POST /integrations/:provider/connect` re
 ### Frontend provider metadata
 `artifacts/workrate/src/pages/integrations.tsx` holds a `PROVIDER_META` record keyed by provider ID with brand colors, SVG icon markup, and `comingSoon: boolean`. When `comingSoon` is false and the integration is actually built, set it to false to enable the Connect button.
 
+### Dedicated setup pages
+Keep the integrations overview as a status dashboard. Configuration belongs on provider-specific routes under `/settings/integrations/*`, with legacy feature routes retained for backwards compatibility.
+
+**Why:** Mixing credentials, instructions, testing, and connection management into overview cards makes the catalog hard to scan and especially awkward on mobile.
+
+**How to apply:** New provider cards should navigate to a dedicated page. Reuse existing provider operations, report unsupported providers as Coming soon, and derive Connected from real provider or usage data rather than a local UI flag.
+
 ### Codegen quirks (cumulative)
 After every `orval` run on `lib/api-spec`:
 1. Comment out `export * from './uploadEnquiryAttachmentBody'` in `lib/api-zod/src/generated/types/index.ts`
