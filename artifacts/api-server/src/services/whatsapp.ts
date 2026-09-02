@@ -11,6 +11,7 @@
 import crypto from "node:crypto";
 import { db, integrationsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { decryptIntegrationSecret, encryptIntegrationSecret } from "../lib/integration-secret";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,44 @@ import { eq, and } from "drizzle-orm";
 export interface WAConfig {
   phoneNumberId: string;
   accessToken: string;
+}
+
+type StoredWAConfig = {
+  phoneNumberId?: string;
+  accessToken?: string;
+  encryptedAccessToken?: string;
+};
+
+export function parseWhatsAppConfig(value: string | null): {
+  config: WAConfig | null;
+  migratedConfig: string | null;
+} {
+  if (!value) return { config: null, migratedConfig: null };
+  try {
+    const stored = JSON.parse(value) as StoredWAConfig;
+    if (typeof stored.phoneNumberId !== "string") return { config: null, migratedConfig: null };
+    if (typeof stored.encryptedAccessToken === "string") {
+      return {
+        config: {
+          phoneNumberId: stored.phoneNumberId,
+          accessToken: decryptIntegrationSecret(stored.encryptedAccessToken),
+        },
+        migratedConfig: null,
+      };
+    }
+    if (typeof stored.accessToken === "string") {
+      return {
+        config: { phoneNumberId: stored.phoneNumberId, accessToken: stored.accessToken },
+        migratedConfig: JSON.stringify({
+          phoneNumberId: stored.phoneNumberId,
+          encryptedAccessToken: encryptIntegrationSecret(stored.accessToken),
+        }),
+      };
+    }
+  } catch {
+    // Invalid or undecryptable credentials are ignored.
+  }
+  return { config: null, migratedConfig: null };
 }
 
 /** Non-sensitive settings — stored in integrations.metadata */
@@ -89,8 +128,17 @@ export async function findBusinessByPhoneNumberId(
   for (const row of rows) {
     if (!row.config || !row.ownerUserId) continue;
     try {
-      const cfg = JSON.parse(row.config) as WAConfig;
+      const { config: cfg, migratedConfig } = parseWhatsAppConfig(row.config);
+      if (!cfg) continue;
       if (cfg.phoneNumberId === phoneNumberId) {
+        if (migratedConfig) {
+          await db.update(integrationsTable)
+            .set({ config: migratedConfig })
+            .where(and(
+              eq(integrationsTable.id, row.id),
+              eq(integrationsTable.ownerUserId, row.ownerUserId),
+            ));
+        }
         const meta: WASettings = row.metadata ? JSON.parse(row.metadata) : {};
         return {
           ownerUserId: row.ownerUserId,

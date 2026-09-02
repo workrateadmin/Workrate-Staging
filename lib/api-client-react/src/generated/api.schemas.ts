@@ -303,6 +303,19 @@ export interface IntegrationStatus {
   connectedAt: string | null;
 }
 
+export interface WidgetHeartbeatInput {
+  businessId: string;
+  siteOrigin: string;
+}
+
+export interface WidgetInstallationStatus {
+  recentlySeen: boolean;
+  /** @nullable */
+  siteOrigin: string | null;
+  /** @nullable */
+  lastSeenAt: string | null;
+}
+
 export interface Company {
   id: number;
   name: string;
@@ -1039,6 +1052,10 @@ export type UploadEnquiryAttachmentBody = {
 
 export type RecordProposalView200 = {
   ok: boolean;
+};
+
+export type RecordWidgetHeartbeat202 = {
+  received: boolean;
 };
 
 export type ConnectIntegrationBody = { [key: string]: unknown };

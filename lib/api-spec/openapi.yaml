@@ -777,6 +777,51 @@ paths:
                 items:
                   $ref: "#/components/schemas/IntegrationStatus"
 
+  /integrations/widget/heartbeat:
+    post:
+      operationId: recordWidgetHeartbeat
+      tags: [integrations]
+      summary: Record that a tenant widget successfully loaded without creating an enquiry
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/WidgetHeartbeatInput"
+      responses:
+        "202":
+          description: Heartbeat accepted without confirming whether the tenant token exists
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [received]
+                properties:
+                  received:
+                    type: boolean
+        "400":
+          description: Invalid heartbeat
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /integrations/widget/status:
+    get:
+      operationId: getWidgetInstallationStatus
+      tags: [integrations]
+      summary: Get the authenticated tenant's recent widget-load status
+      security:
+        - ClerkAuth: []
+      responses:
+        "200":
+          description: Recent tenant-scoped widget installation status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WidgetInstallationStatus"
+
   /integrations/vapi/settings:
     get:
       operationId: getVapiSettings
@@ -2334,6 +2379,28 @@ components:
         - status
         - metadata
         - connectedAt
+
+    WidgetHeartbeatInput:
+      type: object
+      additionalProperties: false
+      properties:
+        businessId:
+          type: string
+        siteOrigin:
+          type: string
+      required: [businessId, siteOrigin]
+
+    WidgetInstallationStatus:
+      type: object
+      properties:
+        recentlySeen:
+          type: boolean
+        siteOrigin:
+          type: ["string", "null"]
+        lastSeenAt:
+          type: ["string", "null"]
+          format: date-time
+      required: [recentlySeen, siteOrigin, lastSeenAt]
 
     Company:
       type: object

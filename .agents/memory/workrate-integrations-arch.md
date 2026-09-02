@@ -35,6 +35,13 @@ Keep the integrations overview as a status dashboard. Configuration belongs on p
 
 **How to apply:** New provider cards should navigate to a dedicated page. Reuse existing provider operations, report unsupported providers as Coming soon, and derive Connected from real provider or usage data rather than a local UI flag.
 
+### Website widget connection state
+Widget installation is confirmed by a recent loader heartbeat keyed by the stable widget token, not by enquiry existence.
+
+**Why:** A fresh installation must be testable before any customer submits an enquiry, and testing must not create ghost enquiry data.
+
+**How to apply:** Keep heartbeat persistence separate from chat/enquiry creation; authenticated status reads remain owner-scoped and only report recent valid loads.
+
 ### Codegen quirks (cumulative)
 After every `orval` run on `lib/api-spec`:
 1. Comment out `export * from './uploadEnquiryAttachmentBody'` in `lib/api-zod/src/generated/types/index.ts`

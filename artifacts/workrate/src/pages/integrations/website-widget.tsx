@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useGetCompany, useListEnquiries, getListEnquiriesQueryKey } from "@workspace/api-client-react";
+import { useCallback, useEffect, useState } from "react";
+import { useGetCompany } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -70,14 +70,16 @@ const PLATFORM_INSTRUCTIONS: Record<string, { label: string; steps: string[] }> 
 
 export default function WebsiteWidgetPage() {
   const { data: company } = useGetCompany();
-  const { data: enquiries = [] } = useListEnquiries(
-    undefined,
-    { query: { queryKey: getListEnquiriesQueryKey() } },
-  );
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [platform, setPlatform] = useState("wordpress");
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [heartbeat, setHeartbeat] = useState<{
+    recentlySeen: boolean;
+    siteOrigin: string | null;
+    lastSeenAt: string | null;
+  } | null>(null);
+  const [checking, setChecking] = useState(false);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const basePath = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
@@ -91,9 +93,36 @@ export default function WebsiteWidgetPage() {
   const scriptSnippet =
     `<!-- WorkRate Chat Widget -->\n<script\n  src="${widgetJsUrl}"\n  data-business-id="${businessId}"\n  defer>\n</script>`;
 
-  // Detect actual widget-origin enquiries to determine live status
-  const widgetEnquiries = (enquiries as any[]).filter((e) => e.source === "widget" || e.channel === "widget");
-  const isLive = widgetEnquiries.length > 0;
+  const checkInstallation = useCallback(async (showResult = false) => {
+    setChecking(true);
+    try {
+      const response = await fetch(`${basePath}/api/integrations/widget/status`, { credentials: "include" });
+      if (!response.ok) throw new Error("Status check failed");
+      const next = await response.json();
+      setHeartbeat(next);
+      if (showResult) {
+        toast({
+          title: next.recentlySeen ? "Widget installation verified" : "Widget not seen recently",
+          description: next.recentlySeen
+            ? `WorkRate recently received a valid load from ${next.siteOrigin}.`
+            : "Open your website with the widget installed, then test again.",
+          variant: next.recentlySeen ? "default" : "destructive",
+        });
+      }
+    } catch {
+      if (showResult) toast({ title: "Could not test the installation", variant: "destructive" });
+    } finally {
+      setChecking(false);
+    }
+  }, [basePath, toast]);
+
+  useEffect(() => {
+    void checkInstallation();
+    const timer = window.setInterval(() => void checkInstallation(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [checkInstallation]);
+
+  const isLive = heartbeat?.recentlySeen ?? false;
   const status: ConnectionStatus = isLive ? "connected" : "not_connected";
 
   function copySnippet() {
@@ -124,11 +153,11 @@ export default function WebsiteWidgetPage() {
 
       <StatusHeader
         status={status}
-        label={isLive ? "Connected — widget enquiries detected" : "Setup required — no widget enquiries yet"}
+        label={isLive ? "Connected — recent widget load verified" : "Setup required — no recent widget load"}
         message={
           isLive
-            ? `${widgetEnquiries.length} enquir${widgetEnquiries.length === 1 ? "y" : "ies"} received via the website widget.`
-            : "Install the snippet below and submit a test enquiry to confirm it is working."
+            ? `Last seen on ${heartbeat?.siteOrigin ?? "your website"}${heartbeat?.lastSeenAt ? ` at ${new Date(heartbeat.lastSeenAt).toLocaleString("en-GB")}` : ""}.`
+            : "Install the snippet, open your website, then use Test installation. No enquiry is created."
         }
       />
 
@@ -198,10 +227,18 @@ export default function WebsiteWidgetPage() {
                 {copied ? "Copied!" : "Copy snippet"}
               </Button>
             )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="font-bold rounded-xl"
+              onClick={() => void checkInstallation(true)}
+              disabled={checking}
+            >
+              <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+              {checking ? "Checking…" : "Test installation"}
+            </Button>
             <Button size="sm" variant="outline" className="font-bold rounded-xl" asChild>
-              <a href={widgetPreviewUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Test widget
-              </a>
+              <a href={widgetPreviewUrl} target="_blank" rel="noopener noreferrer">Preview widget</a>
             </Button>
             <Button size="sm" variant="outline" className="font-bold rounded-xl" asChild>
               <a href={designerMailto}>
@@ -241,12 +278,12 @@ export default function WebsiteWidgetPage() {
       <PageSection title="How to confirm the widget is working">
         <div className="space-y-3 text-sm text-muted-foreground font-medium">
           <p>
-            After installing the snippet, visit your website and submit a test enquiry using the chat widget. The widget
-            status above will update to <strong className="text-foreground">Connected</strong> once a real enquiry is
-            received from your website.
+            After installing the snippet, visit your website so the loader can send a lightweight heartbeat. Then return
+            here and choose <strong className="text-foreground">Test installation</strong>.
           </p>
           <p className="text-xs">
-            The status is based on real enquiry data — it is not set by simply copying the snippet.
+            The heartbeat only confirms that the widget loaded for this business and site. It does not create an enquiry
+            or start a customer conversation.
           </p>
         </div>
       </PageSection>

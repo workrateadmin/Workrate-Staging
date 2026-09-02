@@ -1113,6 +1113,29 @@ export const ListIntegrationsResponse = zod.array(ListIntegrationsResponseItem)
 
 
 /**
+ * @summary Record that a tenant widget successfully loaded without creating an enquiry
+ */
+export const RecordWidgetHeartbeatBody = zod.object({
+  "businessId": zod.string(),
+  "siteOrigin": zod.string()
+})
+
+export const RecordWidgetHeartbeatResponse = zod.object({
+  "received": zod.boolean()
+})
+
+
+/**
+ * @summary Get the authenticated tenant's recent widget-load status
+ */
+export const GetWidgetInstallationStatusResponse = zod.object({
+  "recentlySeen": zod.boolean(),
+  "siteOrigin": zod.string().nullable(),
+  "lastSeenAt": zod.coerce.date().nullable()
+})
+
+
+/**
  * @summary Get the current user's safe Vapi phone mapping
  */
 export const GetVapiSettingsResponse = zod.object({

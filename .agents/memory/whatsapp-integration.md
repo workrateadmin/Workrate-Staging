@@ -10,7 +10,13 @@ description: Full architecture and key decisions for the Meta WhatsApp Cloud API
 - **Webhook URL**: `https://work-rate-manager.replit.app/api/webhooks/whatsapp`
 - **Signature verification**: HMAC-SHA256 via `WHATSAPP_APP_SECRET` env var (global, per Meta App)
 - **Verify token**: `WHATSAPP_WEBHOOK_VERIFY_TOKEN` env var (chosen by operator, registered in Meta dashboard)
-- **Credentials storage**: per-business in `integrations` table — `config` JSON `{ phoneNumberId, accessToken }`, `metadata` JSON `{ displayNumber, greeting, outOfHoursMessage, aiEnabled, humanHandoffEnabled }`
+- **Credentials storage**: per-business in `integrations` table — `config` stores `phoneNumberId` plus an AES-GCM encrypted access token; `metadata` contains only display-safe settings.
+
+Legacy plaintext access-token rows are decrypted in memory and lazily rewritten into the encrypted format on the next matching webhook lookup.
+
+**Why:** Existing connections must continue working during a safe backfill, while all new and subsequently used credentials remain encrypted at rest and never return to the browser.
+
+**How to apply:** Use the shared integration-secret helper for provider secrets. Keep plaintext only in short-lived server memory for outbound provider requests; never log or expose it through metadata or API responses.
 
 ## Schema changes (applied via direct SQL, not drizzle-kit push)
 

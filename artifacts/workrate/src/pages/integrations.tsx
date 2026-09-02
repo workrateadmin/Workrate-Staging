@@ -2,11 +2,9 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import {
   useListIntegrations,
-  useListEnquiries,
   useGetAiReceptionistSettings,
   useGetVapiSettings,
   getListIntegrationsQueryKey,
-  getListEnquiriesQueryKey,
   type IntegrationStatus,
 } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
@@ -120,27 +118,28 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function IntegrationsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [hmrcConnected, setHmrcConnected] = useState(false);
+  const [widgetConnected, setWidgetConnected] = useState(false);
   const { data: rawIntegrations = [], isLoading } = useListIntegrations({
     query: { queryKey: getListIntegrationsQueryKey() },
   });
   const apiIntegrations = rawIntegrations as IntegrationStatus[];
-  const { data: enquiries = [] } = useListEnquiries(undefined, {
-    query: { queryKey: getListEnquiriesQueryKey() },
-  });
   const { data: receptionist } = useGetAiReceptionistSettings();
   const { data: vapi } = useGetVapiSettings();
 
   useEffect(() => {
     const basePath = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-    fetch(`${basePath}/api/finance/hmrc/status`, { credentials: "include" })
-      .then((response) => response.ok ? response.json() : null)
-      .then((status) => setHmrcConnected(status?.status === "connected"))
-      .catch(() => setHmrcConnected(false));
+    void Promise.all([
+      fetch(`${basePath}/api/finance/hmrc/status`, { credentials: "include" })
+        .then((response) => response.ok ? response.json() : null)
+        .then((status) => setHmrcConnected(status?.status === "connected"))
+        .catch(() => setHmrcConnected(false)),
+      fetch(`${basePath}/api/integrations/widget/status`, { credentials: "include" })
+        .then((response) => response.ok ? response.json() : null)
+        .then((status) => setWidgetConnected(status?.recentlySeen === true))
+        .catch(() => setWidgetConnected(false)),
+    ]);
   }, []);
 
-  const widgetConnected = (enquiries as Array<{ source?: string; channel?: string }>).some(
-    (enquiry) => enquiry.source === "widget" || enquiry.channel === "widget",
-  );
   const staticIntegrations: IntegrationStatus[] = [
     {
       provider: "website_widget",

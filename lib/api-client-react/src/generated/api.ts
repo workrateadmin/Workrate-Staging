@@ -81,11 +81,14 @@ import type {
   Quote,
   QuoteUpdate,
   RecordProposalView200,
+  RecordWidgetHeartbeat202,
   UploadEnquiryAttachmentBody,
   UploadFinanceReceipt201,
   UploadFinanceReceiptBody,
   VapiConnectionInput,
-  VapiSettings
+  VapiSettings,
+  WidgetHeartbeatInput,
+  WidgetInstallationStatus
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -2401,6 +2404,157 @@ export function useListIntegrations<TData = Awaited<ReturnType<typeof listIntegr
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListIntegrationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordWidgetHeartbeatUrl = () => {
+
+
+
+
+  return `/api/integrations/widget/heartbeat`
+}
+
+/**
+ * @summary Record that a tenant widget successfully loaded without creating an enquiry
+ */
+export const recordWidgetHeartbeat = async (widgetHeartbeatInput: WidgetHeartbeatInput, options?: Parameters<typeof customFetch>[1]): Promise<RecordWidgetHeartbeat202> => {
+    const formUrlEncoded = new URLSearchParams();
+formUrlEncoded.append(`businessId`, widgetHeartbeatInput.businessId);
+formUrlEncoded.append(`siteOrigin`, widgetHeartbeatInput.siteOrigin);
+
+  return customFetch<RecordWidgetHeartbeat202>(getRecordWidgetHeartbeatUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...options?.headers },
+    body: formUrlEncoded
+  }
+);}
+
+
+
+
+
+export const getRecordWidgetHeartbeatMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordWidgetHeartbeat>>, TError,{data: BodyType<WidgetHeartbeatInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordWidgetHeartbeat>>, TError,{data: BodyType<WidgetHeartbeatInput>}, TContext> => {
+
+const mutationKey = ['recordWidgetHeartbeat'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordWidgetHeartbeat>>, {data: BodyType<WidgetHeartbeatInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  recordWidgetHeartbeat(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordWidgetHeartbeatMutationResult = NonNullable<Awaited<ReturnType<typeof recordWidgetHeartbeat>>>
+    export type RecordWidgetHeartbeatMutationBody = BodyType<WidgetHeartbeatInput>
+    export type RecordWidgetHeartbeatMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record that a tenant widget successfully loaded without creating an enquiry
+ */
+export const useRecordWidgetHeartbeat = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordWidgetHeartbeat>>, TError,{data: BodyType<WidgetHeartbeatInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordWidgetHeartbeat>>,
+        TError,
+        {data: BodyType<WidgetHeartbeatInput>},
+        TContext
+      > => {
+      return useMutation(getRecordWidgetHeartbeatMutationOptions(options));
+    }
+
+export const getGetWidgetInstallationStatusUrl = () => {
+
+
+
+
+  return `/api/integrations/widget/status`
+}
+
+/**
+ * @summary Get the authenticated tenant's recent widget-load status
+ */
+export const getWidgetInstallationStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<WidgetInstallationStatus> => {
+
+  return customFetch<WidgetInstallationStatus>(getGetWidgetInstallationStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWidgetInstallationStatusQueryKey = () => {
+    return [
+    `/api/integrations/widget/status`
+    ] as const;
+    }
+
+
+export const getGetWidgetInstallationStatusQueryOptions = <TData = Awaited<ReturnType<typeof getWidgetInstallationStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWidgetInstallationStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWidgetInstallationStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWidgetInstallationStatus>>> = ({ signal }) => getWidgetInstallationStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWidgetInstallationStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWidgetInstallationStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getWidgetInstallationStatus>>>
+export type GetWidgetInstallationStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the authenticated tenant's recent widget-load status
+ */
+
+export function useGetWidgetInstallationStatus<TData = Awaited<ReturnType<typeof getWidgetInstallationStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWidgetInstallationStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWidgetInstallationStatusQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

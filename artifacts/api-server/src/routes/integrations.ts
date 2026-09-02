@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
-import { db, integrationsTable } from "@workspace/db";
+import { db, companiesTable, integrationsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { decryptIntegrationSecret, encryptIntegrationSecret } from "../lib/integration-secret";
+import { isRecentWidgetHeartbeat, safeWidgetSiteOrigin } from "../lib/widget-heartbeat";
 
 const router: IRouter = Router();
 const VAPI_WEBHOOK_PATH = "/api/webhooks/vapi";
@@ -71,6 +72,82 @@ export const INTEGRATION_PROVIDERS = [
 ] as const;
 
 export type ProviderCategory = typeof INTEGRATION_PROVIDERS[number]["category"];
+
+// Public, write-only signal from widget.js. The stable widget token identifies
+// the tenant; no enquiry or chat session is created by this route.
+router.post("/integrations/widget/heartbeat", async (req, res): Promise<void> => {
+  const widgetToken = typeof req.body?.businessId === "string" ? req.body.businessId.trim() : "";
+  const siteOrigin = safeWidgetSiteOrigin(req.body?.siteOrigin);
+  const requestOrigin = safeWidgetSiteOrigin(req.get("origin"));
+  if (!widgetToken || !siteOrigin || (requestOrigin && requestOrigin !== siteOrigin)) {
+    res.status(400).json({ error: "Invalid widget heartbeat" });
+    return;
+  }
+
+  const [company] = await db
+    .select({ ownerUserId: companiesTable.ownerUserId })
+    .from(companiesTable)
+    .where(eq(companiesTable.widgetToken, widgetToken))
+    .limit(1);
+  if (!company?.ownerUserId) {
+    // Avoid confirming whether a tenant token exists.
+    res.status(202).json({ received: true });
+    return;
+  }
+
+  const metadata = JSON.stringify({ siteOrigin, lastSeenAt: new Date().toISOString() });
+  const [existing] = await db
+    .select({ id: integrationsTable.id })
+    .from(integrationsTable)
+    .where(and(
+      eq(integrationsTable.ownerUserId, company.ownerUserId),
+      eq(integrationsTable.provider, "website_widget"),
+    ))
+    .limit(1);
+
+  if (existing) {
+    await db.update(integrationsTable)
+      .set({ status: "connected", metadata })
+      .where(and(
+        eq(integrationsTable.id, existing.id),
+        eq(integrationsTable.ownerUserId, company.ownerUserId),
+      ));
+  } else {
+    await db.insert(integrationsTable).values({
+      ownerUserId: company.ownerUserId,
+      provider: "website_widget",
+      status: "connected",
+      metadata,
+      connectedAt: new Date(),
+    });
+  }
+
+  res.status(202).json({ received: true });
+});
+
+router.get("/integrations/widget/status", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const [row] = await db
+    .select({ metadata: integrationsTable.metadata })
+    .from(integrationsTable)
+    .where(and(
+      eq(integrationsTable.ownerUserId, userId!),
+      eq(integrationsTable.provider, "website_widget"),
+    ))
+    .limit(1);
+
+  let siteOrigin: string | null = null;
+  let lastSeenAt: string | null = null;
+  try {
+    const metadata = row?.metadata ? JSON.parse(row.metadata) : {};
+    siteOrigin = safeWidgetSiteOrigin(metadata.siteOrigin);
+    lastSeenAt = typeof metadata.lastSeenAt === "string" ? metadata.lastSeenAt : null;
+  } catch {
+    // Treat malformed legacy metadata as no heartbeat.
+  }
+  const recentlySeen = isRecentWidgetHeartbeat(lastSeenAt);
+  res.json({ recentlySeen, siteOrigin, lastSeenAt });
+});
 
 // ── GET /integrations ─────────────────────────────────────────────────────────
 router.get("/integrations", requireAuth, async (req, res): Promise<void> => {
@@ -141,7 +218,10 @@ router.post("/integrations/whatsapp_business/connect", requireAuth, async (req, 
     return;
   }
 
-  const config   = JSON.stringify({ phoneNumberId, accessToken });
+  const config = JSON.stringify({
+    phoneNumberId,
+    encryptedAccessToken: encryptIntegrationSecret(accessToken),
+  });
   const metadata = JSON.stringify({
     displayNumber:       displayNumber ?? null,
     phoneNumberId,

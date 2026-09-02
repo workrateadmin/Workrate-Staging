@@ -67,7 +67,29 @@
     '/widget?embedded=1&business_id=' +
     encodeURIComponent(businessId.trim());
 
-  /* ── 4. DOM-ready guard ──────────────────────────────────────────────────── */
+  /* ── 4. Report a lightweight installation heartbeat ─────────────────────── */
+  function sendHeartbeat() {
+    var heartbeatUrl = widgetOrigin + '/api/integrations/widget/heartbeat';
+    var body = new URLSearchParams({
+      businessId: businessId.trim(),
+      siteOrigin: window.location.origin,
+    });
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(heartbeatUrl, body)) return;
+      fetch(heartbeatUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: body.toString(),
+      }).catch(function () {});
+    } catch (_) {
+      // Heartbeat failure must never prevent the widget from loading.
+    }
+  }
+  sendHeartbeat();
+
+  /* ── 5. DOM-ready guard ──────────────────────────────────────────────────── */
   function onReady(fn) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', fn);
@@ -78,7 +100,7 @@
     }
   }
 
-  /* ── 5. Build and inject the widget ─────────────────────────────────────── */
+  /* ── 6. Build and inject the widget ─────────────────────────────────────── */
   onReady(function () {
 
     /* ── State ────────────────────────────────────────────────────────────── */
