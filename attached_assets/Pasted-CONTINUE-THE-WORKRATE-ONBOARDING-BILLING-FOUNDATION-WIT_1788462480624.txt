@@ -1,0 +1,120 @@
+CONTINUE THE WORKRATE ONBOARDING + BILLING FOUNDATION WITHOUT CONNECTING STRIPE YET.
+
+IMPORTANT:
+Stripe is NOT connected today.
+Do NOT block the rest of the build on that.
+
+GOAL:
+Build the onboarding, plans, entitlements, usage foundation, billing UI, trial state model, and provider abstraction now.
+
+Leave only the actual Stripe Checkout/webhook connection pending for tomorrow.
+
+==================================================
+1. BUILD EVERYTHING PROVIDER-INDEPENDENT
+==================================================
+
+Proceed with:
+
+- onboarding flow
+- business details
+- branding
+- trade/services
+- commercial settings
+- plan selection
+- paid-trial state model
+- add-on model
+- entitlement system
+- usage-metering foundation
+- Plan & Billing settings page
+- trial countdown UI
+- cancellation state model
+- failed-payment state model
+- onboarding progress persistence
+- post-onboarding checklist
+- existing-user safeguards
+- mobile layouts
+- tenant isolation
+- tests
+
+==================================================
+2. BILLING PROVIDER ABSTRACTION
+==================================================
+
+Create a clean server-side billing provider interface so Stripe can be connected later.
+
+For example, the application should conceptually support operations such as:
+
+- createCheckoutSession
+- createCustomerPortalSession
+- getSubscriptionStatus
+- cancelSubscription
+- syncSubscription
+- verifyWebhook
+
+Do NOT hardcode Stripe-specific logic throughout WorkRate.
+
+Keep billing-provider implementation isolated.
+
+==================================================
+3. TEMPORARY STRIPE-NOT-CONNECTED BEHAVIOR
+==================================================
+
+Until Stripe is connected:
+
+- pricing pages should render normally
+- onboarding plan selection should work
+- plan/add-on choices may be saved as pending selections
+- trial/payment screen should clearly show:
+  "Payment setup not yet available"
+  in development/admin testing only
+
+Do NOT fake successful payments.
+
+Do NOT mark users as paid.
+
+Do NOT grant paid entitlements based on a frontend button.
+
+==================================================
+4. DEVELOPMENT TEST MODE
+==================================================
+
+Add a development-only billing simulator if needed for testing onboarding and entitlement behavior.
+
+It must:
+
+- be disabled in production
+- never use real money
+- be clearly labelled DEV ONLY
+- allow simulation of:
+  Trial active
+  Active subscription
+  Past due
+  Cancelled
+  Different plans/add-ons
+
+This is only for testing UI/business logic before Stripe is connected.
+
+Do NOT expose this in production.
+
+==================================================
+5. STRIPE TODO BOUNDARY
+==================================================
+
+Create a clearly documented integration boundary for tomorrow.
+
+Leave a concise TODO list covering only:
+
+- Stripe account connection
+- product/price mapping
+- hosted Checkout
+- customer portal
+- webhook endpoint
+- webhook signature verification
+- subscription sync
+- final end-to-end payment tests
+
+Do not leave unrelated billing architecture unfinished.
+
+==================================================
+6. DO NOT PUBLISH AUTOMATICALLY
+==================================================
