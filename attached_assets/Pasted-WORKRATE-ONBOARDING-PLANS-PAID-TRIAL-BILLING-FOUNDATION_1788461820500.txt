@@ -1,0 +1,670 @@
+WORKRATE — ONBOARDING + PLANS + PAID TRIAL + BILLING FOUNDATION
+
+GOAL:
+Build a polished new-customer onboarding and subscription structure for WorkRate.
+
+The customer journey should be:
+
+Sign up
+→ guided onboarding
+→ choose plan
+→ start 7-day paid trial
+→ connect integrations
+→ test WorkRate
+→ use app
+→ automatically move onto normal monthly billing after trial unless cancelled
+
+IMPORTANT:
+Do NOT redesign the whole app.
+Do NOT rebuild quotes, jobs, invoices, finance, integrations, Vapi, HMRC or the existing WorkRate core.
+Reuse existing business settings, branding, integrations, permissions and account data.
+
+==================================================
+1. PRICING MODEL
+==================================================
+
+WorkRate should support:
+
+CORE PLAN
+Target normal price:
+£29/month
+
+COMPLETE PLAN
+Target normal price:
+£99/month
+
+ADD-ONS
+Architecture must support optional paid add-ons such as:
+
+- AI Receptionist
+- Social AI / Meta integrations
+- AI Concept Visuals
+- Advanced Finance / MTD
+- Cost Intelligence
+- future integrations/features
+
+IMPORTANT:
+Do NOT hardcode final add-on pricing yet unless already confirmed in configuration.
+
+Use a configurable plans/add-ons model so prices and allowances can be changed without rebuilding the app.
+
+==================================================
+2. COMMERCIAL PRINCIPLE
+==================================================
+
+Pricing should be structured so:
+
+Core is affordable.
+
+Customers can add only the services they need.
+
+Buying several add-ons should naturally make the £99 Complete plan better value.
+
+Complete means:
+ALL feature categories unlocked
+
+but NOT unlimited provider usage.
+
+AI, voice, messaging, image generation and other variable-cost services must still have usage allowances.
+
+Do not advertise "unlimited" unless genuinely unlimited.
+
+==================================================
+3. 7-DAY PAID TRIAL
+==================================================
+
+Do NOT create a completely free trial.
+
+WorkRate should support a 7-day paid introductory trial.
+
+Preferred initial structure:
+
+Core trial:
+£5 for 7 days
+
+Complete trial:
+£20 for 7 days
+
+If add-on trial pricing is required, make it configurable rather than hardcoded.
+
+After the 7-day trial:
+
+- automatically begin normal monthly billing for the selected plan
+- unless the customer cancels before renewal
+- show the renewal date and future price clearly before payment
+
+Do not use misleading "50% off monthly price for 7 days" wording.
+
+Customer-facing wording should be simple, for example:
+
+"Try WorkRate Complete for 7 days for £20.
+Then £99/month.
+Cancel before [date] and you won't be charged the monthly subscription."
+
+==================================================
+4. PAYMENT PROVIDER
+==================================================
+
+Before implementation, inspect whether WorkRate already has Stripe or another billing provider configured.
+
+If Stripe already exists:
+reuse it.
+
+If no subscription provider exists:
+build this using Stripe Billing / Checkout unless there is a strong technical reason not to.
+
+Do NOT collect raw card numbers inside WorkRate.
+
+Use provider-hosted or secure embedded checkout.
+
+Do not expose secret API keys to the browser.
+
+==================================================
+5. ONBOARDING FLOW
+==================================================
+
+New businesses should have a guided first-run onboarding.
+
+Suggested order:
+
+1. Welcome
+2. Business Details
+3. Branding
+4. Trade & Services
+5. Commercial Settings
+6. Choose Plan
+7. Payment / Start Trial
+8. Integrations
+9. Test WorkRate
+10. Ready
+
+Show progress such as:
+
+Step 4 of 10
+
+Persist progress so the user can leave and return.
+
+Allow:
+- Back
+- Save & continue
+- Skip optional setup
+- Finish later
+
+==================================================
+6. BUSINESS DETAILS
+==================================================
+
+Reuse existing business fields:
+
+- business name
+- trade
+- email
+- phone
+- address
+- service area
+- opening hours
+
+Do not create duplicate data models.
+
+==================================================
+7. BRANDING
+==================================================
+
+Reuse existing:
+
+- logo
+- brand colour
+- quote/invoice company details
+- footer/terms
+
+Do not create a parallel branding system.
+
+==================================================
+8. TRADE & SERVICES
+==================================================
+
+Allow configuration of:
+
+- main trade
+- services offered
+- common job types
+- service area
+
+Feed these into the business-specific AI context where appropriate.
+
+Must support ALL trades.
+
+Do not hardcode Huntley Bespoke or joinery-specific behavior.
+
+==================================================
+9. COMMERCIAL SETTINGS
+==================================================
+
+Reuse existing settings for:
+
+- VAT
+- deposits
+- deposit percentage/fixed amount
+- payment instructions
+- invoice payment terms
+- quote expiry where supported
+
+Do not change existing quote/invoice calculations.
+
+==================================================
+10. PLAN SELECTION PAGE
+==================================================
+
+Build a clear plan comparison page.
+
+CORE
+£29/month
+
+Show core WorkRate features such as:
+- enquiries / CRM
+- customers
+- quotes / proposals
+- PDF documents
+- jobs
+- scheduling
+- invoices
+- finance basics
+- website widget
+- email
+- mobile access
+
+COMPLETE
+£99/month
+
+Show:
+- everything in Core
+- all paid feature categories unlocked
+- higher AI/voice/social/image allowances
+- advanced automation
+- advanced Cost Intelligence as available
+- advanced finance/integrations as available
+
+Do NOT claim unfinished features are currently live.
+
+If something is not released yet, show:
+"Coming soon"
+rather than selling it as operational.
+
+==================================================
+11. ADD-ONS
+==================================================
+
+Design add-ons as separate configurable products.
+
+Each add-on should support:
+
+- name
+- description
+- monthly price
+- trial price if applicable
+- included allowance
+- overage rule if applicable
+- enabled/disabled
+- coming-soon state
+
+Examples:
+
+AI Receptionist
+Social AI
+AI Concept Visuals
+Advanced Finance / MTD
+Cost Intelligence
+
+Do not make billing logic depend on hardcoded feature names.
+
+==================================================
+12. FEATURE ENTITLEMENTS
+==================================================
+
+Create a clean entitlement system.
+
+The app must be able to answer:
+
+- which plan is this business on?
+- which add-ons are active?
+- which features are available?
+- what usage allowance remains?
+- is the account in trial?
+- is billing active?
+- is payment overdue/cancelled?
+
+Do not scatter plan checks across random components.
+
+Use a central server-side entitlement model.
+
+Frontend may display entitlement state but must not be the source of truth.
+
+==================================================
+13. USAGE METERING FOUNDATION
+==================================================
+
+Build a usage-metering foundation for variable-cost features.
+
+Track categories such as:
+
+- AI receptionist minutes
+- AI chat/messages
+- concept image generations
+- other provider usage where appropriate
+
+IMPORTANT:
+Do not invent final usage allowances yet.
+
+Allowances should be configurable per plan/add-on.
+
+The customer should later be able to see usage such as:
+
+AI Receptionist
+82 / 200 minutes
+
+Concept Visuals
+6 / 10 used
+
+Do not allow client-side manipulation of usage.
+
+==================================================
+14. OVERAGE BEHAVIOR
+==================================================
+
+Do NOT silently generate unlimited provider costs.
+
+The billing architecture should support:
+
+A. stop/pause usage at limit
+B. optional overage charging
+C. usage packs
+D. plan upgrade
+
+For initial launch, choose the safest simple behavior unless an overage system already exists.
+
+Prefer:
+warn customer before limit
+then block/pause expensive usage at limit
+rather than generating unbounded costs.
+
+==================================================
+15. TRIAL EXPIRY
+==================================================
+
+During trial show:
+
+- days remaining
+- trial end date
+- normal renewal price
+- current selected plan
+
+Send/display reminders where existing notification/email infrastructure supports it.
+
+Suggested reminders:
+- 3 days remaining
+- 1 day remaining
+- renewal/converted to paid
+
+Do not send duplicate reminders.
+
+==================================================
+16. CANCELLATION
+==================================================
+
+Customer must be able to:
+
+- view subscription
+- view renewal date
+- cancel subscription
+- manage billing method
+
+Cancellation should not delete their WorkRate business data.
+
+At cancellation:
+- retain data
+- restrict paid functionality according to the chosen product policy
+- clearly show account state
+
+Do not destroy customer records automatically.
+
+==================================================
+17. FAILED PAYMENT
+==================================================
+
+Handle:
+
+- failed trial payment
+- failed monthly renewal
+- expired card
+- subscription cancelled
+- payment pending
+
+Use clear states such as:
+
+Active
+Trial
+Payment required
+Past due
+Cancelled
+
+Do not immediately delete or corrupt account access because a payment fails.
+
+==================================================
+18. INTEGRATIONS
+==================================================
+
+Reuse the existing Integrations dashboard and dedicated setup pages.
+
+During onboarding show:
+
+- Website Widget
+- AI Receptionist
+- Instagram
+- Facebook
+- WhatsApp
+- Email
+- HMRC
+- other live integrations
+
+Only show truthful provider availability.
+
+Do not require optional integrations to finish onboarding.
+
+==================================================
+19. TEST WORKRATE
+==================================================
+
+Include:
+
+"Send myself a test enquiry"
+
+Allow a new user to see a realistic WorkRate enquiry workflow.
+
+Clearly mark all test/demo data.
+
+Do not create fake production customer records without a visible test flag.
+
+==================================================
+20. POST-ONBOARDING CHECKLIST
+==================================================
+
+After onboarding, show a compact dashboard checklist until complete.
+
+Example:
+
+Finish setting up WorkRate
+
+✓ Business details
+✓ Branding
+✓ Plan selected
+○ Connect website
+○ Configure AI receptionist
+○ Send test enquiry
+
+Allow:
+"Continue setup"
+
+Hide or minimise after completion.
+
+==================================================
+21. EXISTING USERS
+==================================================
+
+VERY IMPORTANT:
+
+Existing WorkRate businesses must NOT be forced into new-user onboarding or payment immediately by this development task.
+
+Existing users should remain usable while billing migration is planned.
+
+Provide a safe migration path for existing accounts.
+
+Do not alter or delete Huntley Bespoke data.
+
+==================================================
+22. SECURITY
+==================================================
+
+Confirm:
+
+- subscription belongs to correct tenant/business
+- billing webhooks are signature verified
+- provider customer/subscription IDs are server-controlled
+- feature entitlement is enforced server-side
+- users cannot change plan by editing frontend requests
+- secrets never reach browser
+- no cross-tenant subscription access
+- idempotent webhook handling
+- duplicate webhook delivery does not duplicate billing state
+
+==================================================
+23. WEBHOOKS
+==================================================
+
+If Stripe is used, support relevant events such as:
+
+- checkout/session completed
+- subscription created/updated/deleted
+- invoice paid
+- invoice payment failed
+- trial/subscription status changes where applicable
+
+Use idempotency.
+
+Do not trust browser redirects alone to establish paid status.
+
+==================================================
+24. DATABASE / MIGRATIONS
+==================================================
+
+Before changing schema:
+
+Inspect current:
+- users
+- business/tenant tables
+- integrations
+- plans if any
+- billing fields
+- usage tables
+
+Use the smallest clean schema extension.
+
+All migrations must be:
+- safe
+- idempotent where appropriate
+- tenant aware
+- non-destructive
+
+Do not modify production automatically.
+
+==================================================
+25. UI
+==================================================
+
+Add customer-facing areas for:
+
+Settings → Plan & Billing
+
+Show:
+
+- current plan
+- active add-ons
+- trial status
+- renewal date
+- monthly price
+- usage summary
+- change plan
+- manage add-ons
+- manage payment
+- cancel subscription
+
+Mobile and desktop must work.
+
+==================================================
+26. ADMIN / CONFIGURATION
+==================================================
+
+Where practical, prices/allowances should come from server configuration/database/provider product mapping rather than being repeated throughout the frontend.
+
+We need to be able to adjust:
+
+- monthly prices
+- trial prices
+- included usage
+- add-on availability
+
+without redesigning WorkRate.
+
+==================================================
+27. DO NOT OVERBUILD
+==================================================
+
+This task is the commercial/onboarding foundation.
+
+Do not add:
+- HMRC filing
+- Xero integration
+- new social integrations
+- new AI features
+- unrelated CRM features
+
+Reuse what exists.
+
+==================================================
+28. TESTING
+==================================================
+
+Test at minimum:
+
+NEW USER
+- signup
+- onboarding
+- plan selection
+- successful trial purchase
+- trial status
+- integration setup
+- test enquiry
+- dashboard arrival
+
+BILLING
+- successful payment
+- failed payment
+- cancellation
+- webhook retry/idempotency
+- renewal state
+- plan change
+- add-on entitlement
+
+SECURITY
+- tenant isolation
+- subscription spoofing attempt
+- direct API entitlement bypass
+- webhook signature validation
+
+EXISTING USERS
+- existing WorkRate account remains intact
+- no forced onboarding
+- no data changes
+
+MOBILE
+- onboarding
+- pricing
+- billing management
+
+==================================================
+29. IMPORTANT — BEFORE CODING
+==================================================
+
+FIRST inspect the existing WorkRate architecture and report:
+
+A. whether Stripe/billing already exists
+B. current onboarding behavior
+C. existing subscription/billing schema if any
+D. existing business settings reused
+E. proposed smallest architecture
+F. migrations required
+G. any pricing decisions still needed from me
+
+Do not begin a large billing implementation if critical commercial decisions are missing.
+
+If implementation can safely proceed with configurable values, do so.
+
+==================================================
+30. COMPLETION REPORT
+==================================================
+
+At completion report:
+
+A. existing systems reused
+B. onboarding implemented
+C. plan/add-on architecture
+D. billing provider used
+E. trial behavior
+F. entitlement model
+G. usage-metering foundation
+H. migrations
+I. security protections
+J. tests passed
+K. remaining commercial values I need to decide
+L. whether ONE publish is required
+
+DO NOT publish automatically.
