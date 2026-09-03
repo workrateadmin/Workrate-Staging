@@ -103,7 +103,8 @@ export const UpdateCompanyBody = zod.object({
   "enquiryEmailEnabled": zod.boolean().optional(),
   "enquirySmsEnabled": zod.boolean().optional(),
   "enquiryConfirmationMessage": zod.string().optional(),
-  "proposalEmailEnabled": zod.boolean().optional()
+  "proposalEmailEnabled": zod.boolean().optional(),
+  "onboardingDismissed": zod.boolean().optional()
 })
 
 export const UpdateCompanyResponse = zod.object({
@@ -2550,3 +2551,147 @@ export const ListFinanceAuditResponseItem = zod.object({
   "createdAt": zod.coerce.date()
 })
 export const ListFinanceAuditResponse = zod.array(ListFinanceAuditResponseItem)
+
+
+export const GetBillingCatalogResponse = zod.object({
+  "plans": zod.array(zod.object({
+  "code": zod.string(),
+  "name": zod.string(),
+  "monthlyPriceGbp": zod.number(),
+  "trialPriceGbp": zod.number(),
+  "trialDays": zod.number(),
+  "featureCategories": zod.array(zod.string()),
+  "usageLimits": zod.record(zod.string(), zod.number()).nullable()
+})),
+  "addOns": zod.array(zod.object({
+  "code": zod.string(),
+  "name": zod.string(),
+  "monthlyPriceGbp": zod.number().nullable(),
+  "featureCategories": zod.array(zod.string()),
+  "usageLimits": zod.record(zod.string(), zod.number()).nullable()
+}))
+})
+
+
+export const GetBillingOverviewResponse = zod.object({
+  "legacyAccess": zod.boolean(),
+  "status": zod.string().nullable(),
+  "planCode": zod.string().nullable(),
+  "addOnCodes": zod.array(zod.string()),
+  "pendingPlanCode": zod.string().nullable(),
+  "pendingAddOnCodes": zod.array(zod.string()),
+  "cancelAtPeriodEnd": zod.boolean(),
+  "provider": zod.string().nullable(),
+  "trialEndsAt": zod.coerce.date().nullable(),
+  "currentPeriodStartsAt": zod.coerce.date().nullable(),
+  "currentPeriodEndsAt": zod.coerce.date().nullable(),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "failedPaymentAt": zod.coerce.date().nullable()
+})
+
+
+export const SaveBillingSelectionBody = zod.object({
+  "planCode": zod.enum(['core', 'complete']),
+  "addOnCodes": zod.array(zod.string())
+})
+
+export const SaveBillingSelectionResponse = zod.object({
+  "legacyAccess": zod.boolean(),
+  "status": zod.string().nullable(),
+  "planCode": zod.string().nullable(),
+  "addOnCodes": zod.array(zod.string()),
+  "pendingPlanCode": zod.string().nullable(),
+  "pendingAddOnCodes": zod.array(zod.string()),
+  "cancelAtPeriodEnd": zod.boolean(),
+  "provider": zod.string().nullable(),
+  "trialEndsAt": zod.coerce.date().nullable(),
+  "currentPeriodStartsAt": zod.coerce.date().nullable(),
+  "currentPeriodEndsAt": zod.coerce.date().nullable(),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "failedPaymentAt": zod.coerce.date().nullable()
+})
+
+
+export const RequestBillingCheckoutResponse = zod.void()
+
+
+export const RequestBillingPortalResponse = zod.void()
+
+
+export const RequestBillingCancellationResponse = zod.void()
+
+
+export const GetOnboardingResponse = zod.object({
+  "exists": zod.boolean(),
+  "status": zod.string().nullable(),
+  "currentStep": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown())
+})
+
+
+export const StartOnboardingResponse = zod.object({
+  "exists": zod.boolean(),
+  "status": zod.string().nullable(),
+  "currentStep": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown())
+})
+
+
+export const UpdateOnboardingBody = zod.object({
+  "currentStep": zod.string().optional(),
+  "data": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+export const UpdateOnboardingResponse = zod.object({
+  "exists": zod.boolean(),
+  "status": zod.string().nullable(),
+  "currentStep": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown())
+})
+
+
+export const CompleteOnboardingResponse = zod.object({
+  "exists": zod.boolean(),
+  "status": zod.string().nullable(),
+  "currentStep": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown())
+})
+
+
+export const SkipOnboardingResponse = zod.object({
+  "exists": zod.boolean(),
+  "status": zod.string().nullable(),
+  "currentStep": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown())
+})
+
+
+export const GetBillingUsageResponse = zod.object({
+  "events": zod.array(zod.object({
+  "featureCode": zod.string(),
+  "quantity": zod.number()
+}))
+})
+
+
+export const SimulateBillingStateBody = zod.object({
+  "status": zod.enum(['trialing', 'active', 'past_due', 'cancelled']),
+  "planCode": zod.enum(['core', 'complete']),
+  "addOnCodes": zod.array(zod.string())
+})
+
+export const SimulateBillingStateResponse = zod.object({
+  "legacyAccess": zod.boolean(),
+  "status": zod.string().nullable(),
+  "planCode": zod.string().nullable(),
+  "addOnCodes": zod.array(zod.string()),
+  "pendingPlanCode": zod.string().nullable(),
+  "pendingAddOnCodes": zod.array(zod.string()),
+  "cancelAtPeriodEnd": zod.boolean(),
+  "provider": zod.string().nullable(),
+  "trialEndsAt": zod.coerce.date().nullable(),
+  "currentPeriodStartsAt": zod.coerce.date().nullable(),
+  "currentPeriodEndsAt": zod.coerce.date().nullable(),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "failedPaymentAt": zod.coerce.date().nullable()
+})

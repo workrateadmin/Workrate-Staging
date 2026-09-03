@@ -5,6 +5,143 @@
  * WorkRate API specification
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * @nullable
+ */
+export type BillingPlanUsageLimits = {[key: string]: number} | null;
+
+export interface BillingPlan {
+  code: string;
+  name: string;
+  monthlyPriceGbp: number;
+  trialPriceGbp: number;
+  trialDays: number;
+  featureCategories: string[];
+  /** @nullable */
+  usageLimits: BillingPlanUsageLimits;
+}
+
+/**
+ * @nullable
+ */
+export type BillingAddOnUsageLimits = {[key: string]: number} | null;
+
+export interface BillingAddOn {
+  code: string;
+  name: string;
+  /** @nullable */
+  monthlyPriceGbp: number | null;
+  featureCategories: string[];
+  /** @nullable */
+  usageLimits: BillingAddOnUsageLimits;
+}
+
+export interface BillingCatalog {
+  plans: BillingPlan[];
+  addOns: BillingAddOn[];
+}
+
+export interface BillingOverview {
+  legacyAccess: boolean;
+  /** @nullable */
+  status: string | null;
+  /** @nullable */
+  planCode: string | null;
+  addOnCodes: string[];
+  /** @nullable */
+  pendingPlanCode: string | null;
+  pendingAddOnCodes: string[];
+  cancelAtPeriodEnd: boolean;
+  /** @nullable */
+  provider: string | null;
+  /** @nullable */
+  trialEndsAt: string | null;
+  /** @nullable */
+  currentPeriodStartsAt: string | null;
+  /** @nullable */
+  currentPeriodEndsAt: string | null;
+  /** @nullable */
+  cancelledAt: string | null;
+  /** @nullable */
+  failedPaymentAt: string | null;
+}
+
+export type BillingSelectionInputPlanCode = typeof BillingSelectionInputPlanCode[keyof typeof BillingSelectionInputPlanCode];
+
+
+export const BillingSelectionInputPlanCode = {
+  core: 'core',
+  complete: 'complete',
+} as const;
+
+export interface BillingSelectionInput {
+  planCode: BillingSelectionInputPlanCode;
+  addOnCodes: string[];
+}
+
+export type PaymentUnavailableCode = typeof PaymentUnavailableCode[keyof typeof PaymentUnavailableCode];
+
+
+export const PaymentUnavailableCode = {
+  PAYMENT_SETUP_UNAVAILABLE: 'PAYMENT_SETUP_UNAVAILABLE',
+} as const;
+
+export interface PaymentUnavailable {
+  code: PaymentUnavailableCode;
+  message: string;
+}
+
+export type OnboardingStateData = { [key: string]: unknown };
+
+export interface OnboardingState {
+  exists: boolean;
+  /** @nullable */
+  status: string | null;
+  /** @nullable */
+  currentStep: string | null;
+  data: OnboardingStateData;
+}
+
+export type OnboardingUpdateData = { [key: string]: unknown };
+
+export interface OnboardingUpdate {
+  currentStep?: string;
+  data?: OnboardingUpdateData;
+}
+
+export type UsageOverviewEventsItem = {
+  featureCode: string;
+  quantity: number;
+};
+
+export interface UsageOverview {
+  events: UsageOverviewEventsItem[];
+}
+
+export type BillingSimulationInputStatus = typeof BillingSimulationInputStatus[keyof typeof BillingSimulationInputStatus];
+
+
+export const BillingSimulationInputStatus = {
+  trialing: 'trialing',
+  active: 'active',
+  past_due: 'past_due',
+  cancelled: 'cancelled',
+} as const;
+
+export type BillingSimulationInputPlanCode = typeof BillingSimulationInputPlanCode[keyof typeof BillingSimulationInputPlanCode];
+
+
+export const BillingSimulationInputPlanCode = {
+  core: 'core',
+  complete: 'complete',
+} as const;
+
+export interface BillingSimulationInput {
+  status: BillingSimulationInputStatus;
+  planCode: BillingSimulationInputPlanCode;
+  addOnCodes: string[];
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -426,6 +563,7 @@ export interface CompanyInput {
   enquirySmsEnabled?: boolean;
   enquiryConfirmationMessage?: string;
   proposalEmailEnabled?: boolean;
+  onboardingDismissed?: boolean;
 }
 
 export interface Enquiry {

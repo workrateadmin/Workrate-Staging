@@ -19,6 +19,7 @@ import vapiWebhookRouter from "./webhooks-vapi";
 import invoicesRouter from "./invoices";
 import financeRouter from "./finance";
 import hmrcRouter from "./hmrc";
+import billingRouter from "./billing";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(vapiWebhookRouter);
 router.use(invoicesRouter);
 router.use(financeRouter);
 router.use(hmrcRouter);
+router.use(billingRouter);
 
 export default router;

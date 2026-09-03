@@ -1840,6 +1840,74 @@ paths:
                 items:
                   $ref: "#/components/schemas/FinanceAuditEvent"
 
+  /billing/catalog:
+    get:
+      operationId: getBillingCatalog
+      tags: [billing]
+      responses: { "200": { description: Catalog, content: { application/json: { schema: { $ref: "#/components/schemas/BillingCatalog" } } } } }
+  /billing:
+    get:
+      operationId: getBillingOverview
+      tags: [billing]
+      responses: { "200": { description: Billing overview, content: { application/json: { schema: { $ref: "#/components/schemas/BillingOverview" } } } } }
+  /billing/selection:
+    put:
+      operationId: saveBillingSelection
+      tags: [billing]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/BillingSelectionInput" } } } }
+      responses: { "200": { description: Saved selection, content: { application/json: { schema: { $ref: "#/components/schemas/BillingOverview" } } } }, "400": { description: Invalid selection } }
+  /billing/checkout:
+    post:
+      operationId: requestBillingCheckout
+      tags: [billing]
+      responses: { "501": { description: Provider unavailable, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentUnavailable" } } } } }
+  /billing/portal:
+    post:
+      operationId: requestBillingPortal
+      tags: [billing]
+      responses: { "501": { description: Provider unavailable, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentUnavailable" } } } } }
+  /billing/cancellation:
+    post:
+      operationId: requestBillingCancellation
+      tags: [billing]
+      responses: { "501": { description: Provider unavailable, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentUnavailable" } } } } }
+  /onboarding:
+    get:
+      operationId: getOnboarding
+      tags: [onboarding]
+      responses: { "200": { description: Onboarding state, content: { application/json: { schema: { $ref: "#/components/schemas/OnboardingState" } } } } }
+    post:
+      operationId: startOnboarding
+      tags: [onboarding]
+      responses: { "201": { description: Started onboarding, content: { application/json: { schema: { $ref: "#/components/schemas/OnboardingState" } } } } }
+  /onboarding/progress:
+    patch:
+      operationId: updateOnboarding
+      tags: [onboarding]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/OnboardingUpdate" } } } }
+      responses: { "200": { description: Updated onboarding, content: { application/json: { schema: { $ref: "#/components/schemas/OnboardingState" } } } } }
+  /onboarding/complete:
+    post:
+      operationId: completeOnboarding
+      tags: [onboarding]
+      responses: { "200": { description: Completed onboarding, content: { application/json: { schema: { $ref: "#/components/schemas/OnboardingState" } } } } }
+  /onboarding/skip:
+    post:
+      operationId: skipOnboarding
+      tags: [onboarding]
+      responses: { "200": { description: Skipped onboarding, content: { application/json: { schema: { $ref: "#/components/schemas/OnboardingState" } } } } }
+  /billing/usage:
+    get:
+      operationId: getBillingUsage
+      tags: [billing]
+      responses: { "200": { description: Usage overview, content: { application/json: { schema: { $ref: "#/components/schemas/UsageOverview" } } } } }
+  /dev/billing/simulate:
+    post:
+      operationId: simulateBillingState
+      tags: [billing]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/BillingSimulationInput" } } } }
+      responses: { "200": { description: Simulated state, content: { application/json: { schema: { $ref: "#/components/schemas/BillingOverview" } } } }, "404": { description: Not available } }
+
 components:
   parameters:
     FinanceRecordId:
@@ -1863,6 +1931,84 @@ components:
         type: string
         format: date
   schemas:
+    BillingPlan:
+      type: object
+      required: [code, name, monthlyPriceGbp, trialPriceGbp, trialDays, featureCategories, usageLimits]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        monthlyPriceGbp: { type: number }
+        trialPriceGbp: { type: number }
+        trialDays: { type: number }
+        featureCategories: { type: array, items: { type: string } }
+        usageLimits: { type: ["object", "null"], additionalProperties: { type: number } }
+    BillingAddOn:
+      type: object
+      required: [code, name, monthlyPriceGbp, featureCategories, usageLimits]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        monthlyPriceGbp: { type: ["number", "null"] }
+        featureCategories: { type: array, items: { type: string } }
+        usageLimits: { type: ["object", "null"], additionalProperties: { type: number } }
+    BillingCatalog:
+      type: object
+      required: [plans, addOns]
+      properties:
+        plans: { type: array, items: { $ref: "#/components/schemas/BillingPlan" } }
+        addOns: { type: array, items: { $ref: "#/components/schemas/BillingAddOn" } }
+    BillingOverview:
+      type: object
+      required: [legacyAccess, status, planCode, addOnCodes, pendingPlanCode, pendingAddOnCodes, cancelAtPeriodEnd, provider, trialEndsAt, currentPeriodStartsAt, currentPeriodEndsAt, cancelledAt, failedPaymentAt]
+      properties:
+        legacyAccess: { type: boolean }
+        status: { type: ["string", "null"] }
+        planCode: { type: ["string", "null"] }
+        addOnCodes: { type: array, items: { type: string } }
+        pendingPlanCode: { type: ["string", "null"] }
+        pendingAddOnCodes: { type: array, items: { type: string } }
+        cancelAtPeriodEnd: { type: boolean }
+        provider: { type: ["string", "null"] }
+        trialEndsAt: { type: ["string", "null"], format: date-time }
+        currentPeriodStartsAt: { type: ["string", "null"], format: date-time }
+        currentPeriodEndsAt: { type: ["string", "null"], format: date-time }
+        cancelledAt: { type: ["string", "null"], format: date-time }
+        failedPaymentAt: { type: ["string", "null"], format: date-time }
+    BillingSelectionInput:
+      type: object
+      required: [planCode, addOnCodes]
+      properties:
+        planCode: { type: string, enum: [core, complete] }
+        addOnCodes: { type: array, items: { type: string } }
+    PaymentUnavailable:
+      type: object
+      required: [code, message]
+      properties: { code: { type: string, enum: [PAYMENT_SETUP_UNAVAILABLE] }, message: { type: string } }
+    OnboardingState:
+      type: object
+      required: [exists, status, currentStep, data]
+      properties:
+        exists: { type: boolean }
+        status: { type: ["string", "null"] }
+        currentStep: { type: ["string", "null"] }
+        data: { type: object, additionalProperties: true }
+    OnboardingUpdate:
+      type: object
+      properties:
+        currentStep: { type: string }
+        data: { type: object, additionalProperties: true }
+    UsageOverview:
+      type: object
+      required: [events]
+      properties:
+        events: { type: array, items: { type: object, required: [featureCode, quantity], properties: { featureCode: { type: string }, quantity: { type: number } } } }
+    BillingSimulationInput:
+      type: object
+      required: [status, planCode, addOnCodes]
+      properties:
+        status: { type: string, enum: [trialing, active, past_due, cancelled] }
+        planCode: { type: string, enum: [core, complete] }
+        addOnCodes: { type: array, items: { type: string } }
     HealthStatus:
       type: object
       properties:
@@ -2575,6 +2721,8 @@ components:
         enquiryConfirmationMessage:
           type: string
         proposalEmailEnabled:
+          type: boolean
+        onboardingDismissed:
           type: boolean
 
     Enquiry:

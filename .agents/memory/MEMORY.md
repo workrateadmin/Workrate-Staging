@@ -22,3 +22,4 @@
 - [WorkRate Vapi live assistant edits](workrate-vapi-live-assistant-edits.md) — assistant prompt lives on Vapi, not in repo; changes are immediate live PATCHes, separate from WorkRate's own publish gate
 - [api-server dev workflow has no hot reload](workrate-api-server-no-hotreload.md) — dev script is build-once-then-start; must restart the workflow after editing api-server source before any live/synthetic test
 - [WorkRate invoice PDF storage boundary](workrate-invoice-pdf.md) — generated documents must never turn tenant-controlled branding into unrestricted network or private-object reads
+- [WorkRate billing foundation](workrate-billing-foundation.md) — provider-neutral paid-trial state; legacy companies retain access until they explicitly enter onboarding/billing

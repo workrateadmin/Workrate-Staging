@@ -27,6 +27,8 @@ import InvoicesPage from "./pages/invoices";
 import InvoiceEditor from "./pages/invoice-editor";
 import FinancePage from "./pages/finance";
 import { DevBanner } from "@/components/dev-banner";
+import OnboardingPage from "./pages/onboarding";
+import BillingPage from "./pages/settings/billing";
 
 // Integration detail pages
 import WebsiteWidgetPage from "./pages/integrations/website-widget";
@@ -179,6 +181,32 @@ function HomeRedirect() {
   return <LandingPage />;
 }
 
+/**
+ * Onboarding route — protected (must be signed in) but renders without AppLayout shell.
+ * New sign-ups are redirected here; existing users with completed onboarding are
+ * redirected to /dashboard from within the OnboardingPage itself.
+ */
+function OnboardingProtectedRoute() {
+  const { isSignedIn, isLoaded } = useAuth();
+  const [, navigate] = useLocation();
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (redirectTimerRef.current) {
+      clearTimeout(redirectTimerRef.current);
+      redirectTimerRef.current = null;
+    }
+    if (isLoaded && !isSignedIn) {
+      redirectTimerRef.current = setTimeout(() => navigate("/sign-in"), 300);
+    }
+    return () => { if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current); };
+  }, [isLoaded, isSignedIn, navigate]);
+
+  if (!isLoaded) return null;
+  if (!isSignedIn) return null;
+  return <OnboardingPage />;
+}
+
 function ProtectedRoute({ component: Component }: { component: any }) {
   const { isSignedIn, isLoaded } = useAuth();
   const [, navigate] = useLocation();
@@ -247,7 +275,7 @@ function ClerkProviderWithRoutes() {
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       signInFallbackRedirectUrl="/dashboard"
-      signUpFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/onboarding"
       localization={{
         signIn: {
           start: {
@@ -271,6 +299,9 @@ function ClerkProviderWithRoutes() {
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
 
+          {/* ── Onboarding (protected, no AppLayout shell) ── */}
+          <Route path="/onboarding"><OnboardingProtectedRoute /></Route>
+
           {/* ── Business dashboard (protected) ── */}
           <Route path="/dashboard"><ProtectedRoute component={Dashboard} /></Route>
           <Route path="/enquiries"><ProtectedRoute component={Enquiries} /></Route>
@@ -281,6 +312,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/schedule"><ProtectedRoute component={Schedule} /></Route>
           <Route path="/ai-receptionist"><ProtectedRoute component={AiReceptionist} /></Route>
           <Route path="/integrations"><ProtectedRoute component={IntegrationsPage} /></Route>
+          <Route path="/settings/billing"><ProtectedRoute component={BillingPage} /></Route>
           <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
           <Route path="/diagnostics"><ProtectedRoute component={DiagnosticsPage} /></Route>
           <Route path="/invoices"><ProtectedRoute component={InvoicesPage} /></Route>

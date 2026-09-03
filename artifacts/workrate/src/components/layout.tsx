@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Settings, LogOut, Menu, Bell, Hammer,
   Plug, Briefcase, CalendarDays, PhoneCall, Search, Plus,
-  ChevronDown, Inbox, Users, Activity, FileText, WalletCards,
+  ChevronDown, Inbox, Activity, FileText, WalletCards, CreditCard,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -21,12 +21,13 @@ const pipelineNav = [
 ];
 
 const businessNav = [
-  { name: "Integrations",  href: "/integrations",  icon: Plug },
-  { name: "Settings",      href: "/settings",       icon: Settings },
-  { name: "Diagnostics",   href: "/diagnostics",    icon: Activity },
+  { name: "Integrations",   href: "/integrations",    icon: Plug },
+  { name: "Settings",       href: "/settings",        icon: Settings },
+  { name: "Plan & Billing", href: "/settings/billing", icon: CreditCard },
+  { name: "Diagnostics",   href: "/diagnostics",      icon: Activity },
 ];
 
-/* ── Mobile drawer sidebar (unchanged design) ─────────────────────────────── */
+/* ── Mobile drawer sidebar ─────────────────────────────────────────────────── */
 export function Sidebar({ className, onClose }: { className?: string; onClose?: () => void }) {
   const [location] = useLocation();
   const { signOut } = useClerk();
@@ -126,15 +127,20 @@ export function TopNav({ onMenuClick }: { onMenuClick: () => void }) {
       </Link>
 
       {/* Nav links — desktop */}
-      <nav className="hidden md:flex items-center gap-0.5 flex-1">
+      <nav className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto">
         {topNavItems.map((item) => {
-          const isActive = location === item.href || location.startsWith(item.href + "/");
+          // For billing: active if exactly /settings/billing
+          const isActive = item.href === "/settings/billing"
+            ? location === "/settings/billing"
+            : item.href === "/settings"
+            ? location === "/settings"
+            : location === item.href || location.startsWith(item.href + "/");
           return (
             <Link
               key={item.name}
               href={item.href}
               className={cn(
-                "flex items-center gap-[7px] h-9 px-3.5 rounded-lg text-[13px] font-semibold transition-colors relative",
+                "flex items-center gap-[7px] h-9 px-3.5 rounded-lg text-[13px] font-semibold transition-colors relative shrink-0",
                 isActive
                   ? "bg-primary/[0.14] text-sidebar-foreground"
                   : "text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-accent"
@@ -155,7 +161,7 @@ export function TopNav({ onMenuClick }: { onMenuClick: () => void }) {
       {/* Right side controls */}
       <div className="flex items-center gap-2.5 ml-auto shrink-0">
         {/* Search field */}
-        <div className="hidden lg:flex items-center gap-2 bg-white/[0.07] border border-white/10 rounded-lg h-[34px] px-3 w-[220px] cursor-text">
+        <div className="hidden lg:flex items-center gap-2 bg-white/[0.07] border border-white/10 rounded-lg h-[34px] px-3 w-[200px] cursor-text">
           <Search className="w-3.5 h-3.5 text-sidebar-foreground/35 shrink-0" />
           <span className="text-[12.5px] text-sidebar-foreground/30 font-normal select-none">Search jobs, customers…</span>
         </div>
@@ -174,7 +180,7 @@ export function TopNav({ onMenuClick }: { onMenuClick: () => void }) {
           <span className="absolute top-[7px] right-[7px] w-[7px] h-[7px] bg-primary rounded-full border-[1.5px] border-sidebar" />
         </button>
 
-        {/* User avatar + name → click to sign out */}
+        {/* User avatar + name */}
         <button
           onClick={() => signOut({ redirectUrl: "/" })}
           className="flex items-center gap-2 pl-1 text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
@@ -218,7 +224,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         onClose={() => setDrawerOpen(false)}
       />
 
-      {/* First-time setup checklist */}
+      {/* Post-onboarding setup checklist */}
       <SetupBanner />
 
       {/* Page content */}

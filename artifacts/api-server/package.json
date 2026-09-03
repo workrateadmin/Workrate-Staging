@@ -12,6 +12,8 @@
     "test:invoice-pdf": "node ./test/build-and-run-invoice-pdf-tests.mjs",
     "test:vapi-security": "node ./test/build-and-run-vapi-security-tests.mjs",
     "test:integration-security": "node ./test/build-and-run-integration-security-tests.mjs",
+    "test:billing": "node ./test/build-and-run-billing-tests.mjs",
+    "test": "pnpm run test:billing",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

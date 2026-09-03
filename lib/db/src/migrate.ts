@@ -401,6 +401,57 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ON "ai_calls"("owner_user_id", "created_at");
     `,
   },
+  {
+    name: "0014_billing_onboarding_foundation",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "billing_plans" (
+        "id" serial PRIMARY KEY, "code" text NOT NULL UNIQUE, "name" text NOT NULL,
+        "monthly_price_gbp" numeric(10,2) NOT NULL, "trial_price_gbp" numeric(10,2) NOT NULL,
+        "trial_days" integer NOT NULL DEFAULT 7, "feature_categories" text[] NOT NULL DEFAULT '{}',
+        "usage_limits" jsonb, "active" boolean NOT NULL DEFAULT true,
+        "created_at" timestamptz NOT NULL DEFAULT now(), "updated_at" timestamptz NOT NULL DEFAULT now()
+      );
+      INSERT INTO "billing_plans" ("code","name","monthly_price_gbp","trial_price_gbp","trial_days","feature_categories")
+      VALUES ('core','Core',29,5,7,'{}'), ('complete','Complete',99,20,7,'{}')
+      ON CONFLICT ("code") DO NOTHING;
+      CREATE TABLE IF NOT EXISTS "billing_add_ons" (
+        "id" serial PRIMARY KEY, "code" text NOT NULL UNIQUE, "name" text NOT NULL,
+        "monthly_price_gbp" numeric(10,2), "usage_limits" jsonb, "feature_categories" text[] NOT NULL DEFAULT '{}',
+        "active" boolean NOT NULL DEFAULT true, "created_at" timestamptz NOT NULL DEFAULT now(), "updated_at" timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS "onboarding_progress" (
+        "id" serial PRIMARY KEY, "company_id" integer NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
+        "owner_user_id" text NOT NULL, "status" text NOT NULL DEFAULT 'started', "current_step" text NOT NULL DEFAULT 'welcome',
+        "data" jsonb NOT NULL DEFAULT '{}', "completed_at" timestamptz, "skipped_at" timestamptz,
+        "created_at" timestamptz NOT NULL DEFAULT now(), "updated_at" timestamptz NOT NULL DEFAULT now(),
+        UNIQUE ("company_id","owner_user_id")
+      );
+      CREATE TABLE IF NOT EXISTS "company_subscriptions" (
+        "id" serial PRIMARY KEY, "company_id" integer NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE, "owner_user_id" text NOT NULL,
+        "plan_code" text, "add_on_codes" text[] NOT NULL DEFAULT '{}', "status" text NOT NULL DEFAULT 'pending_selection',
+        "provider" text, "provider_customer_id" text, "provider_subscription_id" text, "trial_ends_at" timestamptz,
+        "current_period_starts_at" timestamptz, "current_period_ends_at" timestamptz, "cancel_at_period_end" boolean NOT NULL DEFAULT false,
+        "cancelled_at" timestamptz, "failed_payment_at" timestamptz, "pending_plan_code" text, "pending_add_on_codes" text[] NOT NULL DEFAULT '{}',
+        "created_at" timestamptz NOT NULL DEFAULT now(), "updated_at" timestamptz NOT NULL DEFAULT now(), UNIQUE ("company_id","owner_user_id")
+      );
+      CREATE TABLE IF NOT EXISTS "billing_usage_periods" (
+        "id" serial PRIMARY KEY, "company_id" integer NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE, "owner_user_id" text NOT NULL,
+        "subscription_id" integer REFERENCES "company_subscriptions"("id") ON DELETE SET NULL, "starts_at" timestamptz NOT NULL, "ends_at" timestamptz NOT NULL,
+        "created_at" timestamptz NOT NULL DEFAULT now(), UNIQUE ("company_id","owner_user_id","starts_at")
+      );
+      CREATE TABLE IF NOT EXISTS "billing_usage_events" (
+        "id" serial PRIMARY KEY, "company_id" integer NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE, "owner_user_id" text NOT NULL,
+        "usage_period_id" integer REFERENCES "billing_usage_periods"("id") ON DELETE SET NULL, "feature_code" text NOT NULL, "quantity" integer NOT NULL DEFAULT 1,
+        "idempotency_key" text, "metadata" jsonb, "occurred_at" timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "billing_usage_events_tenant_idempotency_unique" ON "billing_usage_events" ("company_id","owner_user_id","idempotency_key");
+      CREATE TABLE IF NOT EXISTS "billing_webhook_events" (
+        "id" serial PRIMARY KEY, "company_id" integer NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE, "owner_user_id" text NOT NULL,
+        "provider" text NOT NULL, "provider_event_id" text NOT NULL, "event_type" text NOT NULL, "payload" jsonb NOT NULL,
+        "processed_at" timestamptz, "created_at" timestamptz NOT NULL DEFAULT now(), UNIQUE ("provider","provider_event_id")
+      );
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
