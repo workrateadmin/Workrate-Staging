@@ -65,6 +65,11 @@ router.put("/billing/selection", async (req, res): Promise<void> => {
   if (!plan || parsed.data.addOnCodes.some((code) => !validAddOns.some((addOn) => addOn.code === code))) { res.status(400).json({ error: "Unknown or inactive billing selection" }); return; }
   const [row] = await db.insert(companySubscriptionsTable).values({ companyId: company.id, ownerUserId: userId, pendingPlanCode: parsed.data.planCode, pendingAddOnCodes: parsed.data.addOnCodes })
     .onConflictDoUpdate({ target: [companySubscriptionsTable.companyId, companySubscriptionsTable.ownerUserId], set: { pendingPlanCode: parsed.data.planCode, pendingAddOnCodes: parsed.data.addOnCodes } }).returning();
+  if (row.provider === "stripe" && ["trialing", "active", "past_due"].includes(row.status)) {
+    await billingProvider.applySelection({ companyId: company.id, ownerUserId: userId, planCode: parsed.data.planCode, addOnCodes: parsed.data.addOnCodes });
+    res.json(SaveBillingSelectionResponse.parse(overview(await subscriptionFor(company.id, userId))));
+    return;
+  }
   res.json(SaveBillingSelectionResponse.parse(overview(row)));
 });
 
@@ -84,6 +89,10 @@ for (const [path, action] of [["/billing/portal", "createCustomerPortalSession"]
     if (!company) { res.status(400).json({ error: "Company profile is required" }); return; }
     const result = await billingProvider[action]({ companyId: company.id, ownerUserId: userId });
     if (!result.ok) { req.log.info({ code: result.code }, "Billing provider unavailable"); res.status(501).json(result); return; }
+    if (action === "cancelSubscription") {
+      res.json(GetBillingOverviewResponse.parse(overview(await subscriptionFor(company.id, userId))));
+      return;
+    }
     res.json(result);
   });
 }

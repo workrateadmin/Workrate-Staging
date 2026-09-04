@@ -13,6 +13,7 @@ import {
 import { logger } from "./lib/logger";
 import { hmrcTrustProxySetting } from "./lib/hmrc-security";
 import router from "./routes";
+import { billingProvider } from "./services/billing/provider";
 
 // Ensure uploads dir exists
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -62,6 +63,20 @@ app.use(cors({
     callback(null, Boolean(origin && allowedCorsOrigins.has(origin)));
   },
 }));
+// Stripe signs the exact byte stream. This must remain ahead of every body parser.
+app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res): Promise<void> => {
+  const signature = req.headers["stripe-signature"];
+  try {
+    await billingProvider.verifyWebhook({
+      payload: req.body as Buffer,
+      signature: Array.isArray(signature) ? signature[0] : signature,
+    });
+    res.status(200).json({ received: true });
+  } catch (error) {
+    req.log.warn({ err: error }, "Rejected Stripe webhook");
+    res.status(400).json({ error: "Invalid Stripe webhook" });
+  }
+});
 // Capture the raw request body before JSON parsing so webhook routes can
 // verify HMAC-SHA256 signatures (e.g. Meta WhatsApp, Stripe, etc.).
 app.use(express.json({

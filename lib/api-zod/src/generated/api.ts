@@ -2612,13 +2612,33 @@ export const SaveBillingSelectionResponse = zod.object({
 })
 
 
-export const RequestBillingCheckoutResponse = zod.void()
+export const RequestBillingCheckoutResponse = zod.object({
+  "ok": zod.literal(true),
+  "url": zod.string()
+})
 
 
-export const RequestBillingPortalResponse = zod.void()
+export const RequestBillingPortalResponse = zod.object({
+  "ok": zod.literal(true),
+  "url": zod.string()
+})
 
 
-export const RequestBillingCancellationResponse = zod.void()
+export const RequestBillingCancellationResponse = zod.object({
+  "legacyAccess": zod.boolean(),
+  "status": zod.string().nullable(),
+  "planCode": zod.string().nullable(),
+  "addOnCodes": zod.array(zod.string()),
+  "pendingPlanCode": zod.string().nullable(),
+  "pendingAddOnCodes": zod.array(zod.string()),
+  "cancelAtPeriodEnd": zod.boolean(),
+  "provider": zod.string().nullable(),
+  "trialEndsAt": zod.coerce.date().nullable(),
+  "currentPeriodStartsAt": zod.coerce.date().nullable(),
+  "currentPeriodEndsAt": zod.coerce.date().nullable(),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "failedPaymentAt": zod.coerce.date().nullable()
+})
 
 
 export const GetOnboardingResponse = zod.object({

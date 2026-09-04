@@ -286,9 +286,9 @@ export default function OnboardingPage() {
   const handlePaymentNext = () => {
     setCheckoutUnavailable(false);
     requestCheckout.mutate(undefined, {
-      onSuccess: () => {
-        // If successful (unlikely in dev), move on
-        goNext();
+      onSuccess: (data: any) => {
+        if (data?.url) window.location.assign(data.url);
+        else toast({ title: "Checkout did not return a hosted URL", variant: "destructive" });
       },
       onError: (err: any) => {
         // 501 = payment not yet available

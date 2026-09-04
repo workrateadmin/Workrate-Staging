@@ -20,6 +20,7 @@
     "@clerk/express": "^2.1.49",
     "@clerk/shared": "^4.25.10",
     "@google-cloud/storage": "^7.21.0",
+    "@replit/connectors-sdk": "^0.4.1",
     "@swc/helpers": "^0.5.23",
     "@types/multer": "^2.2.0",
     "@types/pdfkit": "^0.17.6",

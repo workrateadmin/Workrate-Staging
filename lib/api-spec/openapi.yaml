@@ -1860,17 +1860,17 @@ paths:
     post:
       operationId: requestBillingCheckout
       tags: [billing]
-      responses: { "501": { description: Provider unavailable, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentUnavailable" } } } } }
+      responses: { "200": { description: Hosted checkout, content: { application/json: { schema: { $ref: "#/components/schemas/BillingHostedUrl" } } } }, "501": { description: Provider unavailable, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentUnavailable" } } } } }
   /billing/portal:
     post:
       operationId: requestBillingPortal
       tags: [billing]
-      responses: { "501": { description: Provider unavailable, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentUnavailable" } } } } }
+      responses: { "200": { description: Hosted portal, content: { application/json: { schema: { $ref: "#/components/schemas/BillingHostedUrl" } } } }, "501": { description: Provider unavailable, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentUnavailable" } } } } }
   /billing/cancellation:
     post:
       operationId: requestBillingCancellation
       tags: [billing]
-      responses: { "501": { description: Provider unavailable, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentUnavailable" } } } } }
+      responses: { "200": { description: Updated overview, content: { application/json: { schema: { $ref: "#/components/schemas/BillingOverview" } } } }, "501": { description: Provider unavailable, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentUnavailable" } } } } }
   /onboarding:
     get:
       operationId: getOnboarding
@@ -1984,6 +1984,12 @@ components:
       type: object
       required: [code, message]
       properties: { code: { type: string, enum: [PAYMENT_SETUP_UNAVAILABLE] }, message: { type: string } }
+    BillingHostedUrl:
+      type: object
+      required: [ok, url]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        url: { type: string }
     OnboardingState:
       type: object
       required: [exists, status, currentStep, data]

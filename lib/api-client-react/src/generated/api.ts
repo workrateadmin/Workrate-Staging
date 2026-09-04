@@ -27,6 +27,7 @@ import type {
   AiReceptionistSettingsUpdate,
   ApiError,
   BillingCatalog,
+  BillingHostedUrl,
   BillingOverview,
   BillingSelectionInput,
   BillingSimulationInput,
@@ -6244,9 +6245,9 @@ export const getRequestBillingCheckoutUrl = () => {
   return `/api/billing/checkout`
 }
 
-export const requestBillingCheckout = async ( options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+export const requestBillingCheckout = async ( options?: Parameters<typeof customFetch>[1]): Promise<BillingHostedUrl> => {
 
-  return customFetch<unknown>(getRequestBillingCheckoutUrl(),
+  return customFetch<BillingHostedUrl>(getRequestBillingCheckoutUrl(),
   {
     ...options,
     method: 'POST'
@@ -6309,9 +6310,9 @@ export const getRequestBillingPortalUrl = () => {
   return `/api/billing/portal`
 }
 
-export const requestBillingPortal = async ( options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+export const requestBillingPortal = async ( options?: Parameters<typeof customFetch>[1]): Promise<BillingHostedUrl> => {
 
-  return customFetch<unknown>(getRequestBillingPortalUrl(),
+  return customFetch<BillingHostedUrl>(getRequestBillingPortalUrl(),
   {
     ...options,
     method: 'POST'
@@ -6374,9 +6375,9 @@ export const getRequestBillingCancellationUrl = () => {
   return `/api/billing/cancellation`
 }
 
-export const requestBillingCancellation = async ( options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+export const requestBillingCancellation = async ( options?: Parameters<typeof customFetch>[1]): Promise<BillingOverview> => {
 
-  return customFetch<unknown>(getRequestBillingCancellationUrl(),
+  return customFetch<BillingOverview>(getRequestBillingCancellationUrl(),
   {
     ...options,
     method: 'POST'

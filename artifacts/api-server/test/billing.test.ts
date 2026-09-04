@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHmac } from "node:crypto";
 import { resolveEntitlements, canUseMeteredFeature } from "../src/services/billing/entitlements";
-import { UnavailableBillingProvider } from "../src/services/billing/provider";
+import { UnavailableBillingProvider } from "../src/services/billing/unavailable";
+import { StripeBillingProvider, type CheckoutRepository, type WebhookRepository } from "../src/services/billing/provider";
+import { canonicalEventId, checkoutIdempotencyKey, checkoutLineItems, mapStripeSubscriptionStatus, requireCanonicalEventId, verifyStripeSignature } from "../src/services/billing/lifecycle";
+import { processRetryableReceipt } from "../src/services/billing/lifecycle";
 
 test("legacy companies retain access until they explicitly enter billing", () => {
   const entitlement = resolveEntitlements({ legacyAccess: true, plans: [], addOns: [], subscription: undefined });
@@ -25,4 +29,166 @@ test("unavailable provider never creates a payment session", async () => {
   const result = await provider.createCheckoutSession({ companyId: 1, ownerUserId: "user", planCode: "core", addOnCodes: [] });
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.code, "PAYMENT_SETUP_UNAVAILABLE");
+});
+
+test("Stripe lifecycle maps trials, payment failure/recovery, and cancellation", () => {
+  assert.equal(mapStripeSubscriptionStatus("trialing"), "trialing");
+  assert.equal(mapStripeSubscriptionStatus("active"), "active"); // invoice.paid recovery
+  assert.equal(mapStripeSubscriptionStatus("past_due"), "past_due"); // invoice.payment_failed
+  assert.equal(mapStripeSubscriptionStatus("incomplete"), "past_due");
+  assert.equal(mapStripeSubscriptionStatus("canceled"), "cancelled");
+});
+
+test("webhook receipt duplicates no-op and failed processing remains retryable", async () => {
+  const receipt = { processedAt: null as Date | null };
+  await assert.rejects(processRetryableReceipt(receipt, async () => { throw new Error("temporary DB failure"); }));
+  assert.equal(receipt.processedAt, null);
+  assert.equal(await processRetryableReceipt(receipt, async () => undefined), "processed");
+  assert.notEqual(receipt.processedAt, null);
+  assert.equal(await processRetryableReceipt(receipt, async () => { throw new Error("must not run"); }), "duplicate");
+});
+
+test("checkout composes upfront paid trial with recurring monthly price and add-ons", () => {
+  assert.deepEqual(checkoutLineItems("price_monthly", "price_paid_trial", ["price_addon"]), [
+    { price: "price_monthly", quantity: 1 },
+    { price: "price_paid_trial", quantity: 1 },
+    { price: "price_addon", quantity: 1 },
+  ]);
+  assert.equal(checkoutIdempotencyKey(1, "11111111-1111-4111-8111-111111111111"), checkoutIdempotencyKey(1, "11111111-1111-4111-8111-111111111111"));
+  assert.notEqual(checkoutIdempotencyKey(1, "11111111-1111-4111-8111-111111111111"), checkoutIdempotencyKey(1, "22222222-2222-4222-8222-222222222222"));
+});
+
+test("webhook submitted fields cannot control canonical event selection", () => {
+  const tampered = Buffer.from(JSON.stringify({ id: "evt_canonical", type: "customer.subscription.deleted", data: { object: { status: "active" } } }));
+  assert.equal(canonicalEventId(tampered, "present"), "evt_canonical");
+  assert.throws(() => canonicalEventId(tampered), /Missing Stripe signature/);
+  assert.throws(() => requireCanonicalEventId("evt_canonical", "evt_other"), /mismatch/);
+});
+
+test("Stripe HMAC verification accepts valid bytes and rejects invalid, stale, missing, and tampered payloads", () => {
+  const secret = "whsec_test";
+  const now = 1_700_000_000;
+  const payload = Buffer.from('{"id":"evt_valid"}');
+  const digest = createHmac("sha256", secret).update(`${now}.`).update(payload).digest("hex");
+  const signature = `t=${now},v1=${digest}`;
+  assert.doesNotThrow(() => verifyStripeSignature(payload, signature, secret, now));
+  assert.throws(() => verifyStripeSignature(payload, undefined, secret, now), /Missing/);
+  assert.throws(() => verifyStripeSignature(payload, `t=${now},v1=${"0".repeat(64)}`, secret, now), /Invalid/);
+  assert.throws(() => verifyStripeSignature(payload, signature, secret, now + 301), /Stale/);
+  assert.throws(() => verifyStripeSignature(Buffer.from('{"id":"evt_tampered"}'), signature, secret, now), /Invalid/);
+});
+
+function providerFixture(attempt: any, session: any) {
+  const updates: any[] = [];
+  const repo: CheckoutRepository = {
+    async subscription() { return undefined; },
+    async establishAttempt() { return attempt; },
+    async updateAttempt(_id, values) { Object.assign(attempt, values); updates.push(values); },
+    async updateSubscription(_company, _owner, values) { updates.push({ subscription: values }); },
+  };
+  const calls: any[] = [];
+  let checkoutFailures = 0;
+  const connector: any = {
+    async get(path: string, query?: any) {
+      calls.push(["get", path]);
+      if (path.startsWith("products/search")) return { data: [{ id: path.includes("core") ? "prod_core" : "prod" }] };
+      if (path === "prices") return { data: [
+        { id: "price_monthly", currency: "gbp", recurring: { interval: "month" }, metadata: { billing_kind: "monthly" } },
+        { id: "price_trial", currency: "gbp", recurring: null, metadata: { billing_kind: "paid_trial" } },
+      ] };
+      if (path.startsWith("checkout/sessions/")) return session;
+      if (path.startsWith("subscriptions/")) return { id: "sub_1", customer: "cus_1", status: "active", metadata: { planCode: "core", addOnCodes: "[]" }, items: { data: [] } };
+      return { data: [] };
+    },
+    async post(path: string, form: any, headers: any) {
+      calls.push(["post", path, form, headers]);
+      if (path === "checkout/sessions" && checkoutFailures++ === 0) throw new Error("lost response");
+      return session;
+    },
+  };
+  return { provider: new StripeBillingProvider(() => connector, repo), calls, updates };
+}
+
+test("provider retries a lost Checkout response with one persisted server attempt key", async () => {
+  const attempt = { id: 1, attemptKey: "11111111-1111-4111-8111-111111111111", status: "pending" };
+  const fixture = providerFixture(attempt, { id: "cs_1", status: "open", url: "https://checkout.stripe.test/1", expires_at: 2_000_000_000 });
+  await assert.rejects(fixture.provider.createCheckoutSession({ companyId: 1, ownerUserId: "u", planCode: "core", addOnCodes: [] }), /lost response/);
+  assert.equal(attempt.status, "pending");
+  const result = await fixture.provider.createCheckoutSession({ companyId: 1, ownerUserId: "u", planCode: "core", addOnCodes: [] });
+  assert.equal(result.ok && result.url, "https://checkout.stripe.test/1");
+  const checkoutCalls = fixture.calls.filter((call) => call[0] === "post" && call[1] === "checkout/sessions");
+  assert.equal(checkoutCalls.length, 2);
+  assert.equal(checkoutCalls[0][3]["Idempotency-Key"], checkoutCalls[1][3]["Idempotency-Key"]);
+});
+
+test("provider reconciles a completed persisted Checkout instead of creating another", async () => {
+  const attempt = { id: 2, attemptKey: "22222222-2222-4222-8222-222222222222", providerSessionId: "cs_done", hostedUrl: "https://checkout.stripe.test/done", status: "complete" };
+  const fixture = providerFixture(attempt, { id: "cs_done", status: "complete", url: null, subscription: "sub_1" });
+  const result = await fixture.provider.createCheckoutSession({ companyId: 1, ownerUserId: "u", planCode: "core", addOnCodes: [] });
+  assert.equal(result.ok && result.status, "complete");
+  assert.equal(fixture.updates.some((update) => update.subscription?.providerSubscriptionId === "sub_1"), true);
+  assert.equal(fixture.calls.filter((call) => call[0] === "post" && call[1] === "checkout/sessions").length, 0);
+});
+
+test("provider reuses a tenant-wide open Checkout across different selections", async () => {
+  const attempt = { id: 3, attemptKey: "33333333-3333-4333-8333-333333333333", status: "pending" };
+  const fixture = providerFixture(attempt, { id: "cs_one", status: "open", url: "https://checkout.stripe.test/one", expires_at: 2_000_000_000 });
+  await assert.rejects(fixture.provider.createCheckoutSession({ companyId: 7, ownerUserId: "owner", planCode: "core", addOnCodes: [] }), /lost response/);
+  await fixture.provider.createCheckoutSession({ companyId: 7, ownerUserId: "owner", planCode: "complete", addOnCodes: [] });
+  await fixture.provider.createCheckoutSession({ companyId: 7, ownerUserId: "owner", planCode: "core", addOnCodes: [] });
+  const creates = fixture.calls.filter((call) => call[0] === "post" && call[1] === "checkout/sessions");
+  assert.equal(creates.length, 2); // one lost response plus its idempotent replay; never a second session key
+  assert.equal(creates[0][3]["Idempotency-Key"], creates[1][3]["Idempotency-Key"]);
+});
+
+test("provider webhook canonical recovery, duplicate receipt, and failed retry", async () => {
+  process.env.REPLIT_DOMAINS = "billing.test";
+  const secret = "whsec_provider";
+  const states: any[] = [];
+  const receipts = new Set<string>();
+  let failOnce = true;
+  const webhookRepo: WebhookRepository = {
+    async secret() { return secret; },
+    async tenantForCustomer() { return { companyId: 9, ownerUserId: "owner" }; },
+    async process(event, _tenant, values) {
+      if (receipts.has(event.id)) return "duplicate";
+      if (event.id === "evt_retry" && failOnce) { failOnce = false; throw new Error("transaction failed"); }
+      if (values) states.push(values);
+      receipts.add(event.id);
+      return "processed";
+    },
+  };
+  let currentStatus = "incomplete";
+  const connector: any = {
+    async get(path: string) {
+      if (path.startsWith("events/")) {
+        const id = path.slice("events/".length);
+        return { id, type: id === "evt_paid" ? "invoice.paid" : "invoice.payment_failed", data: { object: { customer: "cus_9", subscription: "sub_9" } } };
+      }
+      if (path === "subscriptions/sub_9") return { id: "sub_9", customer: "cus_9", status: currentStatus, metadata: { planCode: "core", addOnCodes: "[]" } };
+      throw new Error(`unexpected ${path}`);
+    },
+    async post() { throw new Error("unexpected post"); },
+  };
+  const checkoutRepo: CheckoutRepository = {
+    async subscription() { return undefined; }, async establishAttempt() { throw new Error("unused"); },
+    async updateAttempt() {}, async updateSubscription() {},
+  };
+  const provider = new StripeBillingProvider(() => connector, checkoutRepo, webhookRepo);
+  const deliver = (id: string) => {
+    const payload = Buffer.from(JSON.stringify({ id }));
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = createHmac("sha256", secret).update(`${timestamp}.`).update(payload).digest("hex");
+    return provider.verifyWebhook({ payload, signature: `t=${timestamp},v1=${signature}` });
+  };
+  await deliver("evt_failed");
+  assert.equal(states.at(-1).status, "past_due");
+  assert.ok(states.at(-1).failedPaymentAt);
+  assert.equal((await deliver("evt_failed")).status, "duplicate");
+  await assert.rejects(deliver("evt_retry"), /transaction failed/);
+  await deliver("evt_retry");
+  currentStatus = "active";
+  await deliver("evt_paid");
+  assert.equal(states.at(-1).status, "active");
+  assert.equal(states.at(-1).failedPaymentAt, null);
 });

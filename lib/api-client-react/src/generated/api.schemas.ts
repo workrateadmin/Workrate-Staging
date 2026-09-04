@@ -91,6 +91,11 @@ export interface PaymentUnavailable {
   message: string;
 }
 
+export interface BillingHostedUrl {
+  ok: true;
+  url: string;
+}
+
 export type OnboardingStateData = { [key: string]: unknown };
 
 export interface OnboardingState {

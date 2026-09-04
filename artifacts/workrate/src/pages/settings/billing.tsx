@@ -199,7 +199,10 @@ export default function BillingPage() {
   const handleCheckout = () => {
     setCheckoutUnavailable(false);
     requestCheckout.mutate(undefined, {
-      onSuccess: () => { invalidateAll(); toast({ title: "Checkout initiated" }); },
+      onSuccess: (data: any) => {
+        if (data?.url) window.location.assign(data.url);
+        else toast({ title: "Checkout did not return a hosted URL", variant: "destructive" });
+      },
       onError: (err: any) => {
         const body = err?.response?.data ?? err;
         if (body?.code === "PAYMENT_SETUP_UNAVAILABLE" || err?.status === 501) {
@@ -215,7 +218,10 @@ export default function BillingPage() {
   const handlePortal = () => {
     setPortalUnavailable(false);
     requestPortal.mutate(undefined, {
-      onSuccess: () => invalidateAll(),
+      onSuccess: (data: any) => {
+        if (data?.url) window.location.assign(data.url);
+        else toast({ title: "Billing portal did not return a hosted URL", variant: "destructive" });
+      },
       onError: (err: any) => {
         const body = err?.response?.data ?? err;
         if (body?.code === "PAYMENT_SETUP_UNAVAILABLE" || err?.status === 501) {

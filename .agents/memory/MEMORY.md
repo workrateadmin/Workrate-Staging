@@ -23,3 +23,4 @@
 - [api-server dev workflow has no hot reload](workrate-api-server-no-hotreload.md) — dev script is build-once-then-start; must restart the workflow after editing api-server source before any live/synthetic test
 - [WorkRate invoice PDF storage boundary](workrate-invoice-pdf.md) — generated documents must never turn tenant-controlled branding into unrestricted network or private-object reads
 - [WorkRate billing foundation](workrate-billing-foundation.md) — provider-neutral paid-trial state; legacy companies retain access until they explicitly enter onboarding/billing
+- [Stripe connector billing](workrate-stripe-billing.md) — connector proxy withholds API/webhook keys; create endpoint secret once, encrypt it, and keep Checkout attempts tenant-wide

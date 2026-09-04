@@ -8,7 +8,7 @@ const artifactDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const outputDir = path.resolve(artifactDir, "../../lib/db/.billing-test-dist");
 const outputFile = path.join(outputDir, "billing.test.mjs");
 try {
-  await build({ entryPoints: [path.join(artifactDir, "test", "billing.test.ts")], bundle: true, platform: "node", format: "esm", target: "node24", outfile: outputFile, logLevel: "info" });
+  await build({ entryPoints: [path.join(artifactDir, "test", "billing.test.ts")], bundle: true, platform: "node", format: "esm", target: "node24", outfile: outputFile, logLevel: "info", external: ["pg", "@replit/connectors-sdk"] });
   const result = spawnSync(process.execPath, ["--test", outputFile], { cwd: artifactDir, env: process.env, stdio: "inherit" });
   process.exitCode = result.status ?? 1;
 } finally {

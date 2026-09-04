@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -108,6 +109,33 @@ export const billingWebhookEventsTable = pgTable("billing_webhook_events", {
   processedAt: timestamp("processed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [uniqueIndex("billing_webhook_events_provider_event_unique").on(table.provider, table.providerEventId)]);
+
+/** Operator-level provider configuration. Secrets are AES-256-GCM ciphertext only. */
+export const billingProviderConfigsTable = pgTable("billing_provider_configs", {
+  id: serial("id").primaryKey(),
+  provider: text("provider").notNull(),
+  webhookUrl: text("webhook_url").notNull(),
+  providerWebhookId: text("provider_webhook_id").notNull(),
+  encryptedWebhookSecret: text("encrypted_webhook_secret").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (table) => [uniqueIndex("billing_provider_configs_provider_url_unique").on(table.provider, table.webhookUrl)]);
+
+export const billingCheckoutAttemptsTable = pgTable("billing_checkout_attempts", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull(),
+  ownerUserId: text("owner_user_id").notNull(),
+  selectionFingerprint: text("selection_fingerprint").notNull(),
+  attemptKey: uuid("attempt_key").notNull().defaultRandom(),
+  providerSessionId: text("provider_session_id"),
+  hostedUrl: text("hosted_url"),
+  status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (table) => [
+  uniqueIndex("billing_checkout_attempts_attempt_key_unique").on(table.attemptKey),
+]);
 
 export const insertOnboardingProgressSchema = createInsertSchema(onboardingProgressTable).omit({ id: true, companyId: true, ownerUserId: true, createdAt: true, updatedAt: true });
 export type BillingPlan = typeof billingPlansTable.$inferSelect;

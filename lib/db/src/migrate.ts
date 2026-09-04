@@ -452,6 +452,34 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    name: "0015_billing_provider_config",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "billing_provider_configs" (
+        "id" serial PRIMARY KEY, "provider" text NOT NULL, "webhook_url" text NOT NULL,
+        "provider_webhook_id" text NOT NULL, "encrypted_webhook_secret" text NOT NULL,
+        "created_at" timestamptz NOT NULL DEFAULT now(), "updated_at" timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "billing_provider_configs_provider_url_unique"
+        ON "billing_provider_configs" ("provider", "webhook_url");
+    `,
+  },
+  {
+    name: "0016_billing_checkout_attempts",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "billing_checkout_attempts" (
+        "id" serial PRIMARY KEY, "company_id" integer NOT NULL, "owner_user_id" text NOT NULL,
+        "selection_fingerprint" text NOT NULL, "attempt_key" uuid NOT NULL DEFAULT gen_random_uuid(),
+        "provider_session_id" text, "hosted_url" text, "status" text NOT NULL DEFAULT 'pending',
+        "expires_at" timestamptz, "created_at" timestamptz NOT NULL DEFAULT now(),
+        "updated_at" timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "billing_checkout_attempts_attempt_key_unique"
+        ON "billing_checkout_attempts" ("attempt_key");
+      CREATE INDEX IF NOT EXISTS "billing_checkout_attempts_tenant_selection_idx"
+        ON "billing_checkout_attempts" ("company_id", "owner_user_id", "selection_fingerprint", "created_at" DESC);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

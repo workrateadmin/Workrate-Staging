@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runMigrations } from "@workspace/db/migrate";
+import { initializeStripeBilling } from "./services/billing/provider";
 
 const rawPort = process.env["PORT"];
 
@@ -18,7 +19,14 @@ if (Number.isNaN(port) || port <= 0) {
 
 // Run DB migrations before accepting connections
 runMigrations()
-  .then(() => {
+  .then(async () => {
+    try {
+      await initializeStripeBilling();
+    } catch (err) {
+      // Billing calls remain safely unavailable until the connector recovers;
+      // never take unrelated product functionality down for a transient sync error.
+      logger.error({ err }, "Stripe initialization failed; billing provider will remain unavailable");
+    }
     app.listen(port, (err) => {
       if (err) {
         logger.error({ err }, "Error listening on port");

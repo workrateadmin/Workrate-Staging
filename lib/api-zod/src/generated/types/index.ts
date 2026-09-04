@@ -15,6 +15,7 @@ export * from './apiError';
 export * from './billingAddOn';
 export * from './billingAddOnUsageLimits';
 export * from './billingCatalog';
+export * from './billingHostedUrl';
 export * from './billingOverview';
 export * from './billingPlan';
 export * from './billingPlanUsageLimits';
