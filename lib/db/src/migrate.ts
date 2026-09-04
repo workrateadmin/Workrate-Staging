@@ -480,6 +480,48 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         ON "billing_checkout_attempts" ("company_id", "owner_user_id", "selection_fingerprint", "created_at" DESC);
     `,
   },
+  {
+    name: "0015_billing_catalog_pricing",
+    sql: `
+      ALTER TABLE "billing_plans" ADD COLUMN IF NOT EXISTS "description" text;
+      ALTER TABLE "billing_plans" ADD COLUMN IF NOT EXISTS "trial_percentage" numeric(5,2) NOT NULL DEFAULT 50;
+      ALTER TABLE "billing_plans" ADD COLUMN IF NOT EXISTS "manual_trial_price_gbp" numeric(10,2);
+      ALTER TABLE "billing_plans" ADD COLUMN IF NOT EXISTS "included_allowance" jsonb;
+      ALTER TABLE "billing_plans" ADD COLUMN IF NOT EXISTS "overage_policy" jsonb;
+      ALTER TABLE "billing_plans" ADD COLUMN IF NOT EXISTS "coming_soon" boolean NOT NULL DEFAULT false;
+      ALTER TABLE "billing_plans" ADD COLUMN IF NOT EXISTS "sort_order" integer NOT NULL DEFAULT 0;
+      ALTER TABLE "billing_plans" ADD COLUMN IF NOT EXISTS "stripe_product_id" text;
+      ALTER TABLE "billing_plans" ADD COLUMN IF NOT EXISTS "stripe_recurring_price_id" text;
+      ALTER TABLE "billing_plans" ADD COLUMN IF NOT EXISTS "stripe_trial_price_id" text;
+      ALTER TABLE "billing_plans" ADD COLUMN IF NOT EXISTS "updated_by_user_id" text;
+      ALTER TABLE "billing_add_ons" ADD COLUMN IF NOT EXISTS "description" text;
+      ALTER TABLE "billing_add_ons" ADD COLUMN IF NOT EXISTS "trial_percentage" numeric(5,2) NOT NULL DEFAULT 50;
+      ALTER TABLE "billing_add_ons" ADD COLUMN IF NOT EXISTS "manual_trial_price_gbp" numeric(10,2);
+      ALTER TABLE "billing_add_ons" ADD COLUMN IF NOT EXISTS "included_allowance" jsonb;
+      ALTER TABLE "billing_add_ons" ADD COLUMN IF NOT EXISTS "overage_policy" jsonb;
+      ALTER TABLE "billing_add_ons" ADD COLUMN IF NOT EXISTS "coming_soon" boolean NOT NULL DEFAULT false;
+      ALTER TABLE "billing_add_ons" ADD COLUMN IF NOT EXISTS "sort_order" integer NOT NULL DEFAULT 0;
+      ALTER TABLE "billing_add_ons" ADD COLUMN IF NOT EXISTS "stripe_product_id" text;
+      ALTER TABLE "billing_add_ons" ADD COLUMN IF NOT EXISTS "stripe_recurring_price_id" text;
+      ALTER TABLE "billing_add_ons" ADD COLUMN IF NOT EXISTS "stripe_trial_price_id" text;
+      ALTER TABLE "billing_add_ons" ADD COLUMN IF NOT EXISTS "updated_by_user_id" text;
+      ALTER TABLE "billing_plans" ADD COLUMN IF NOT EXISTS "stripe_mapping_validated_at" timestamptz;
+      ALTER TABLE "billing_add_ons" ADD COLUMN IF NOT EXISTS "stripe_mapping_validated_at" timestamptz;
+      UPDATE "billing_plans" SET "trial_percentage" = 50, "manual_trial_price_gbp" = NULL,
+        "trial_price_gbp" = ROUND("monthly_price_gbp" * 0.5, 2)
+      WHERE "code" IN ('core', 'complete');
+      INSERT INTO "billing_add_ons" ("code","name","description","feature_categories","active","coming_soon","sort_order")
+      VALUES
+        ('ai_receptionist','AI Receptionist','AI-powered call answering and enquiry capture.','{ai_receptionist}',true,false,10),
+        ('social_ai_meta','Social AI Meta','AI assistance for Meta social channels.','{social_ai_meta}',true,false,20),
+        ('concept_visuals','Concept Visuals','Generate and manage customer concept visuals.','{concept_visuals}',true,false,30),
+        ('advanced_finance_mtd','Advanced Finance MTD','Advanced finance workflows and Making Tax Digital support.','{advanced_finance_mtd}',true,false,40),
+        ('cost_intelligence','Cost Intelligence','Cost intelligence and profitability insights.','{cost_intelligence}',true,false,50)
+      ON CONFLICT ("code") DO UPDATE SET
+        "name" = EXCLUDED."name", "description" = EXCLUDED."description",
+        "feature_categories" = EXCLUDED."feature_categories";
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

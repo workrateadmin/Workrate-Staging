@@ -29,6 +29,7 @@ import FinancePage from "./pages/finance";
 import { DevBanner } from "@/components/dev-banner";
 import OnboardingPage from "./pages/onboarding";
 import BillingPage from "./pages/settings/billing";
+import InternalProductPricingPage from "./pages/internal/product-pricing";
 
 // Integration detail pages
 import WebsiteWidgetPage from "./pages/integrations/website-widget";
@@ -330,6 +331,9 @@ function ClerkProviderWithRoutes() {
           <Route path="/settings/integrations/xero"><ProtectedRoute component={XeroPage} /></Route>
           <Route path="/settings/integrations/quickbooks"><ProtectedRoute component={QuickBooksPage} /></Route>
           <Route path="/settings/integrations/stripe"><ProtectedRoute component={StripePage} /></Route>
+
+          {/* ── Internal admin (never in customer navigation) ── */}
+          <Route path="/internal/product-pricing"><ProtectedRoute component={InternalProductPricingPage} /></Route>
 
           <Route><NotFound /></Route>
         </Switch>

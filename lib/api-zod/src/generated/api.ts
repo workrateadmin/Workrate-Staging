@@ -2653,19 +2653,135 @@ export const GetBillingCatalogResponse = zod.object({
   "plans": zod.array(zod.object({
   "code": zod.string(),
   "name": zod.string(),
+  "description": zod.string().nullable(),
   "monthlyPriceGbp": zod.number(),
   "trialPriceGbp": zod.number(),
   "trialDays": zod.number(),
   "featureCategories": zod.array(zod.string()),
-  "usageLimits": zod.record(zod.string(), zod.number()).nullable()
+  "usageLimits": zod.record(zod.string(), zod.number()).nullable(),
+  "includedAllowance": zod.record(zod.string(), zod.number()).nullable(),
+  "overagePolicy": zod.record(zod.string(), zod.unknown()).nullable(),
+  "active": zod.boolean(),
+  "comingSoon": zod.boolean(),
+  "sortOrder": zod.number(),
+  "purchasable": zod.boolean(),
+  "configurationMessage": zod.string().nullable()
 })),
   "addOns": zod.array(zod.object({
   "code": zod.string(),
   "name": zod.string(),
+  "description": zod.string().nullable(),
   "monthlyPriceGbp": zod.number().nullable(),
+  "trialPriceGbp": zod.number().nullable(),
+  "trialDays": zod.number(),
   "featureCategories": zod.array(zod.string()),
-  "usageLimits": zod.record(zod.string(), zod.number()).nullable()
+  "usageLimits": zod.record(zod.string(), zod.number()).nullable(),
+  "includedAllowance": zod.record(zod.string(), zod.number()).nullable(),
+  "overagePolicy": zod.record(zod.string(), zod.unknown()).nullable(),
+  "active": zod.boolean(),
+  "comingSoon": zod.boolean(),
+  "sortOrder": zod.number(),
+  "purchasable": zod.boolean(),
+  "configurationMessage": zod.string().nullable()
 }))
+})
+
+
+/**
+ * Requires the authenticated Clerk user ID to be present in the comma-separated WORKRATE_ADMIN_USER_IDS server allowlist. Access is denied when it is unset.
+ * @summary View server billing configuration (internal administrators only)
+ */
+export const GetInternalBillingCatalogResponse = zod.object({
+  "plans": zod.array(zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "monthlyPriceGbp": zod.number().nullable(),
+  "trialPercentage": zod.number(),
+  "manualTrialPriceGbp": zod.number().nullable(),
+  "trialDays": zod.number().nullable(),
+  "featureCategories": zod.array(zod.string()),
+  "usageLimits": zod.record(zod.string(), zod.number()).nullable(),
+  "includedAllowance": zod.record(zod.string(), zod.number()).nullable(),
+  "overagePolicy": zod.record(zod.string(), zod.unknown()).nullable(),
+  "active": zod.boolean(),
+  "comingSoon": zod.boolean(),
+  "sortOrder": zod.number(),
+  "stripeProductId": zod.string().nullable(),
+  "stripeRecurringPriceId": zod.string().nullable(),
+  "stripeTrialPriceId": zod.string().nullable(),
+  "stripeMappingValidatedAt": zod.coerce.date().nullable(),
+  "updatedByUserId": zod.string().nullable()
+})),
+  "addOns": zod.array(zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "monthlyPriceGbp": zod.number().nullable(),
+  "trialPercentage": zod.number(),
+  "manualTrialPriceGbp": zod.number().nullable(),
+  "trialDays": zod.number().nullable(),
+  "featureCategories": zod.array(zod.string()),
+  "usageLimits": zod.record(zod.string(), zod.number()).nullable(),
+  "includedAllowance": zod.record(zod.string(), zod.number()).nullable(),
+  "overagePolicy": zod.record(zod.string(), zod.unknown()).nullable(),
+  "active": zod.boolean(),
+  "comingSoon": zod.boolean(),
+  "sortOrder": zod.number(),
+  "stripeProductId": zod.string().nullable(),
+  "stripeRecurringPriceId": zod.string().nullable(),
+  "stripeTrialPriceId": zod.string().nullable(),
+  "stripeMappingValidatedAt": zod.coerce.date().nullable(),
+  "updatedByUserId": zod.string().nullable()
+}))
+})
+
+
+/**
+ * Internal only. Stripe mappings are set by explicitly running seed:stripe-billing in development after configuring catalogue prices; they are never exposed by the customer catalog.
+ * @summary Update server-controlled billing pricing or mappings
+ */
+export const UpdateInternalBillingCatalogItemParams = zod.object({
+  "kind": zod.enum(['plan', 'add-on']),
+  "code": zod.coerce.string()
+})
+
+export const UpdateInternalBillingCatalogItemBody = zod.record(zod.string(), zod.unknown())
+
+export const UpdateInternalBillingCatalogItemResponse = zod.unknown()
+
+
+/**
+ * @summary Verify stored Stripe mapping and enable purchase availability
+ */
+export const ValidateInternalBillingCatalogMappingParams = zod.object({
+  "kind": zod.enum(['plan', 'add-on']),
+  "code": zod.coerce.string()
+})
+
+export const ValidateInternalBillingCatalogMappingResponse = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "monthlyPriceGbp": zod.number().nullable(),
+  "trialPercentage": zod.number(),
+  "manualTrialPriceGbp": zod.number().nullable(),
+  "trialDays": zod.number().nullable(),
+  "featureCategories": zod.array(zod.string()),
+  "usageLimits": zod.record(zod.string(), zod.number()).nullable(),
+  "includedAllowance": zod.record(zod.string(), zod.number()).nullable(),
+  "overagePolicy": zod.record(zod.string(), zod.unknown()).nullable(),
+  "active": zod.boolean(),
+  "comingSoon": zod.boolean(),
+  "sortOrder": zod.number(),
+  "stripeProductId": zod.string().nullable(),
+  "stripeRecurringPriceId": zod.string().nullable(),
+  "stripeTrialPriceId": zod.string().nullable(),
+  "stripeMappingValidatedAt": zod.coerce.date().nullable(),
+  "updatedByUserId": zod.string().nullable()
 })
 
 

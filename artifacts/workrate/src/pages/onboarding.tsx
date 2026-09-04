@@ -33,7 +33,13 @@ import {
   MapPin, PoundSterling, Clock, Package, Globe, Mail, Phone,
   Hash, AlertCircle, Hammer, Check,
 } from "lucide-react";
+import { BillingPlanSelector } from "@/components/billing-plan-selector";
 import type { BillingSelectionInputPlanCode } from "@workspace/api-client-react";
+import {
+  initialPlanFromOverview,
+  initialAddOnsFromOverview,
+  buildSelectionPayload,
+} from "@/lib/billing-helpers";
 
 // ── Step definitions ──────────────────────────────────────────────────────────
 
@@ -92,8 +98,11 @@ export default function OnboardingPage() {
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [checkoutUnavailable, setCheckoutUnavailable] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState("");
-  const [selectedPlan, setSelectedPlan] = useState<BillingSelectionInputPlanCode>("core");
-  const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
+  // selectedPlan=null → uninitialized; will hydrate from overview once loaded.
+  // selectedAddOns=null → uninitialized; [] = user deliberately cleared all.
+  const [selectedPlan, setSelectedPlan] = useState<BillingSelectionInputPlanCode | null>(null);
+  const [selectedAddOns, setSelectedAddOns] = useState<string[] | null>(null);
+  const billingHydratedRef = useRef(false);
 
   // Business fields
   const [bizName, setBizName] = useState("");
@@ -180,6 +189,15 @@ export default function OnboardingPage() {
     setMinProject(String(company.minimumProjectValue ?? ""));
     setPaymentTerms(company.paymentTerms ?? "");
   }, [company]);
+
+  // ── Hydrate billing plan/add-ons from overview (once, never overwrite edits) ──
+  useEffect(() => {
+    if (!billingOverview || billingHydratedRef.current) return;
+    billingHydratedRef.current = true;
+    const plan = initialPlanFromOverview(billingOverview);
+    if (plan) setSelectedPlan(plan);
+    setSelectedAddOns(initialAddOnsFromOverview(billingOverview));
+  }, [billingOverview]);
 
   const currentStep = STEPS[currentStepIdx];
 
@@ -269,8 +287,14 @@ export default function OnboardingPage() {
   };
 
   const handlePlanNext = () => {
+    // Resolve null-sentinels: null means "not yet hydrated, use overview values"
+    const planCode: BillingSelectionInputPlanCode =
+      selectedPlan ?? (initialPlanFromOverview(billingOverview) ?? "core");
+    const addOnCodes: string[] =
+      selectedAddOns ?? initialAddOnsFromOverview(billingOverview);
+
     saveBillingSelection.mutate(
-      { data: { planCode: selectedPlan, addOnCodes: selectedAddOns } },
+      { data: buildSelectionPayload(planCode, addOnCodes) },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetBillingOverviewQueryKey() });
@@ -465,14 +489,18 @@ export default function OnboardingPage() {
                   unavailableMessage={checkoutMessage}
                   onSkipToNext={goNext}
                   billingOverview={billingOverview}
-                  selectedPlanData={catalog?.plans.find((p) => p.code === selectedPlan) ?? null}
+                  selectedPlanData={catalog?.plans.find(
+                    (p) => p.code === (selectedPlan ?? initialPlanFromOverview(billingOverview) ?? "core")
+                  ) ?? null}
                 />
               )}
               {currentStep.id === "test_enquiry" && <StepTestEnquiry widgetToken={company?.widgetToken} />}
               {currentStep.id === "finish" && (
                 <StepFinish
                   billingOverview={billingOverview}
-                  selectedPlanData={catalog?.plans.find((p) => p.code === (billingOverview?.planCode ?? selectedPlan)) ?? null}
+                  selectedPlanData={catalog?.plans.find(
+                    (p) => p.code === (billingOverview?.planCode ?? selectedPlan ?? initialPlanFromOverview(billingOverview) ?? "core")
+                  ) ?? null}
                 />
               )}
             </div>
@@ -592,7 +620,7 @@ function StepWelcome({ companyName }: { companyName?: string }) {
           { icon: Building2, title: "Your business profile", desc: "Name, contact details, trade type, and service area." },
           { icon: CreditCard, title: "Commercial settings", desc: "Labour rates, markup, deposit rules, and payment terms." },
           { icon: Palette, title: "Branding", desc: "Your colours, registration details, and bank information." },
-          { icon: PlayCircle, title: "Choose your plan", desc: "Core or Complete — start with a 7-day trial." },
+          { icon: PlayCircle, title: "Choose your plan", desc: "Core or Complete — start with a paid trial period." },
         ].map((item) => (
           <div key={item.title} className="flex items-start gap-3 p-4 rounded-xl border border-border bg-card">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
@@ -897,111 +925,28 @@ function StepIntegrations({ integrations }: { integrations: any[] }) {
 
 function StepPlan({ catalog, selectedPlan, setSelectedPlan, selectedAddOns, setSelectedAddOns }: {
   catalog: any;
-  selectedPlan: BillingSelectionInputPlanCode;
+  /** null means not yet hydrated from overview */
+  selectedPlan: BillingSelectionInputPlanCode | null;
   setSelectedPlan: (p: BillingSelectionInputPlanCode) => void;
-  selectedAddOns: string[];
+  /** null means not yet hydrated; [] means user deliberately cleared */
+  selectedAddOns: string[] | null;
   setSelectedAddOns: (a: string[]) => void;
 }) {
-  const plans = catalog?.plans ?? [];
-  const addOns = catalog?.addOns ?? [];
-
-  const toggleAddOn = (code: string) => {
-    setSelectedAddOns(
-      selectedAddOns.includes(code)
-        ? selectedAddOns.filter((a) => a !== code)
-        : [...selectedAddOns, code]
-    );
-  };
-
   return (
     <div>
-      <StepHeader title="Choose Your Plan" desc="Both plans include a trial period. You can switch plans from billing settings at any time." />
-
-      {plans.length === 0 ? (
-        <div className="space-y-3">
-          {[0, 1].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
-        </div>
-      ) : (
-        <div className="space-y-3 mb-8">
-          {plans.map((plan: any) => (
-            <button
-              key={plan.code}
-              type="button"
-              onClick={() => setSelectedPlan(plan.code as BillingSelectionInputPlanCode)}
-              className={cn(
-                "w-full text-left p-5 rounded-xl border-2 transition-all",
-                selectedPlan === plan.code
-                  ? "border-primary bg-primary/5"
-                  : "border-border bg-card hover:border-primary/40"
-              )}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-black text-base">{plan.name}</span>
-                    {plan.code === "complete" && (
-                      <span className="text-[10px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full uppercase tracking-widest">Recommended</span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {plan.featureCategories.map((f: string) => (
-                      <span key={f} className="text-[11px] font-medium text-muted-foreground bg-secondary px-2 py-0.5 rounded-md border border-border/50">{f}</span>
-                    ))}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-xl font-black">£{plan.monthlyPriceGbp}<span className="text-sm font-normal text-muted-foreground">/mo</span></div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {plan.trialDays}-day trial £{plan.trialPriceGbp}
-                  </div>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {addOns.length > 0 && (
-        <div>
-          <p className="text-sm font-bold mb-3">Add-ons</p>
-          <div className="space-y-2">
-            {addOns.map((addon: any) => (
-              <button
-                key={addon.code}
-                type="button"
-                onClick={() => toggleAddOn(addon.code)}
-                className={cn(
-                  "w-full text-left p-4 rounded-xl border transition-all flex items-center gap-3",
-                  selectedAddOns.includes(addon.code)
-                    ? "border-primary/50 bg-primary/5"
-                    : "border-border bg-card hover:border-primary/30"
-                )}
-              >
-                <div className={cn(
-                  "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
-                  selectedAddOns.includes(addon.code) ? "bg-primary border-primary" : "border-border"
-                )}>
-                  {selectedAddOns.includes(addon.code) && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">{addon.name}</p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {addon.featureCategories.map((f: string) => (
-                      <span key={f} className="text-[10px] text-muted-foreground">{f}</span>
-                    ))}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  {addon.monthlyPriceGbp !== null
-                    ? <span className="text-sm font-bold">£{addon.monthlyPriceGbp}/mo</span>
-                    : <span className="text-xs text-muted-foreground">Contact sales</span>
-                  }
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <StepHeader
+        title="Choose Your Plan"
+        desc="Select the plan that fits your business. Each plan starts with a paid trial period — see the pricing details below. You can switch plans at any time from billing settings."
+      />
+      <BillingPlanSelector
+        catalog={catalog}
+        isLoading={!catalog}
+        selectedPlan={selectedPlan ?? "core"}
+        setSelectedPlan={setSelectedPlan}
+        selectedAddOns={selectedAddOns}
+        setSelectedAddOns={setSelectedAddOns}
+        trialCopyMode={true}
+      />
     </div>
   );
 }

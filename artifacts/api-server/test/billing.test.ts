@@ -3,9 +3,38 @@ import test from "node:test";
 import { createHmac } from "node:crypto";
 import { resolveEntitlements, canUseMeteredFeature } from "../src/services/billing/entitlements";
 import { UnavailableBillingProvider } from "../src/services/billing/unavailable";
-import { StripeBillingProvider, type CheckoutRepository, type WebhookRepository } from "../src/services/billing/provider";
+import { StripeBillingProvider, type BillingCatalogRepository, type CheckoutRepository, type WebhookRepository } from "../src/services/billing/provider";
 import { canonicalEventId, checkoutIdempotencyKey, checkoutLineItems, mapStripeSubscriptionStatus, requireCanonicalEventId, verifyStripeSignature } from "../src/services/billing/lifecycle";
 import { processRetryableReceipt } from "../src/services/billing/lifecycle";
+import { catalogAvailability, isBillingAdmin, trialPriceGbp } from "../src/services/billing/pricing";
+import { featureAccess } from "../src/services/billing/authorization";
+
+test("server-owned trial prices use 50% defaults, overrides, and exact pence rounding", () => {
+  assert.equal(trialPriceGbp({ monthlyPriceGbp: "29.00", trialPercentage: "50" }), 14.5);
+  assert.equal(trialPriceGbp({ monthlyPriceGbp: "99.00", trialPercentage: "50" }), 49.5);
+  assert.equal(trialPriceGbp({ monthlyPriceGbp: "29.99", trialPercentage: "50" }), 15);
+  assert.equal(trialPriceGbp({ monthlyPriceGbp: "29.00", trialPercentage: "50", manualTrialPriceGbp: "4.99" }), 4.99);
+});
+
+test("unmapped or unpriced add-ons are customer-visible but never purchasable", () => {
+  assert.deepEqual(catalogAvailability({ monthlyPriceGbp: null, active: true, comingSoon: false }), { purchasable: false, configurationMessage: "Billing configuration required." });
+  assert.deepEqual(catalogAvailability({ monthlyPriceGbp: "10", active: true, comingSoon: false, stripeProductId: "prod", stripeRecurringPriceId: "month", stripeTrialPriceId: "trial", stripeMappingValidatedAt: new Date() }), { purchasable: true, configurationMessage: null });
+});
+
+test("billing admin allowlist is default deny and exact-match only", () => {
+  assert.equal(isBillingAdmin("admin", undefined), false);
+  assert.equal(isBillingAdmin("admin", "other, admin "), true);
+  assert.equal(isBillingAdmin("ad", "admin"), false);
+});
+test("paid feature authorization preserves legacy, grants selected add-ons/Complete, and revokes removed or inactive subscriptions", () => {
+  const catalog = [{ code: "core", featureCategories: [], usageLimits: null }, { code: "complete", featureCategories: [], usageLimits: null }];
+  const addOn = [{ code: "ai_receptionist", featureCategories: ["ai_receptionist"], usageLimits: null }];
+  assert.equal(featureAccess(resolveEntitlements({ legacyAccess: true, subscription: undefined, plans: [], addOns: [] }), "ai_receptionist"), null);
+  assert.equal(featureAccess(resolveEntitlements({ legacyAccess: false, subscription: { status: "trialing", planCode: "core", addOnCodes: ["ai_receptionist"] }, plans: catalog, addOns: addOn }), "ai_receptionist"), null);
+  assert.equal(featureAccess(resolveEntitlements({ legacyAccess: false, subscription: { status: "active", planCode: "core", addOnCodes: [] }, plans: catalog, addOns: addOn }), "ai_receptionist")?.error, "PAYMENT_REQUIRED");
+  assert.equal(featureAccess(resolveEntitlements({ legacyAccess: false, subscription: { status: "active", planCode: "complete", addOnCodes: [] }, plans: catalog, addOns: [] }), "advanced_finance_mtd"), null);
+  assert.equal(featureAccess(resolveEntitlements({ legacyAccess: false, subscription: { status: "past_due", planCode: "complete", addOnCodes: [] }, plans: catalog, addOns: [] }), "advanced_finance_mtd")?.error, "PAYMENT_REQUIRED");
+});
 
 test("legacy companies retain access until they explicitly enter billing", () => {
   const entitlement = resolveEntitlements({ legacyAccess: true, plans: [], addOns: [], subscription: undefined });
@@ -57,6 +86,13 @@ test("checkout composes upfront paid trial with recurring monthly price and add-
   assert.equal(checkoutIdempotencyKey(1, "11111111-1111-4111-8111-111111111111"), checkoutIdempotencyKey(1, "11111111-1111-4111-8111-111111111111"));
   assert.notEqual(checkoutIdempotencyKey(1, "11111111-1111-4111-8111-111111111111"), checkoutIdempotencyKey(1, "22222222-2222-4222-8222-222222222222"));
 });
+test("checkout includes selected add-on trial prices before recurring add-ons", () => {
+  assert.deepEqual(checkoutLineItems("plan_monthly", "plan_trial", ["addon_monthly_a", "addon_monthly_b"], ["addon_trial_a", "addon_trial_b"]), [
+    { price: "plan_monthly", quantity: 1 }, { price: "plan_trial", quantity: 1 },
+    { price: "addon_trial_a", quantity: 1 }, { price: "addon_trial_b", quantity: 1 },
+    { price: "addon_monthly_a", quantity: 1 }, { price: "addon_monthly_b", quantity: 1 },
+  ]);
+});
 
 test("webhook submitted fields cannot control canonical event selection", () => {
   const tampered = Buffer.from(JSON.stringify({ id: "evt_canonical", type: "customer.subscription.deleted", data: { object: { status: "active" } } }));
@@ -91,6 +127,10 @@ function providerFixture(attempt: any, session: any) {
   const connector: any = {
     async get(path: string, query?: any) {
       calls.push(["get", path]);
+      if (path.startsWith("prices/")) {
+        const id = path.slice("prices/".length);
+        return { id, active: true, currency: "gbp", product: "prod_core", unit_amount: id.includes("trial") ? 1450 : 2900, recurring: id.includes("trial") ? null : { interval: "month" }, metadata: { billing_kind: id.includes("trial") ? "paid_trial" : "monthly" } };
+      }
       if (path.startsWith("products/search")) return { data: [{ id: path.includes("core") ? "prod_core" : "prod" }] };
       if (path === "prices") return { data: [
         { id: "price_monthly", currency: "gbp", recurring: { interval: "month" }, metadata: { billing_kind: "monthly" } },
@@ -106,7 +146,11 @@ function providerFixture(attempt: any, session: any) {
       return session;
     },
   };
-  return { provider: new StripeBillingProvider(() => connector, repo), calls, updates };
+  const catalog: BillingCatalogRepository = {
+    async plan(code) { return { code, active: true, comingSoon: false, monthlyPriceGbp: "29", stripeProductId: "prod_core", stripeRecurringPriceId: "price_monthly", stripeTrialPriceId: "price_trial" }; },
+    async addOns() { return []; },
+  };
+  return { provider: new StripeBillingProvider(() => connector, repo, undefined, catalog), calls, updates };
 }
 
 test("provider retries a lost Checkout response with one persisted server attempt key", async () => {
@@ -119,6 +163,18 @@ test("provider retries a lost Checkout response with one persisted server attemp
   const checkoutCalls = fixture.calls.filter((call) => call[0] === "post" && call[1] === "checkout/sessions");
   assert.equal(checkoutCalls.length, 2);
   assert.equal(checkoutCalls[0][3]["Idempotency-Key"], checkoutCalls[1][3]["Idempotency-Key"]);
+});
+test("provider rejects stale or wrong stored Stripe mappings before Checkout", async () => {
+  let posted = false;
+  const catalog: BillingCatalogRepository = {
+    async plan() { return { code: "core", active: true, comingSoon: false, monthlyPriceGbp: "29", stripeProductId: "prod_expected", stripeRecurringPriceId: "price_stale", stripeTrialPriceId: "price_trial" }; },
+    async addOns() { return []; },
+  };
+  const repo: CheckoutRepository = { async subscription() { return undefined; }, async establishAttempt() { return { id: 1, attemptKey: "test" }; }, async updateAttempt() {}, async updateSubscription() {} };
+  const stripe: any = { async get(path: string) { if (path === "prices/price_stale") return { id: "price_stale", active: true, currency: "gbp", product: "prod_other", recurring: { interval: "month" }, metadata: { billing_kind: "monthly" } }; throw new Error(`unexpected ${path}`); }, async post() { posted = true; return {}; } };
+  const provider = new StripeBillingProvider(() => stripe, repo, undefined, catalog);
+  await assert.rejects(provider.createCheckoutSession({ companyId: 1, ownerUserId: "u", planCode: "core", addOnCodes: [] }), /Billing configuration required/);
+  assert.equal(posted, false);
 });
 
 test("provider reconciles a completed persisted Checkout instead of creating another", async () => {

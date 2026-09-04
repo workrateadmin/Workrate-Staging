@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   useGetBillingCatalog,
   useGetBillingOverview,
@@ -19,6 +19,12 @@ import type {
   BillingSimulationInputPlanCode,
   BillingSelectionInputPlanCode,
 } from "@workspace/api-client-react";
+import { BillingPlanSelector } from "@/components/billing-plan-selector";
+import {
+  initialPlanFromOverview,
+  initialAddOnsFromOverview,
+  buildSelectionPayload,
+} from "@/lib/billing-helpers";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,7 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   CreditCard, Check, AlertCircle, Clock, AlertTriangle,
-  XCircle, RefreshCw, ChevronRight, BarChart2, Wrench,
+  XCircle, RefreshCw, ChevronRight, BarChart2,
   ShieldCheck, CalendarDays, Timer,
 } from "lucide-react";
 
@@ -142,8 +148,22 @@ export default function BillingPage() {
     query: { queryKey: getGetBillingUsageQueryKey() },
   });
 
+  // ── Selection state ──────────────────────────────────────────────────────
+  // selectedPlan=null → uninitialized; will hydrate from overview once loaded.
+  // selectedAddOns=null → uninitialized; [] = user deliberately cleared all.
   const [selectedPlan, setSelectedPlan] = useState<BillingSelectionInputPlanCode | null>(null);
-  const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
+  const [selectedAddOns, setSelectedAddOns] = useState<string[] | null>(null);
+  const overviewHydratedRef = useRef(false);
+
+  // Hydrate once from overview — never overwrite later user edits.
+  useEffect(() => {
+    if (!overview || overviewHydratedRef.current) return;
+    overviewHydratedRef.current = true;
+    const plan = initialPlanFromOverview(overview);
+    if (plan) setSelectedPlan(plan);
+    setSelectedAddOns(initialAddOnsFromOverview(overview));
+  }, [overview]);
+
   const [checkoutUnavailable, setCheckoutUnavailable] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState("");
   const [portalUnavailable, setPortalUnavailable] = useState(false);
@@ -163,29 +183,16 @@ export default function BillingPage() {
   const activePlan = catalog?.plans.find(
     (p) => p.code === (overview?.planCode ?? overview?.pendingPlanCode)
   );
-  const plans   = catalog?.plans  ?? [];
-  const addOns  = catalog?.addOns ?? [];
 
-  // Initialise selection from pending / active state
-  const currentSelectPlan = (selectedPlan
-    ?? (overview?.pendingPlanCode as BillingSelectionInputPlanCode | null)
-    ?? (overview?.planCode        as BillingSelectionInputPlanCode | null)
-    ?? "core") as BillingSelectionInputPlanCode;
-
-  const currentAddOns = selectedAddOns.length > 0
-    ? selectedAddOns
-    : (overview?.pendingAddOnCodes ?? overview?.addOnCodes ?? []);
-
-  const toggleAddOn = (code: string) =>
-    setSelectedAddOns(
-      currentAddOns.includes(code)
-        ? currentAddOns.filter((a) => a !== code)
-        : [...currentAddOns, code]
-    );
+  // Resolve effective plan: explicit selection, or server pending/active, or "core" default
+  const currentSelectPlan: BillingSelectionInputPlanCode = selectedPlan
+    ?? (initialPlanFromOverview(overview) ?? "core");
 
   const handleSaveSelection = () => {
+    // selectedAddOns=null means not yet hydrated; fall back to server values
+    const addOnCodes = selectedAddOns ?? initialAddOnsFromOverview(overview);
     saveBillingSelection.mutate(
-      { data: { planCode: currentSelectPlan, addOnCodes: currentAddOns } },
+      { data: buildSelectionPayload(currentSelectPlan, addOnCodes) },
       {
         onSuccess: (data) => {
           queryClient.setQueryData(getGetBillingOverviewQueryKey(), data);
@@ -359,167 +366,33 @@ export default function BillingPage() {
         </div>
       )}
 
-      {/* ── Plan selection ───────────────────────────────────────────────── */}
+      {/* ── Plan + add-on selection ───────────────────────────────────────── */}
       <Card className="shadow-sm border-border/60 rounded-2xl overflow-hidden">
         <div className="px-6 py-5 border-b border-border/60 bg-secondary/30 flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
             <CreditCard className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <h2 className="text-base font-bold">Plans</h2>
+            <h2 className="text-base font-bold">Plans &amp; Add-ons</h2>
             <p className="text-xs text-muted-foreground font-medium">
               Choose the plan that fits your business
             </p>
           </div>
         </div>
         <CardContent className="p-6">
-          {isLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-28 rounded-xl" />
-              <Skeleton className="h-28 rounded-xl" />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {plans.map((plan) => {
-                const isActive  = overview?.planCode      === plan.code;
-                const isPending = overview?.pendingPlanCode === plan.code && !isActive;
-                const isSelected = currentSelectPlan === plan.code;
-                return (
-                  <button
-                    key={plan.code}
-                    type="button"
-                    onClick={() => setSelectedPlan(plan.code as BillingSelectionInputPlanCode)}
-                    className={cn(
-                      "w-full text-left p-5 rounded-xl border-2 transition-all",
-                      isSelected
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-card hover:border-primary/40"
-                    )}
-                    data-testid={`plan-${plan.code}`}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                          <span className="font-black text-base">{plan.name}</span>
-                          {isActive && (
-                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">
-                              Current plan
-                            </Badge>
-                          )}
-                          {isPending && (
-                            <Badge variant="secondary" className="text-[10px]">Pending</Badge>
-                          )}
-                          {plan.code === "complete" && !isActive && (
-                            <span className="text-[10px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full uppercase tracking-widest">
-                              Recommended
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {plan.featureCategories.map((f) => (
-                            <span
-                              key={f}
-                              className="text-[11px] font-medium text-muted-foreground bg-secondary px-2 py-0.5 rounded-md border border-border/50"
-                            >
-                              {f}
-                            </span>
-                          ))}
-                        </div>
-                        {plan.usageLimits && Object.keys(plan.usageLimits).length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-3">
-                            {Object.entries(plan.usageLimits).map(([k, v]) => (
-                              <span key={k} className="text-xs text-muted-foreground">
-                                {k}: <strong>{v}</strong>
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-2xl font-black">
-                          £{plan.monthlyPriceGbp}
-                          <span className="text-sm font-normal text-muted-foreground">/mo</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {plan.trialDays}-day trial for £{plan.trialPriceGbp}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <BillingPlanSelector
+            catalog={catalog}
+            isLoading={isLoading}
+            selectedPlan={currentSelectPlan}
+            setSelectedPlan={(p) => setSelectedPlan(p)}
+            selectedAddOns={selectedAddOns}
+            setSelectedAddOns={setSelectedAddOns}
+            currentPlanCode={overview?.planCode}
+            currentAddOnCodes={overview?.addOnCodes ?? []}
+            trialCopyMode={canStartTrial}
+          />
         </CardContent>
       </Card>
-
-      {/* ── Add-ons ──────────────────────────────────────────────────────── */}
-      {addOns.length > 0 && (
-        <Card className="shadow-sm border-border/60 rounded-2xl overflow-hidden">
-          <div className="px-6 py-5 border-b border-border/60 bg-secondary/30 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <Wrench className="w-4 h-4 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold">Add-ons</h2>
-              <p className="text-xs text-muted-foreground font-medium">
-                Extend your plan with optional features
-              </p>
-            </div>
-          </div>
-          <CardContent className="p-6 space-y-3">
-            {isLoading ? (
-              <Skeleton className="h-16 rounded-xl" />
-            ) : addOns.map((addon) => {
-              const isEnabled = currentAddOns.includes(addon.code);
-              return (
-                <button
-                  key={addon.code}
-                  type="button"
-                  onClick={() => toggleAddOn(addon.code)}
-                  className={cn(
-                    "w-full text-left p-4 rounded-xl border transition-all flex items-center gap-3",
-                    isEnabled
-                      ? "border-primary/50 bg-primary/5"
-                      : "border-border bg-card hover:border-primary/30"
-                  )}
-                  data-testid={`addon-${addon.code}`}
-                >
-                  <div className={cn(
-                    "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
-                    isEnabled ? "bg-primary border-primary" : "border-border"
-                  )}>
-                    {isEnabled && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold">{addon.name}</p>
-                    <div className="flex flex-wrap gap-1.5 mt-0.5">
-                      {addon.featureCategories.map((f) => (
-                        <span key={f} className="text-[10px] text-muted-foreground">{f}</span>
-                      ))}
-                    </div>
-                    {addon.usageLimits && Object.keys(addon.usageLimits).length > 0 && (
-                      <div className="flex flex-wrap gap-3 mt-1">
-                        {Object.entries(addon.usageLimits).map(([k, v]) => (
-                          <span key={k} className="text-xs text-muted-foreground">
-                            {k}: <strong>{v}</strong>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    {addon.monthlyPriceGbp !== null
-                      ? <span className="text-sm font-bold">£{addon.monthlyPriceGbp}/mo</span>
-                      : <span className="text-xs text-muted-foreground italic">Configurable on request</span>
-                    }
-                  </div>
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
 
       {/* ── CTA: start trial / save changes ──────────────────────────────── */}
       {canStartTrial ? (

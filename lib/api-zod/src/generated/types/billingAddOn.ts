@@ -5,14 +5,31 @@
  * WorkRate API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BillingAddOnIncludedAllowance } from './billingAddOnIncludedAllowance';
+import type { BillingAddOnOveragePolicy } from './billingAddOnOveragePolicy';
 import type { BillingAddOnUsageLimits } from './billingAddOnUsageLimits';
 
 export interface BillingAddOn {
   code: string;
   name: string;
   /** @nullable */
+  description: string | null;
+  /** @nullable */
   monthlyPriceGbp: number | null;
+  /** @nullable */
+  trialPriceGbp: number | null;
+  trialDays: number;
   featureCategories: string[];
   /** @nullable */
   usageLimits: BillingAddOnUsageLimits;
+  /** @nullable */
+  includedAllowance: BillingAddOnIncludedAllowance;
+  /** @nullable */
+  overagePolicy: BillingAddOnOveragePolicy;
+  active: boolean;
+  comingSoon: boolean;
+  sortOrder: number;
+  purchasable: boolean;
+  /** @nullable */
+  configurationMessage: string | null;
 }

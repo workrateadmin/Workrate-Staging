@@ -1900,6 +1900,58 @@ paths:
       operationId: getBillingCatalog
       tags: [billing]
       responses: { "200": { description: Catalog, content: { application/json: { schema: { $ref: "#/components/schemas/BillingCatalog" } } } } }
+  /internal/billing/catalog:
+    get:
+      operationId: getInternalBillingCatalog
+      tags: [billing]
+      summary: View server billing configuration (internal administrators only)
+      description: Requires the authenticated Clerk user ID to be present in the comma-separated WORKRATE_ADMIN_USER_IDS server allowlist. Access is denied when it is unset.
+      responses:
+        "200":
+          description: Internal catalog configuration, including provider mappings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InternalBillingCatalog" }
+        "403": { description: Administrator access required }
+  /internal/billing/{kind}/{code}:
+    patch:
+      operationId: updateInternalBillingCatalogItem
+      tags: [billing]
+      summary: Update server-controlled billing pricing or mappings
+      description: Internal only. Stripe mappings are set by explicitly running seed:stripe-billing in development after configuring catalogue prices; they are never exposed by the customer catalog.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema: { type: string, enum: [plan, add-on] }
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses: { "200": { description: Updated internal catalog item }, "400": { description: Invalid configuration }, "403": { description: Administrator access required } }
+  /internal/billing/{kind}/{code}/validate-mapping:
+    post:
+      operationId: validateInternalBillingCatalogMapping
+      tags: [billing]
+      summary: Verify stored Stripe mapping and enable purchase availability
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema: { type: string, enum: [plan, add-on] }
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Verified internal catalog item, content: { application/json: { schema: { $ref: "#/components/schemas/InternalBillingCatalogItem" } } } }
+        "400": { description: Mapping invalid or billing configuration required }
+        "403": { description: Administrator access required }
   /billing:
     get:
       operationId: getBillingOverview
@@ -2039,30 +2091,78 @@ components:
         nextOffset: { type: ["number", "null"] }
     BillingPlan:
       type: object
-      required: [code, name, monthlyPriceGbp, trialPriceGbp, trialDays, featureCategories, usageLimits]
+      required: [code, name, description, monthlyPriceGbp, trialPriceGbp, trialDays, featureCategories, usageLimits, includedAllowance, overagePolicy, active, comingSoon, sortOrder, purchasable, configurationMessage]
       properties:
         code: { type: string }
         name: { type: string }
+        description: { type: ["string", "null"] }
         monthlyPriceGbp: { type: number }
         trialPriceGbp: { type: number }
         trialDays: { type: number }
         featureCategories: { type: array, items: { type: string } }
         usageLimits: { type: ["object", "null"], additionalProperties: { type: number } }
+        includedAllowance: { type: ["object", "null"], additionalProperties: { type: number } }
+        overagePolicy: { type: ["object", "null"], additionalProperties: true }
+        active: { type: boolean }
+        comingSoon: { type: boolean }
+        sortOrder: { type: number }
+        purchasable: { type: boolean }
+        configurationMessage: { type: ["string", "null"] }
     BillingAddOn:
       type: object
-      required: [code, name, monthlyPriceGbp, featureCategories, usageLimits]
+      required: [code, name, description, monthlyPriceGbp, trialPriceGbp, trialDays, featureCategories, usageLimits, includedAllowance, overagePolicy, active, comingSoon, sortOrder, purchasable, configurationMessage]
       properties:
         code: { type: string }
         name: { type: string }
+        description: { type: ["string", "null"] }
         monthlyPriceGbp: { type: ["number", "null"] }
+        trialPriceGbp: { type: ["number", "null"] }
+        trialDays: { type: number }
         featureCategories: { type: array, items: { type: string } }
         usageLimits: { type: ["object", "null"], additionalProperties: { type: number } }
+        includedAllowance: { type: ["object", "null"], additionalProperties: { type: number } }
+        overagePolicy: { type: ["object", "null"], additionalProperties: true }
+        active: { type: boolean }
+        comingSoon: { type: boolean }
+        sortOrder: { type: number }
+        purchasable: { type: boolean }
+        configurationMessage: { type: ["string", "null"] }
     BillingCatalog:
       type: object
       required: [plans, addOns]
       properties:
         plans: { type: array, items: { $ref: "#/components/schemas/BillingPlan" } }
         addOns: { type: array, items: { $ref: "#/components/schemas/BillingAddOn" } }
+    InternalBillingCatalogItem:
+      type: object
+      required: [id, code, name, description, monthlyPriceGbp, trialPercentage, manualTrialPriceGbp, trialDays, featureCategories, usageLimits, includedAllowance, overagePolicy, active, comingSoon, sortOrder, stripeProductId, stripeRecurringPriceId, stripeTrialPriceId, stripeMappingValidatedAt, updatedByUserId]
+      properties:
+        id: { type: number }
+        code: { type: string }
+        name: { type: string }
+        description: { type: ["string", "null"] }
+        monthlyPriceGbp: { type: ["number", "null"] }
+        trialPercentage: { type: number }
+        manualTrialPriceGbp: { type: ["number", "null"] }
+        trialDays: { type: ["number", "null"] }
+        featureCategories: { type: array, items: { type: string } }
+        usageLimits: { type: ["object", "null"], additionalProperties: { type: number } }
+        includedAllowance: { type: ["object", "null"], additionalProperties: { type: number } }
+        overagePolicy: { type: ["object", "null"], additionalProperties: true }
+        active: { type: boolean }
+        comingSoon: { type: boolean }
+        sortOrder: { type: number }
+        stripeProductId: { type: ["string", "null"] }
+        stripeRecurringPriceId: { type: ["string", "null"] }
+        stripeTrialPriceId: { type: ["string", "null"] }
+        stripeMappingValidatedAt: { type: ["string", "null"], format: date-time }
+        updatedByUserId: { type: ["string", "null"] }
+    InternalBillingCatalog:
+      type: object
+      required: [plans, addOns]
+      properties:
+        plans: { type: array, items: { $ref: "#/components/schemas/InternalBillingCatalogItem" } }
+        addOns: { type: array, items: { $ref: "#/components/schemas/InternalBillingCatalogItem" } }
     BillingOverview:
       type: object
       required: [legacyAccess, status, planCode, addOnCodes, pendingPlanCode, pendingAddOnCodes, cancelAtPeriodEnd, provider, trialEndsAt, currentPeriodStartsAt, currentPeriodEndsAt, cancelledAt, failedPaymentAt]

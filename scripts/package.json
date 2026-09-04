@@ -13,6 +13,8 @@
     "tsx": "catalog:"
   },
   "dependencies": {
-    "@replit/connectors-sdk": "^0.4.1"
+    "@replit/connectors-sdk": "^0.4.1",
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "catalog:"
   }
 }

@@ -12,7 +12,12 @@ import {
   SkipOnboardingResponse, StartOnboardingResponse, UpdateOnboardingBody, UpdateOnboardingResponse,
 } from "@workspace/api-zod";
 import { billingProvider } from "../services/billing/provider";
+import { verifyCatalogPrice } from "../services/billing/provider";
+import { StripeConnectorClient } from "../services/billing/stripeClient";
 import { usageForTenant } from "../services/billing/usage";
+import { catalogAvailability, trialPriceGbp } from "../services/billing/pricing";
+import { isBillingAdmin } from "../services/billing/pricing";
+import { z } from "zod/v4";
 
 const router: IRouter = Router();
 
@@ -35,15 +40,78 @@ function onboarding(row: any) {
 async function subscriptionFor(companyId: number, ownerUserId: string) {
   return (await db.select().from(companySubscriptionsTable).where(and(eq(companySubscriptionsTable.companyId, companyId), eq(companySubscriptionsTable.ownerUserId, ownerUserId))).limit(1))[0];
 }
+const money = z.union([z.string().regex(/^\d+(?:\.\d{1,2})?$/), z.number().finite().nonnegative()]).nullable().optional();
+const internalCatalogPatch = z.object({
+  description: z.string().nullable().optional(), monthlyPriceGbp: money, manualTrialPriceGbp: money,
+  trialPercentage: z.union([z.string().regex(/^\d+(?:\.\d{1,2})?$/).refine((value) => Number(value) <= 100, "Must be at most 100"), z.number().finite().min(0).max(100)]).optional(),
+  active: z.boolean().optional(), comingSoon: z.boolean().optional(), sortOrder: z.number().int().nonnegative().optional(),
+  featureCategories: z.array(z.string()).optional(), usageLimits: z.record(z.string(), z.number().nonnegative()).nullable().optional(),
+  includedAllowance: z.record(z.string(), z.number().nonnegative()).nullable().optional(), overagePolicy: z.record(z.string(), z.unknown()).nullable().optional(),
+  stripeProductId: z.string().nullable().optional(), stripeRecurringPriceId: z.string().nullable().optional(), stripeTrialPriceId: z.string().nullable().optional(),
+}).strict();
+function requireBillingAdmin(req: any, res: any): string | undefined {
+  const userId = authUser(req, res);
+  if (!userId) return;
+  if (!isBillingAdmin(userId)) { res.status(403).json({ error: "Billing administrator access is required" }); return; }
+  return userId;
+}
+function normalizeInternalCatalogItem(row: any, trialDays: number | null) {
+  return {
+    id: row.id, code: row.code, name: row.name, description: row.description,
+    monthlyPriceGbp: row.monthlyPriceGbp == null ? null : Number(row.monthlyPriceGbp),
+    trialPercentage: Number(row.trialPercentage), manualTrialPriceGbp: row.manualTrialPriceGbp == null ? null : Number(row.manualTrialPriceGbp),
+    trialDays, featureCategories: row.featureCategories, usageLimits: row.usageLimits, includedAllowance: row.includedAllowance,
+    overagePolicy: row.overagePolicy, active: row.active, comingSoon: row.comingSoon, sortOrder: row.sortOrder,
+    stripeProductId: row.stripeProductId, stripeRecurringPriceId: row.stripeRecurringPriceId, stripeTrialPriceId: row.stripeTrialPriceId,
+    stripeMappingValidatedAt: row.stripeMappingValidatedAt, updatedByUserId: row.updatedByUserId,
+  };
+}
+
+router.get("/internal/billing/catalog", async (req, res): Promise<void> => {
+  if (!requireBillingAdmin(req, res)) return;
+  // Internal operational surface deliberately includes Stripe mappings; public catalog never does.
+  const [plans, addOns] = await Promise.all([db.select().from(billingPlansTable).orderBy(asc(billingPlansTable.sortOrder)), db.select().from(billingAddOnsTable).orderBy(asc(billingAddOnsTable.sortOrder))]);
+  res.json({ plans: plans.map((row) => normalizeInternalCatalogItem(row, row.trialDays)), addOns: addOns.map((row) => normalizeInternalCatalogItem(row, null)) });
+});
+router.patch("/internal/billing/:kind/:code", async (req, res): Promise<void> => {
+  const userId = requireBillingAdmin(req, res); if (!userId) return;
+  const parsed = internalCatalogPatch.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const mappingChanged = ["monthlyPriceGbp", "manualTrialPriceGbp", "trialPercentage", "stripeProductId", "stripeRecurringPriceId", "stripeTrialPriceId"].some((key) => key in parsed.data);
+  const values = { ...parsed.data, updatedByUserId: userId, ...(mappingChanged ? { stripeMappingValidatedAt: null } : {}) };
+  const table = req.params.kind === "plan" ? billingPlansTable : req.params.kind === "add-on" ? billingAddOnsTable : undefined;
+  if (!table) { res.status(404).json({ error: "Unknown catalog kind" }); return; }
+  const [updated] = await db.update(table).set(values as any).where(eq(table.code, req.params.code)).returning();
+  if (!updated) { res.status(404).json({ error: "Catalog item not found" }); return; }
+  res.json(updated);
+});
+router.post("/internal/billing/:kind/:code/validate-mapping", async (req, res): Promise<void> => {
+  if (!requireBillingAdmin(req, res)) return;
+  const table = req.params.kind === "plan" ? billingPlansTable : req.params.kind === "add-on" ? billingAddOnsTable : undefined;
+  if (!table) { res.status(404).json({ error: "Unknown catalog kind" }); return; }
+  const [item] = await db.select().from(table).where(eq(table.code, req.params.code)).limit(1);
+  if (!item) { res.status(404).json({ error: "Catalog item not found" }); return; }
+  try {
+    const stripe = new StripeConnectorClient();
+    await verifyCatalogPrice(item as any, "monthly", stripe);
+    await verifyCatalogPrice(item as any, "paid_trial", stripe);
+  } catch (error) {
+    req.log.warn({ err: error, kind: req.params.kind, code: req.params.code }, "Stripe catalog mapping validation failed");
+    res.status(400).json({ error: "Billing configuration required." });
+    return;
+  }
+  const [updated] = await db.transaction(async (tx: any) => tx.update(table).set({ stripeMappingValidatedAt: new Date() }).where(eq(table.code, req.params.code)).returning());
+  res.json(normalizeInternalCatalogItem(updated, req.params.kind === "plan" ? (updated as any).trialDays : null));
+});
 
 router.get("/billing/catalog", async (_req, res): Promise<void> => {
   const [plans, addOns] = await Promise.all([
-    db.select().from(billingPlansTable).where(eq(billingPlansTable.active, true)).orderBy(asc(billingPlansTable.id)),
-    db.select().from(billingAddOnsTable).where(eq(billingAddOnsTable.active, true)).orderBy(asc(billingAddOnsTable.id)),
+    db.select().from(billingPlansTable).where(eq(billingPlansTable.active, true)).orderBy(asc(billingPlansTable.sortOrder), asc(billingPlansTable.id)),
+    db.select().from(billingAddOnsTable).where(eq(billingAddOnsTable.active, true)).orderBy(asc(billingAddOnsTable.sortOrder), asc(billingAddOnsTable.id)),
   ]);
   res.json(GetBillingCatalogResponse.parse({
-    plans: plans.map((p) => ({ ...p, monthlyPriceGbp: Number(p.monthlyPriceGbp), trialPriceGbp: Number(p.trialPriceGbp), usageLimits: p.usageLimits as Record<string, number> | null })),
-    addOns: addOns.map((a) => ({ ...a, monthlyPriceGbp: a.monthlyPriceGbp == null ? null : Number(a.monthlyPriceGbp), usageLimits: a.usageLimits as Record<string, number> | null })),
+    plans: plans.map((p) => ({ code: p.code, name: p.name, description: p.description, monthlyPriceGbp: Number(p.monthlyPriceGbp), trialPriceGbp: trialPriceGbp(p), trialDays: p.trialDays, featureCategories: p.featureCategories, usageLimits: p.usageLimits as Record<string, number> | null, includedAllowance: p.includedAllowance as Record<string, number> | null, overagePolicy: p.overagePolicy, active: p.active, comingSoon: p.comingSoon, sortOrder: p.sortOrder, ...catalogAvailability(p) })),
+    addOns: addOns.map((a) => ({ code: a.code, name: a.name, description: a.description, monthlyPriceGbp: a.monthlyPriceGbp == null ? null : Number(a.monthlyPriceGbp), trialPriceGbp: trialPriceGbp(a), trialDays: 7, featureCategories: a.featureCategories, usageLimits: a.usageLimits as Record<string, number> | null, includedAllowance: a.includedAllowance as Record<string, number> | null, overagePolicy: a.overagePolicy, active: a.active, comingSoon: a.comingSoon, sortOrder: a.sortOrder, ...catalogAvailability(a) })),
   }));
 });
 
@@ -62,7 +130,13 @@ router.put("/billing/selection", async (req, res): Promise<void> => {
   if (!company) { res.status(400).json({ error: "Company profile is required before selecting a plan" }); return; }
   const [plan] = await db.select().from(billingPlansTable).where(and(eq(billingPlansTable.code, parsed.data.planCode), eq(billingPlansTable.active, true)));
   const validAddOns = await db.select().from(billingAddOnsTable).where(eq(billingAddOnsTable.active, true));
-  if (!plan || parsed.data.addOnCodes.some((code) => !validAddOns.some((addOn) => addOn.code === code))) { res.status(400).json({ error: "Unknown or inactive billing selection" }); return; }
+  if (!plan || !catalogAvailability(plan).purchasable) { res.status(400).json({ error: "Billing configuration required for this plan" }); return; }
+  if (parsed.data.planCode === "complete" && parsed.data.addOnCodes.length) { res.status(400).json({ error: "Complete includes all available premium categories and cannot select add-ons" }); return; }
+  const invalid = parsed.data.addOnCodes.find((code) => {
+    const addOn = validAddOns.find((candidate) => candidate.code === code);
+    return !addOn || !catalogAvailability(addOn).purchasable;
+  });
+  if (invalid) { res.status(400).json({ error: `Add-on ${invalid} is unavailable or requires billing configuration` }); return; }
   const [row] = await db.insert(companySubscriptionsTable).values({ companyId: company.id, ownerUserId: userId, pendingPlanCode: parsed.data.planCode, pendingAddOnCodes: parsed.data.addOnCodes })
     .onConflictDoUpdate({ target: [companySubscriptionsTable.companyId, companySubscriptionsTable.ownerUserId], set: { pendingPlanCode: parsed.data.planCode, pendingAddOnCodes: parsed.data.addOnCodes } }).returning();
   if (row.provider === "stripe" && ["trialing", "active", "past_due"].includes(row.status)) {

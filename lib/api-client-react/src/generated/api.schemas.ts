@@ -64,15 +64,37 @@ export interface TimelinePage {
  */
 export type BillingPlanUsageLimits = {[key: string]: number} | null;
 
+/**
+ * @nullable
+ */
+export type BillingPlanIncludedAllowance = {[key: string]: number} | null;
+
+/**
+ * @nullable
+ */
+export type BillingPlanOveragePolicy = { [key: string]: unknown } | null;
+
 export interface BillingPlan {
   code: string;
   name: string;
+  /** @nullable */
+  description: string | null;
   monthlyPriceGbp: number;
   trialPriceGbp: number;
   trialDays: number;
   featureCategories: string[];
   /** @nullable */
   usageLimits: BillingPlanUsageLimits;
+  /** @nullable */
+  includedAllowance: BillingPlanIncludedAllowance;
+  /** @nullable */
+  overagePolicy: BillingPlanOveragePolicy;
+  active: boolean;
+  comingSoon: boolean;
+  sortOrder: number;
+  purchasable: boolean;
+  /** @nullable */
+  configurationMessage: string | null;
 }
 
 /**
@@ -80,19 +102,99 @@ export interface BillingPlan {
  */
 export type BillingAddOnUsageLimits = {[key: string]: number} | null;
 
+/**
+ * @nullable
+ */
+export type BillingAddOnIncludedAllowance = {[key: string]: number} | null;
+
+/**
+ * @nullable
+ */
+export type BillingAddOnOveragePolicy = { [key: string]: unknown } | null;
+
 export interface BillingAddOn {
   code: string;
   name: string;
   /** @nullable */
+  description: string | null;
+  /** @nullable */
   monthlyPriceGbp: number | null;
+  /** @nullable */
+  trialPriceGbp: number | null;
+  trialDays: number;
   featureCategories: string[];
   /** @nullable */
   usageLimits: BillingAddOnUsageLimits;
+  /** @nullable */
+  includedAllowance: BillingAddOnIncludedAllowance;
+  /** @nullable */
+  overagePolicy: BillingAddOnOveragePolicy;
+  active: boolean;
+  comingSoon: boolean;
+  sortOrder: number;
+  purchasable: boolean;
+  /** @nullable */
+  configurationMessage: string | null;
 }
 
 export interface BillingCatalog {
   plans: BillingPlan[];
   addOns: BillingAddOn[];
+}
+
+/**
+ * @nullable
+ */
+export type InternalBillingCatalogItemUsageLimits = {[key: string]: number} | null;
+
+/**
+ * @nullable
+ */
+export type InternalBillingCatalogItemIncludedAllowance = {[key: string]: number} | null;
+
+/**
+ * @nullable
+ */
+export type InternalBillingCatalogItemOveragePolicy = { [key: string]: unknown } | null;
+
+export interface InternalBillingCatalogItem {
+  id: number;
+  code: string;
+  name: string;
+  /** @nullable */
+  description: string | null;
+  /** @nullable */
+  monthlyPriceGbp: number | null;
+  trialPercentage: number;
+  /** @nullable */
+  manualTrialPriceGbp: number | null;
+  /** @nullable */
+  trialDays: number | null;
+  featureCategories: string[];
+  /** @nullable */
+  usageLimits: InternalBillingCatalogItemUsageLimits;
+  /** @nullable */
+  includedAllowance: InternalBillingCatalogItemIncludedAllowance;
+  /** @nullable */
+  overagePolicy: InternalBillingCatalogItemOveragePolicy;
+  active: boolean;
+  comingSoon: boolean;
+  sortOrder: number;
+  /** @nullable */
+  stripeProductId: string | null;
+  /** @nullable */
+  stripeRecurringPriceId: string | null;
+  /** @nullable */
+  stripeTrialPriceId: string | null;
+  /** @nullable */
+  stripeMappingValidatedAt: string | null;
+  /** @nullable */
+  updatedByUserId: string | null;
+}
+
+export interface InternalBillingCatalog {
+  plans: InternalBillingCatalogItem[];
+  addOns: InternalBillingCatalogItem[];
 }
 
 export interface BillingOverview {
@@ -1365,3 +1467,5 @@ export type ListFinanceIncomeParams = {
 from?: FinancePeriodFromParameter;
 to?: FinancePeriodToParameter;
 };
+
+export type UpdateInternalBillingCatalogItemBody = { [key: string]: unknown };

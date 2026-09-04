@@ -1,8 +1,9 @@
 import { and, eq, sql } from "drizzle-orm";
-import { billingCheckoutAttemptsTable, billingProviderConfigsTable, billingWebhookEventsTable, companySubscriptionsTable, db } from "@workspace/db";
+import { billingAddOnsTable, billingCheckoutAttemptsTable, billingPlansTable, billingProviderConfigsTable, billingWebhookEventsTable, companySubscriptionsTable, db } from "@workspace/db";
 import { StripeConnectorClient } from "./stripeClient";
 import { canonicalEventId, checkoutIdempotencyKey, checkoutLineItems, mapStripeSubscriptionStatus, requireCanonicalEventId, verifyStripeSignature } from "./lifecycle";
 import { decryptIntegrationSecret, encryptIntegrationSecret } from "../../lib/integration-secret";
+import { trialPriceGbp } from "./pricing";
 
 export type PaymentSetupUnavailable = { ok: false; code: "PAYMENT_SETUP_UNAVAILABLE"; message: string };
 export type ProviderResult = PaymentSetupUnavailable | { ok: true; url?: string; status?: string };
@@ -35,6 +36,15 @@ export interface WebhookRepository {
   tenantForCustomer(customerId: string): Promise<{ companyId: number; ownerUserId: string } | undefined>;
   process(event: any, tenant: { companyId: number; ownerUserId: string }, subscriptionValues?: Record<string, unknown>): Promise<"processed" | "duplicate">;
 }
+type CatalogItem = { code: string; active: boolean; comingSoon: boolean; monthlyPriceGbp: string | null; stripeProductId: string | null; stripeRecurringPriceId: string | null; stripeTrialPriceId: string | null };
+export interface BillingCatalogRepository {
+  plan(code: string): Promise<CatalogItem | undefined>;
+  addOns(codes: string[]): Promise<CatalogItem[]>;
+}
+const catalogRepository: BillingCatalogRepository = {
+  async plan(code) { return (await db.select().from(billingPlansTable).where(eq(billingPlansTable.code, code)).limit(1))[0]; },
+  async addOns(codes) { return Promise.all(codes.map(async (code) => (await db.select().from(billingAddOnsTable).where(eq(billingAddOnsTable.code, code)).limit(1))[0])).then((rows) => rows.filter(Boolean) as CatalogItem[]); },
+};
 function subscriptionState(subscription: any): Record<string, unknown> {
   const status = mapStripeSubscriptionStatus(subscription.status);
   let addOnCodes: string[] | undefined;
@@ -92,38 +102,38 @@ const webhookRepository: WebhookRepository = {
   },
 };
 
-async function catalogPrice(planCode: string, kind: "monthly" | "paid_trial", stripe: StripeApi = new StripeConnectorClient()) {
-  const products: any = await stripe.get("products/search", { query: `metadata['workrate_plan_code']:'${planCode}' AND active:'true'`, limit: 1 });
-  const product = products.data[0];
-  if (!product) throw new Error(`No active Stripe product is configured for plan ${planCode}. Run the billing catalog seed script.`);
-  const prices: any = await stripe.get("prices", { product: product.id, active: true, limit: 100 });
-  const price = prices.data.find((candidate: any) => candidate.currency === "gbp" && candidate.metadata.billing_kind === kind);
-  if (!price) throw new Error(`No ${kind} Stripe price is configured for plan ${planCode}.`);
-  return price.id;
-}
-async function addOnPrice(code: string, stripe: StripeApi = new StripeConnectorClient()) {
-  const products: any = await stripe.get("products/search", { query: `metadata['workrate_add_on_code']:'${code}' AND active:'true'`, limit: 1 });
-  const product = products.data[0];
-  if (!product) throw new Error(`No active Stripe product is configured for add-on ${code}.`);
-  const prices: any = await stripe.get("prices", { product: product.id, active: true, limit: 100 });
-  const price = prices.data.find((candidate: any) => candidate.currency === "gbp" && candidate.recurring?.interval === "month");
-  if (!price) throw new Error(`No monthly Stripe price is configured for add-on ${code}.`);
-  return price.id;
+function configurationRequired(): never { throw new Error("Billing configuration required."); }
+export async function verifyCatalogPrice(item: CatalogItem, kind: "monthly" | "paid_trial", stripe: StripeApi) {
+  if (!item.active || item.comingSoon || item.monthlyPriceGbp == null || !item.stripeProductId) configurationRequired();
+  const id = kind === "monthly" ? item.stripeRecurringPriceId : item.stripeTrialPriceId;
+  if (!id) configurationRequired();
+  const price: any = await stripe.get(`prices/${id}`);
+  const expectedRecurring = kind === "monthly";
+  if (!price?.active || price.currency !== "gbp" || price.product !== item.stripeProductId || Boolean(price.recurring) !== expectedRecurring || price.metadata?.billing_kind !== kind) configurationRequired();
+  if (expectedRecurring && price.recurring?.interval !== "month") configurationRequired();
+  const expectedAmount = Math.round((kind === "monthly" ? Number(item.monthlyPriceGbp) : trialPriceGbp(item as any)!) * 100);
+  if (!Number.isInteger(price.unit_amount) || price.unit_amount !== expectedAmount) configurationRequired();
+  return id;
 }
 export { canonicalEventId, checkoutIdempotencyKey, checkoutLineItems, mapStripeSubscriptionStatus };
 
 /** Stripe implementation remains behind this provider-neutral interface. */
 export class StripeBillingProvider implements BillingProvider {
-  constructor(private readonly connectorFactory: () => StripeApi = () => new StripeConnectorClient(), private readonly checkoutRepo: CheckoutRepository = checkoutRepository, private readonly webhookRepo: WebhookRepository = webhookRepository) {}
+  constructor(private readonly connectorFactory: () => StripeApi = () => new StripeConnectorClient(), private readonly checkoutRepo: CheckoutRepository = checkoutRepository, private readonly webhookRepo: WebhookRepository = webhookRepository, private readonly catalogRepo: BillingCatalogRepository = catalogRepository) {}
   async createCheckoutSession(input: { companyId: number; ownerUserId: string; planCode: string; addOnCodes: string[] }): Promise<ProviderResult> {
     if (!input.planCode) return unavailable();
     try {
       const existing = await this.checkoutRepo.subscription(input.companyId, input.ownerUserId);
       if (existing && ["trialing", "active"].includes(existing.status)) throw new Error("An active subscription already exists.");
       const stripe = this.connectorFactory();
-      const monthly = await catalogPrice(input.planCode, "monthly", stripe);
-      const trial = await catalogPrice(input.planCode, "paid_trial", stripe);
-      const addOnPrices = await Promise.all(input.addOnCodes.map((code) => addOnPrice(code, stripe)));
+      const plan = await this.catalogRepo.plan(input.planCode);
+      if (!plan) configurationRequired();
+      const addOns = await this.catalogRepo.addOns(input.addOnCodes);
+      if (addOns.length !== input.addOnCodes.length || new Set(input.addOnCodes).size !== input.addOnCodes.length || input.planCode === "complete" && addOns.length) configurationRequired();
+      const monthly = await verifyCatalogPrice(plan, "monthly", stripe);
+      const trial = await verifyCatalogPrice(plan, "paid_trial", stripe);
+      const addOnPrices = await Promise.all(addOns.map((addOn) => verifyCatalogPrice(addOn, "monthly", stripe)));
+      const addOnTrialPrices = await Promise.all(addOns.map((addOn) => verifyCatalogPrice(addOn, "paid_trial", stripe)));
       const fingerprint = JSON.stringify({ planCode: input.planCode, addOnCodes: [...input.addOnCodes].sort() });
       const attempt: any = await this.checkoutRepo.establishAttempt({ companyId: input.companyId, ownerUserId: input.ownerUserId, fingerprint });
       if (attempt.providerSessionId) {
@@ -140,7 +150,7 @@ export class StripeBillingProvider implements BillingProvider {
         return this.createCheckoutSession(input);
       }
       const form: any = { mode: "subscription", customer: existing?.providerCustomerId, client_reference_id: `${input.companyId}:${input.ownerUserId}`, success_url: `${returnUrl()}?checkout=success`, cancel_url: `${returnUrl()}?checkout=cancelled`, "subscription_data[trial_period_days]": 7, "subscription_data[metadata][companyId]": input.companyId, "subscription_data[metadata][ownerUserId]": input.ownerUserId, "subscription_data[metadata][planCode]": input.planCode, "subscription_data[metadata][addOnCodes]": JSON.stringify(input.addOnCodes), "metadata[companyId]": input.companyId, "metadata[ownerUserId]": input.ownerUserId, "metadata[planCode]": input.planCode };
-      checkoutLineItems(monthly, trial, addOnPrices).forEach((item, index) => { form[`line_items[${index}][price]`] = item.price; form[`line_items[${index}][quantity]`] = item.quantity; });
+      checkoutLineItems(monthly, trial, addOnPrices, addOnTrialPrices).forEach((item, index) => { form[`line_items[${index}][price]`] = item.price; form[`line_items[${index}][quantity]`] = item.quantity; });
       const session: any = await stripe.post("checkout/sessions", form, {
         "Idempotency-Key": checkoutIdempotencyKey(input.companyId, attempt.attemptKey),
       });
@@ -151,7 +161,7 @@ export class StripeBillingProvider implements BillingProvider {
       if (!session.url) throw new Error("Stripe did not return a hosted checkout URL.");
       return { ok: true, url: session.url };
     } catch (error) {
-      if (error instanceof Error && /not connected|credential|required/i.test(error.message)) return unavailable();
+      if (error instanceof Error && /not connected|credential|required/i.test(error.message) && error.message !== "Billing configuration required.") return unavailable();
       throw error;
     }
   }
@@ -170,7 +180,11 @@ export class StripeBillingProvider implements BillingProvider {
     if (!localSubscription?.providerSubscriptionId) return unavailable();
     const stripe = this.connectorFactory();
     const current: any = await stripe.get(`subscriptions/${localSubscription.providerSubscriptionId}`);
-    const desired = [await catalogPrice(input.planCode, "monthly", stripe), ...await Promise.all(input.addOnCodes.map((code) => addOnPrice(code, stripe)))];
+    const plan = await this.catalogRepo.plan(input.planCode);
+    if (!plan) configurationRequired();
+    const addOns = await this.catalogRepo.addOns(input.addOnCodes);
+    if (addOns.length !== input.addOnCodes.length || new Set(input.addOnCodes).size !== input.addOnCodes.length || input.planCode === "complete" && addOns.length) configurationRequired();
+    const desired = [await verifyCatalogPrice(plan, "monthly", stripe), ...await Promise.all(addOns.map((addOn) => verifyCatalogPrice(addOn, "monthly", stripe)))];
     const currentItems: any[] = current.items?.data ?? [];
     const form: Record<string, string | number | boolean> = {
       proration_behavior: "none", "metadata[planCode]": input.planCode, "metadata[addOnCodes]": JSON.stringify(input.addOnCodes),

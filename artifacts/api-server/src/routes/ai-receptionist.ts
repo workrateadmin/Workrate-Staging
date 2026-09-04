@@ -3,6 +3,7 @@ import { getAuth } from "@clerk/express";
 import { db, aiCallsTable, aiReceptionistSettingsTable, enquiriesTable, companiesTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import OpenAI from "openai";
+import { requireBillingFeature } from "../services/billing/authorization";
 
 const router: IRouter = Router();
 
@@ -45,7 +46,7 @@ router.get("/ai-receptionist/settings", requireAuth, async (req, res): Promise<v
 });
 
 // PUT /ai-receptionist/settings
-router.put("/ai-receptionist/settings", requireAuth, async (req, res): Promise<void> => {
+router.put("/ai-receptionist/settings", requireAuth, requireBillingFeature("ai_receptionist"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const body = req.body ?? {};
 
@@ -185,7 +186,7 @@ router.patch("/ai-calls/:id", requireAuth, async (req, res): Promise<void> => {
 
 // POST /ai-calls/:id/process
 // Creates an enquiry from the call's collected data and generates an AI summary
-router.post("/ai-calls/:id/process", requireAuth, async (req, res): Promise<void> => {
+router.post("/ai-calls/:id/process", requireAuth, requireBillingFeature("ai_receptionist"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -396,7 +397,7 @@ CALL_COMPLETE:{"customerName":"<name>","phone":"<phone>","address":"<address or 
 };
 
 // POST /ai-receptionist/demo/message  (SSE stream)
-router.post("/ai-receptionist/demo/message", requireAuth, async (req, res): Promise<void> => {
+router.post("/ai-receptionist/demo/message", requireAuth, requireBillingFeature("ai_receptionist"), async (req, res): Promise<void> => {
   const { messages = [], enabledQuestions = [], businessName = "", tradeType = "" } = req.body ?? {};
 
   const systemPrompt = DEMO_SYSTEM_PROMPT(businessName, tradeType, enabledQuestions);
@@ -438,7 +439,7 @@ router.post("/ai-receptionist/demo/message", requireAuth, async (req, res): Prom
 });
 
 // POST /ai-receptionist/demo/complete
-router.post("/ai-receptionist/demo/complete", requireAuth, async (req, res): Promise<void> => {
+router.post("/ai-receptionist/demo/complete", requireAuth, requireBillingFeature("ai_receptionist"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const { messages = [], durationSeconds } = req.body ?? {};
 

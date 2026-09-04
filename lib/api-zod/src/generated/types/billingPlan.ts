@@ -5,15 +5,29 @@
  * WorkRate API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BillingPlanIncludedAllowance } from './billingPlanIncludedAllowance';
+import type { BillingPlanOveragePolicy } from './billingPlanOveragePolicy';
 import type { BillingPlanUsageLimits } from './billingPlanUsageLimits';
 
 export interface BillingPlan {
   code: string;
   name: string;
+  /** @nullable */
+  description: string | null;
   monthlyPriceGbp: number;
   trialPriceGbp: number;
   trialDays: number;
   featureCategories: string[];
   /** @nullable */
   usageLimits: BillingPlanUsageLimits;
+  /** @nullable */
+  includedAllowance: BillingPlanIncludedAllowance;
+  /** @nullable */
+  overagePolicy: BillingPlanOveragePolicy;
+  active: boolean;
+  comingSoon: boolean;
+  sortOrder: number;
+  purchasable: boolean;
+  /** @nullable */
+  configurationMessage: string | null;
 }

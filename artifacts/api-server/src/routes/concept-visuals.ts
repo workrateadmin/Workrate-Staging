@@ -14,6 +14,7 @@ import { db, enquiriesTable, enquiryAttachmentsTable, conceptVisualsTable } from
 import { eq, and, count, isNotNull } from "drizzle-orm";
 import OpenAI from "openai";
 import { toFile } from "openai/uploads";
+import { requireFeature } from "../services/billing/authorization";
 import fs from "node:fs";
 import path from "node:path";
 import { mkdirSync } from "node:fs";
@@ -313,6 +314,14 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
     res.status(404).json({ error: "Chat session not found" });
     return;
   }
+  // The validated chat token selects one exact enquiry; use only its persisted
+  // owner identity for billing and never accept tenant identity from the caller.
+  if (!enquiry.ownerUserId) {
+    res.status(402).json({ error: "PAYMENT_REQUIRED", featureKey: "concept_visuals", message: "An active subscription with concept_visuals is required." });
+    return;
+  }
+  const featureDenied = await requireFeature(enquiry.ownerUserId, "concept_visuals");
+  if (featureDenied) { res.status(402).json(featureDenied); return; }
 
   if (!isConceptSupported(enquiry.projectType)) {
     res.status(400).json({ error: "Concept visuals not available for this project type" });

@@ -14,3 +14,9 @@ Checkout exclusion must be tenant-wide, not scoped only to a selected plan. Pers
 **Why:** Client-owned idempotency keys or selection-scoped attempts can create multiple live subscriptions and duplicate charges during retries, redirects, or plan changes.
 
 **How to apply:** Serialize attempt creation per tenant, allow a new attempt only after prior attempts are expired or reconciled, and fetch current Stripe subscription state for webhook convergence rather than applying event snapshots.
+
+Persisted Stripe product, recurring-price, and paid-trial-price IDs are the only runtime billing mappings. A mapping is purchasable only after exact product, currency, cadence, kind, and server-derived amount verification; any pricing or ID edit invalidates that verification.
+
+**Why:** Metadata discovery or unchecked saved IDs can charge a stale Stripe amount that differs from the customer-facing server catalog.
+
+**How to apply:** Fail closed before Checkout or subscription updates, compare Stripe unit amounts with server-computed pence, and restore validation only through the protected validator or verified catalog seed.

@@ -9,6 +9,12 @@ Existing companies with no onboarding or subscription state keep legacy access a
 
 **How to apply:** Keep entitlement resolution server-side and treat the absence of billing state as legacy access. New sign-ups may explicitly enter onboarding; ordinary sign-ins continue to the existing dashboard.
 
+Paid-trial pricing defaults to 50% of each product's server-controlled monthly price, with an optional server-side override. Core is £29/month and Complete is £99/month; add-on prices and usage allowances remain unset until commercially approved.
+
+**Why:** Fixed introductory prices drifted from the intended commercial rule, while inventing add-on prices or allowances would create unsupported customer promises.
+
+**How to apply:** Calculate and submit all monetary values on the server. Customer UI may summarize catalog values but must never send authoritative amounts. Missing commercial configuration keeps a product visible but not purchasable.
+
 Billing providers must remain behind one server-side interface. A missing provider returns a clear unavailable result and must never create paid/trial state or grant entitlements.
 
 **Why:** Stripe was intentionally deferred while the rest of onboarding, catalog, usage, and billing UI was built. Provider-specific checkout and webhook code should not leak into product routes or clients.

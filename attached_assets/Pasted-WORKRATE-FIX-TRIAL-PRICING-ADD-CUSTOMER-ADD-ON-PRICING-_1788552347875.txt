@@ -1,0 +1,348 @@
+WORKRATE — FIX TRIAL PRICING + ADD CUSTOMER ADD-ON PRICING/SELECTION
+
+GOAL:
+Correct the current pricing implementation and add a proper customer-facing add-on selection model.
+
+IMPORTANT:
+Do NOT rebuild Stripe or the existing billing foundation.
+Reuse the existing configurable plan/add-on catalog, entitlement model, onboarding flow, and billing page.
+
+==================================================
+1. FIX PAID TRIAL PRICING
+==================================================
+
+The current trial prices are wrong.
+
+Use:
+
+CORE
+£29/month
+7-day paid trial = 50% of monthly price
+= £14.50
+
+COMPLETE
+£99/month
+7-day paid trial = 50% of monthly price
+= £49.50
+
+For ADD-ONS:
+Default 7-day trial price should be 50% of the add-on monthly price.
+
+Example:
+£20/month add-on
+→ £10 for first 7 days
+→ then £20/month
+
+Allow a future manual override if required, but default rule should be 50%.
+
+Do not use £5 / £20 fixed trial values anymore.
+
+==================================================
+2. ADD-ON CATALOG
+==================================================
+
+Use the existing configurable add-on architecture.
+
+Each add-on must support:
+
+- name
+- description
+- monthly price
+- trial price
+- default trial rule = 50% of monthly price
+- feature key / entitlement
+- included usage allowance
+- overage policy if applicable
+- active / inactive
+- coming soon
+- sort order
+
+Do NOT hardcode pricing checks throughout the frontend.
+
+==================================================
+3. INITIAL ADD-ON TYPES
+==================================================
+
+Create configurable add-on entries for:
+
+- AI Receptionist
+- Social AI / Meta Integrations
+- AI Concept Visuals
+- Advanced Finance / MTD
+- Cost Intelligence
+
+IMPORTANT:
+Do NOT invent final monthly prices if they have not been set.
+
+If no price exists yet:
+show admin/configuration state as:
+"Price not set"
+
+Do NOT make the add-on purchasable until a valid price is configured.
+
+==================================================
+4. CUSTOMER PLAN + ADD-ON SELECTION
+==================================================
+
+On the onboarding plan-selection step and Plan & Billing page:
+
+If customer chooses CORE:
+allow them to select individual add-ons.
+
+Show each add-on with:
+
+- name
+- description
+- monthly price
+- 7-day trial price
+- included usage allowance where configured
+- checkbox / Add button
+- availability status
+
+Example:
+
+AI Receptionist
+£25/month
+7-day trial: £12.50
+[Add]
+
+Social AI
+£25/month
+7-day trial: £12.50
+[Add]
+
+==================================================
+5. LIVE PRICE SUMMARY
+==================================================
+
+Show a live billing summary as add-ons are selected.
+
+Example:
+
+Core                £29
+AI Receptionist     £25
+Social AI           £25
+Cost Intelligence   £20
+-------------------------
+Monthly total       £99
+
+7-day trial total   £49.50
+
+Then normal monthly billing begins after trial.
+
+==================================================
+6. COMPLETE PLAN COMPARISON
+==================================================
+
+Complete should be:
+
+£99/month
+7-day paid trial: £49.50
+
+Complete unlocks all currently available paid feature categories.
+
+Still subject to usage limits.
+
+If the customer's selected Core + add-ons total approaches or exceeds Complete:
+
+show a clear comparison:
+
+"Complete may be better value"
+
+Example:
+"Your selected setup is £104/month.
+Complete includes all available features for £99/month."
+
+Provide:
+[Switch to Complete]
+
+Do not automatically switch them without confirmation.
+
+==================================================
+7. ADD-ON PRICING MANAGEMENT
+==================================================
+
+Create or reuse an internal/admin configuration area for WorkRate product pricing.
+
+This must NOT be visible to normal trade customers.
+
+Admin should be able to configure:
+
+- Core monthly price
+- Complete monthly price
+- add-on monthly prices
+- trial percentage
+- add-on availability
+- included usage allowances
+- coming-soon state
+
+Default trial percentage:
+50%
+
+Prices should be server-controlled.
+
+Do not rely on frontend constants.
+
+==================================================
+8. STRIPE PRODUCT / PRICE MAPPING
+==================================================
+
+Since Stripe billing is being connected:
+
+each purchasable plan/add-on should support mapping to the correct Stripe:
+
+- product ID
+- recurring price ID
+- trial/intro price handling where required
+
+Do not create fake paid states if Stripe mapping is missing.
+
+If Stripe price mapping is incomplete:
+show:
+"Billing configuration required"
+
+==================================================
+9. ENTITLEMENTS
+==================================================
+
+Customer access should derive from:
+
+base plan
++
+selected active add-ons
+
+Complete should resolve all available premium entitlements.
+
+Do not scatter entitlement logic.
+
+Use the existing central entitlement service.
+
+==================================================
+10. USAGE LIMITS
+==================================================
+
+Each add-on should support its own allowance.
+
+Examples:
+
+AI Receptionist:
+minutes/month
+
+Social AI:
+AI messages/month
+
+Concept Visuals:
+generations/month
+
+Do NOT invent final limits.
+
+If allowance not configured:
+do not advertise a fake number.
+
+==================================================
+11. BILLING PAGE
+==================================================
+
+Update:
+
+Settings → Plan & Billing
+
+Show:
+
+- current base plan
+- active add-ons
+- monthly total
+- trial total if currently in trial
+- next renewal date
+- usage summary
+- Add / Remove add-on
+- Switch to Complete
+- Manage payment
+- Cancel subscription
+
+==================================================
+12. TRIAL DISPLAY
+==================================================
+
+Customer-facing copy should clearly show:
+
+"7-day paid trial at 50% of your normal monthly subscription."
+
+Example:
+
+Core
+£29/month
+First 7 days: £14.50
+Then £29/month
+
+Complete
+£99/month
+First 7 days: £49.50
+Then £99/month
+
+For Core + add-ons:
+show the combined 50% trial total.
+
+==================================================
+13. EXISTING USERS
+==================================================
+
+Do NOT force existing WorkRate users into a new billing state.
+
+Preserve legacy access rules already implemented.
+
+Do not modify production customer data automatically.
+
+==================================================
+14. TESTING
+==================================================
+
+Test:
+
+- Core only
+- Complete only
+- Core + 1 add-on
+- Core + multiple add-ons
+- combined Core + add-ons cheaper than Complete
+- combined Core + add-ons more expensive than Complete
+- 50% trial math
+- trial conversion to full recurring amount
+- add-on with no configured price cannot be purchased
+- tenant isolation
+- frontend cannot spoof price
+- Stripe mapping validation
+- add-on entitlement applied/removed correctly
+
+==================================================
+15. BEFORE IMPLEMENTING
+==================================================
+
+First inspect the current billing/add-on schema and Stripe merge from Task #88.
+
+Report briefly:
+
+A. current Core/Complete values
+B. current add-on catalog state
+C. whether add-on selection UI exists
+D. whether admin price configuration exists
+E. how Stripe products/prices are currently mapped
+
+Then implement the smallest clean change.
+
+==================================================
+16. COMPLETION REPORT
+==================================================
+
+At completion report:
+
+A. trial pricing fixed
+B. Complete confirmed at £99
+C. add-on selector built
+D. pricing admin/config controls added
+E. Stripe mapping behavior
+F. entitlement behavior
+G. tests passed
+H. any commercial prices/usage limits I still need to decide
+I. whether ONE publish is required
+
+Do not publish automatically.

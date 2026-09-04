@@ -31,6 +31,7 @@ import {
 } from "../lib/hmrc";
 import { claimHmrcOauthState } from "../lib/hmrc-oauth-state";
 import { hmrcClientIp, requireHmrcSameOrigin } from "../lib/hmrc-security";
+import { requireBillingFeature } from "../services/billing/authorization";
 
 const router: IRouter = Router();
 const HMRC_STATE_TTL_MS = 10 * 60 * 1000;
@@ -330,7 +331,7 @@ router.get("/finance/hmrc/status", requireAuth, async (req, res): Promise<void> 
   res.json(connectionStatus(await storedConnection(company.id, userId!)));
 });
 
-router.post("/finance/hmrc/connect", requireAuth, requireHmrcSameOrigin, async (req, res): Promise<void> => {
+router.post("/finance/hmrc/connect", requireAuth, requireBillingFeature("advanced_finance_mtd"), requireHmrcSameOrigin, async (req, res): Promise<void> => {
   const parsed = connectSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid HMRC connection request." });
@@ -474,7 +475,7 @@ router.get("/hmrc/callback", requireAuth, async (req, res): Promise<void> => {
   }
 });
 
-router.post("/finance/hmrc/sync", requireAuth, requireHmrcSameOrigin, async (req, res): Promise<void> => {
+router.post("/finance/hmrc/sync", requireAuth, requireBillingFeature("advanced_finance_mtd"), requireHmrcSameOrigin, async (req, res): Promise<void> => {
   const parsed = syncSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid HMRC sync request." });

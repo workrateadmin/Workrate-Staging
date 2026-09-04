@@ -69,6 +69,8 @@ import type {
   HmrcConnectionStatus,
   HmrcSyncInput,
   IntegrationStatus,
+  InternalBillingCatalog,
+  InternalBillingCatalogItem,
   Invoice,
   InvoiceCreate,
   InvoiceMarkPaidBody,
@@ -93,6 +95,7 @@ import type {
   RecordProposalView200,
   RecordWidgetHeartbeat202,
   TimelinePage,
+  UpdateInternalBillingCatalogItemBody,
   UploadEnquiryAttachmentBody,
   UploadFinanceReceipt201,
   UploadFinanceReceiptBody,
@@ -6281,6 +6284,232 @@ export function useGetBillingCatalog<TData = Awaited<ReturnType<typeof getBillin
 
 
 
+
+export const getGetInternalBillingCatalogUrl = () => {
+
+
+
+
+  return `/api/internal/billing/catalog`
+}
+
+/**
+ * Requires the authenticated Clerk user ID to be present in the comma-separated WORKRATE_ADMIN_USER_IDS server allowlist. Access is denied when it is unset.
+ * @summary View server billing configuration (internal administrators only)
+ */
+export const getInternalBillingCatalog = async ( options?: Parameters<typeof customFetch>[1]): Promise<InternalBillingCatalog> => {
+
+  return customFetch<InternalBillingCatalog>(getGetInternalBillingCatalogUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInternalBillingCatalogQueryKey = () => {
+    return [
+    `/api/internal/billing/catalog`
+    ] as const;
+    }
+
+
+export const getGetInternalBillingCatalogQueryOptions = <TData = Awaited<ReturnType<typeof getInternalBillingCatalog>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInternalBillingCatalog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInternalBillingCatalogQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInternalBillingCatalog>>> = ({ signal }) => getInternalBillingCatalog({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInternalBillingCatalog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInternalBillingCatalogQueryResult = NonNullable<Awaited<ReturnType<typeof getInternalBillingCatalog>>>
+export type GetInternalBillingCatalogQueryError = ErrorType<void>
+
+
+/**
+ * @summary View server billing configuration (internal administrators only)
+ */
+
+export function useGetInternalBillingCatalog<TData = Awaited<ReturnType<typeof getInternalBillingCatalog>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInternalBillingCatalog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInternalBillingCatalogQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateInternalBillingCatalogItemUrl = (kind: 'plan' | 'add-on',
+    code: string,) => {
+
+
+
+
+  return `/api/internal/billing/${kind}/${code}`
+}
+
+/**
+ * Internal only. Stripe mappings are set by explicitly running seed:stripe-billing in development after configuring catalogue prices; they are never exposed by the customer catalog.
+ * @summary Update server-controlled billing pricing or mappings
+ */
+export const updateInternalBillingCatalogItem = async (kind: 'plan' | 'add-on',
+    code: string,
+    updateInternalBillingCatalogItemBody: UpdateInternalBillingCatalogItemBody, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getUpdateInternalBillingCatalogItemUrl(kind,code),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateInternalBillingCatalogItemBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateInternalBillingCatalogItemMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInternalBillingCatalogItem>>, TError,{kind: 'plan' | 'add-on';code: string;data: BodyType<UpdateInternalBillingCatalogItemBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateInternalBillingCatalogItem>>, TError,{kind: 'plan' | 'add-on';code: string;data: BodyType<UpdateInternalBillingCatalogItemBody>}, TContext> => {
+
+const mutationKey = ['updateInternalBillingCatalogItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateInternalBillingCatalogItem>>, {kind: 'plan' | 'add-on';code: string;data: BodyType<UpdateInternalBillingCatalogItemBody>}> = (props) => {
+          const {kind,code,data} = props ?? {};
+
+          return  updateInternalBillingCatalogItem(kind,code,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateInternalBillingCatalogItemMutationResult = NonNullable<Awaited<ReturnType<typeof updateInternalBillingCatalogItem>>>
+    export type UpdateInternalBillingCatalogItemMutationBody = BodyType<UpdateInternalBillingCatalogItemBody>
+    export type UpdateInternalBillingCatalogItemMutationError = ErrorType<void>
+
+    /**
+ * @summary Update server-controlled billing pricing or mappings
+ */
+export const useUpdateInternalBillingCatalogItem = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInternalBillingCatalogItem>>, TError,{kind: 'plan' | 'add-on';code: string;data: BodyType<UpdateInternalBillingCatalogItemBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateInternalBillingCatalogItem>>,
+        TError,
+        {kind: 'plan' | 'add-on';code: string;data: BodyType<UpdateInternalBillingCatalogItemBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateInternalBillingCatalogItemMutationOptions(options));
+    }
+
+export const getValidateInternalBillingCatalogMappingUrl = (kind: 'plan' | 'add-on',
+    code: string,) => {
+
+
+
+
+  return `/api/internal/billing/${kind}/${code}/validate-mapping`
+}
+
+/**
+ * @summary Verify stored Stripe mapping and enable purchase availability
+ */
+export const validateInternalBillingCatalogMapping = async (kind: 'plan' | 'add-on',
+    code: string, options?: Parameters<typeof customFetch>[1]): Promise<InternalBillingCatalogItem> => {
+
+  return customFetch<InternalBillingCatalogItem>(getValidateInternalBillingCatalogMappingUrl(kind,code),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getValidateInternalBillingCatalogMappingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateInternalBillingCatalogMapping>>, TError,{kind: 'plan' | 'add-on';code: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof validateInternalBillingCatalogMapping>>, TError,{kind: 'plan' | 'add-on';code: string}, TContext> => {
+
+const mutationKey = ['validateInternalBillingCatalogMapping'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof validateInternalBillingCatalogMapping>>, {kind: 'plan' | 'add-on';code: string}> = (props) => {
+          const {kind,code} = props ?? {};
+
+          return  validateInternalBillingCatalogMapping(kind,code,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ValidateInternalBillingCatalogMappingMutationResult = NonNullable<Awaited<ReturnType<typeof validateInternalBillingCatalogMapping>>>
+
+    export type ValidateInternalBillingCatalogMappingMutationError = ErrorType<void>
+
+    /**
+ * @summary Verify stored Stripe mapping and enable purchase availability
+ */
+export const useValidateInternalBillingCatalogMapping = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateInternalBillingCatalogMapping>>, TError,{kind: 'plan' | 'add-on';code: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof validateInternalBillingCatalogMapping>>,
+        TError,
+        {kind: 'plan' | 'add-on';code: string},
+        TContext
+      > => {
+      return useMutation(getValidateInternalBillingCatalogMappingMutationOptions(options));
+    }
 
 export const getGetBillingOverviewUrl = () => {
 

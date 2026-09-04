@@ -6,10 +6,10 @@ export function mapStripeSubscriptionStatus(status: string): "trialing" | "activ
   return status === "trialing" || status === "active" || status === "past_due" ? status : "pending_selection";
 }
 
-export function checkoutLineItems(monthlyPrice: string, paidTrialPrice: string, addOnPrices: string[]) {
+export function checkoutLineItems(monthlyPrice: string, paidTrialPrice: string, addOnPrices: string[], addOnTrialPrices: string[] = []) {
   // Stripe Checkout subscription mode accepts recurring and one-time prices:
   // the paid trial is collected now, while the monthly item starts after trial.
-  return [{ price: monthlyPrice, quantity: 1 }, { price: paidTrialPrice, quantity: 1 }, ...addOnPrices.map((price) => ({ price, quantity: 1 }))];
+  return [{ price: monthlyPrice, quantity: 1 }, { price: paidTrialPrice, quantity: 1 }, ...addOnTrialPrices.map((price) => ({ price, quantity: 1 })), ...addOnPrices.map((price) => ({ price, quantity: 1 }))];
 }
 export function checkoutIdempotencyKey(companyId: number, attemptId: string) {
   return `workrate-checkout:${companyId}:${attemptId}`;
