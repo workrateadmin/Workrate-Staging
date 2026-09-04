@@ -138,6 +138,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /enquiries/{id}/timeline:
+    get:
+      operationId: getEnquiryTimeline
+      tags: [enquiries]
+      summary: Get the unified activity timeline for an enquiry
+      security:
+        - ClerkAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - $ref: "#/components/parameters/TimelineLimit"
+        - $ref: "#/components/parameters/TimelineOffset"
+        - $ref: "#/components/parameters/TimelineOrder"
+        - $ref: "#/components/parameters/TimelineCategory"
+      responses:
+        "200":
+          description: Tenant-scoped timeline page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelinePage" }
+        "404":
+          description: Enquiry not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+
   /enquiries/{id}:
     get:
       operationId: getEnquiry
@@ -705,6 +733,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /jobs/{id}/timeline:
+    get:
+      operationId: getJobTimeline
+      tags: [jobs]
+      summary: Get the unified activity timeline for a job
+      security:
+        - ClerkAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - $ref: "#/components/parameters/TimelineLimit"
+        - $ref: "#/components/parameters/TimelineOffset"
+        - $ref: "#/components/parameters/TimelineOrder"
+        - $ref: "#/components/parameters/TimelineCategory"
+      responses:
+        "200":
+          description: Tenant-scoped timeline page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelinePage" }
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
   /jobs/{id}/schedule:
     patch:
       operationId: scheduleJob
@@ -1910,6 +1965,26 @@ paths:
 
 components:
   parameters:
+    TimelineLimit:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 100, default: 30 }
+    TimelineOffset:
+      name: offset
+      in: query
+      required: false
+      schema: { type: integer, minimum: 0, default: 0 }
+    TimelineOrder:
+      name: order
+      in: query
+      required: false
+      schema: { type: string, enum: [newest, oldest], default: newest }
+    TimelineCategory:
+      name: category
+      in: query
+      required: false
+      schema: { type: string, enum: [messages, calls, quotes, jobs, invoices_payments] }
     FinanceRecordId:
       name: id
       in: path
@@ -1931,6 +2006,37 @@ components:
         type: string
         format: date
   schemas:
+    TimelineEvent:
+      type: object
+      required: [id, category, eventType, occurredAt, title, detail, channel, amount, status, actionLabel, actionHref]
+      properties:
+        id: { type: string }
+        category: { type: string, enum: [messages, calls, quotes, jobs, invoices_payments] }
+        eventType: { type: string }
+        occurredAt: { type: string, format: date-time }
+        title: { type: string }
+        detail: { type: ["string", "null"] }
+        channel: { type: ["string", "null"] }
+        amount: { type: ["number", "null"] }
+        status: { type: ["string", "null"] }
+        actionLabel: { type: ["string", "null"] }
+        actionHref: { type: ["string", "null"] }
+        dateOnly: { type: ["boolean", "null"] }
+        transcriptAvailable: { type: ["boolean", "null"] }
+        attachment:
+          type: ["object", "null"]
+          required: [filename, mimetype, fileSize]
+          properties:
+            filename: { type: string }
+            mimetype: { type: string }
+            fileSize: { type: ["number", "null"] }
+    TimelinePage:
+      type: object
+      required: [events, hasMore, nextOffset]
+      properties:
+        events: { type: array, items: { $ref: "#/components/schemas/TimelineEvent" } }
+        hasMore: { type: boolean }
+        nextOffset: { type: ["number", "null"] }
     BillingPlan:
       type: object
       required: [code, name, monthlyPriceGbp, trialPriceGbp, trialDays, featureCategories, usageLimits]

@@ -14,6 +14,7 @@ import {
   getListEnquiryAttachmentsQueryKey,
   getListInvoicesQueryKey,
 } from "@workspace/api-client-react";
+import { JobTimeline } from "@/components/activity-timeline";
 import { useParams, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1046,6 +1047,17 @@ export default function JobDetail() {
               </CardContent>
             </Card>
           )}
+
+          {/* Job Activity Timeline */}
+          <Card className="shadow-sm border-border/60 rounded-2xl overflow-hidden">
+            <div className="px-6 py-5 border-b border-border/60 bg-card">
+              <h2 className="text-lg font-bold">Job Activity</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Calls, quotes, invoices, and status changes linked to this job.</p>
+            </div>
+            <div className="p-5">
+              <JobTimeline jobId={id} compact />
+            </div>
+          </Card>
         </div>
 
         {/* Right col — status & scheduling */}

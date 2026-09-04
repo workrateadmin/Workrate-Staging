@@ -24,3 +24,4 @@
 - [WorkRate invoice PDF storage boundary](workrate-invoice-pdf.md) — generated documents must never turn tenant-controlled branding into unrestricted network or private-object reads
 - [WorkRate billing foundation](workrate-billing-foundation.md) — provider-neutral paid-trial state; legacy companies retain access until they explicitly enter onboarding/billing
 - [Stripe connector billing](workrate-stripe-billing.md) — connector proxy withholds API/webhook keys; create endpoint secret once, encrypt it, and keep Checkout attempts tenant-wide
+- [WorkRate timeline boundaries](workrate-timeline-boundaries.md) — timelines are enquiry-scoped and derived only from explicit links; never infer customer identity or historical events

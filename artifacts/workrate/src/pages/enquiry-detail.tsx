@@ -5,6 +5,7 @@ import {
   useConvertEnquiryToJob, useDeleteEnquiry, useMarkDepositPaid,
   useListEnquiryAiCalls, getGetQuoteQueryKey, getListEnquiryAttachmentsQueryKey,
 } from "@workspace/api-client-react";
+import { EnquiryTimeline } from "@/components/activity-timeline";
 import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -333,6 +334,17 @@ export default function EnquiryDetail() {
                   )}
                 </div>
               </div>
+            </div>
+          </Card>
+
+          {/* Enquiry Activity Timeline */}
+          <Card className="shadow-sm border-border/60 rounded-2xl overflow-hidden">
+            <div className="px-8 py-5 border-b border-border/60 bg-card">
+              <h2 className="text-lg font-bold">Enquiry Activity</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Messages, calls, quotes, and payments recorded against this enquiry.</p>
+            </div>
+            <div className="p-6">
+              <EnquiryTimeline enquiryId={id} />
             </div>
           </Card>
         </div>

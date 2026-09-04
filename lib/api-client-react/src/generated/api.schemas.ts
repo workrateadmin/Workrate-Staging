@@ -5,6 +5,60 @@
  * WorkRate API specification
  * OpenAPI spec version: 0.1.0
  */
+export type TimelineEventCategory = typeof TimelineEventCategory[keyof typeof TimelineEventCategory];
+
+
+export const TimelineEventCategory = {
+  messages: 'messages',
+  calls: 'calls',
+  quotes: 'quotes',
+  jobs: 'jobs',
+  invoices_payments: 'invoices_payments',
+} as const;
+
+/**
+ * @nullable
+ */
+export type TimelineEventAttachment = {
+  filename: string;
+  mimetype: string;
+  /** @nullable */
+  fileSize: number | null;
+} | null;
+
+export interface TimelineEvent {
+  id: string;
+  category: TimelineEventCategory;
+  eventType: string;
+  occurredAt: string;
+  title: string;
+  /** @nullable */
+  detail: string | null;
+  /** @nullable */
+  channel: string | null;
+  /** @nullable */
+  amount: number | null;
+  /** @nullable */
+  status: string | null;
+  /** @nullable */
+  actionLabel: string | null;
+  /** @nullable */
+  actionHref: string | null;
+  /** @nullable */
+  dateOnly?: boolean | null;
+  /** @nullable */
+  transcriptAvailable?: boolean | null;
+  /** @nullable */
+  attachment?: TimelineEventAttachment;
+}
+
+export interface TimelinePage {
+  events: TimelineEvent[];
+  hasMore: boolean;
+  /** @nullable */
+  nextOffset: number | null;
+}
+
 /**
  * @nullable
  */
@@ -1181,6 +1235,29 @@ export interface EnquiryAttachment {
   uploadedAt: string;
 }
 
+export type TimelineLimitParameter = number;
+
+export type TimelineOffsetParameter = number;
+
+export type TimelineOrderParameter = typeof TimelineOrderParameter[keyof typeof TimelineOrderParameter];
+
+
+export const TimelineOrderParameter = {
+  newest: 'newest',
+  oldest: 'oldest',
+} as const;
+
+export type TimelineCategoryParameter = typeof TimelineCategoryParameter[keyof typeof TimelineCategoryParameter];
+
+
+export const TimelineCategoryParameter = {
+  messages: 'messages',
+  calls: 'calls',
+  quotes: 'quotes',
+  jobs: 'jobs',
+  invoices_payments: 'invoices_payments',
+} as const;
+
 export type FinancePeriodFromParameter = string;
 
 export type FinancePeriodToParameter = string;
@@ -1189,12 +1266,40 @@ export type ListEnquiriesParams = {
 status?: string;
 };
 
+export type GetEnquiryTimelineParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: TimelineLimitParameter;
+/**
+ * @minimum 0
+ */
+offset?: TimelineOffsetParameter;
+order?: TimelineOrderParameter;
+category?: TimelineCategoryParameter;
+};
+
 export type UploadEnquiryAttachmentBody = {
   file: Blob;
 };
 
 export type RecordProposalView200 = {
   ok: boolean;
+};
+
+export type GetJobTimelineParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: TimelineLimitParameter;
+/**
+ * @minimum 0
+ */
+offset?: TimelineOffsetParameter;
+order?: TimelineOrderParameter;
+category?: TimelineCategoryParameter;
 };
 
 export type RecordWidgetHeartbeat202 = {

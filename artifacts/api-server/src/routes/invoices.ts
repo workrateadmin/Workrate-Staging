@@ -1,11 +1,30 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
-import { db, quotesTable, companiesTable } from "@workspace/db";
+import { db, quotesTable, companiesTable, jobsTable, enquiriesTable } from "@workspace/db";
 import { sendInvoiceEmail } from "../services/customer-comms";
 import { renderInvoicePdf } from "../services/invoice-pdf";
 import { eq, and, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
+
+/** The only permitted invoice job link is one whose enquiry belongs to this Clerk user. */
+export async function findInvoiceLinkableJob(jobId: number, userId: string) {
+  const [row] = await db
+    .select({ id: jobsTable.id })
+    .from(jobsTable)
+    .innerJoin(enquiriesTable, eq(jobsTable.enquiryId, enquiriesTable.id))
+    .where(and(eq(jobsTable.id, jobId), eq(enquiriesTable.ownerUserId, userId)))
+    .limit(1);
+  return row ?? null;
+}
+
+async function validateInvoiceJobLink(value: unknown, userId: string): Promise<{ jobId?: number; error?: string }> {
+  if (value == null) return {};
+  const jobId = Number(value);
+  if (!Number.isInteger(jobId) || jobId <= 0) return { error: "jobId must be a positive integer or null" };
+  if (!await findInvoiceLinkableJob(jobId, userId)) return { error: "Job not found" };
+  return { jobId };
+}
 
 const requireAuth = (req: any, res: any, next: any) => {
   const auth = getAuth(req);
@@ -147,6 +166,8 @@ router.get("/invoices", requireAuth, async (req, res): Promise<void> => {
 router.post("/invoices", requireAuth, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const body = req.body;
+  const jobLink = await validateInvoiceJobLink(body.jobId, userId!);
+  if (jobLink.error) { res.status(jobLink.error === "Job not found" ? 404 : 400).json({ error: jobLink.error }); return; }
 
   const today = new Date().toISOString().split("T")[0];
   const deposit = calculateInvoiceDeposit(
@@ -171,7 +192,7 @@ router.post("/invoices", requireAuth, async (req, res): Promise<void> => {
       projectDescription: body.projectDescription ?? null,
       invoiceDate: body.invoiceDate ?? today,
       dueDate: body.dueDate ?? null,
-      jobId: body.jobId ?? null,
+       jobId: jobLink.jobId ?? null,
       vatRate: String(body.vatRate ?? "20"),
       lineItems: body.lineItems ?? null,
       notes: body.notes ?? null,
@@ -288,6 +309,11 @@ router.patch("/invoices/:id", requireAuth, async (req, res): Promise<void> => {
 
   const body = req.body;
   const updates: Record<string, any> = {};
+  if (body.jobId !== undefined) {
+    const jobLink = await validateInvoiceJobLink(body.jobId, userId!);
+    if (jobLink.error) { res.status(jobLink.error === "Job not found" ? 404 : 400).json({ error: jobLink.error }); return; }
+    updates.jobId = jobLink.jobId ?? null;
+  }
   const financialDetailsLocked =
     Boolean(existing.depositPaidAt) ||
     Boolean(existing.paidAt) ||
@@ -345,7 +371,7 @@ router.patch("/invoices/:id", requireAuth, async (req, res): Promise<void> => {
   if (body.invoiceNumber !== undefined)   updates.invoiceNumber = body.invoiceNumber;
   if (body.invoiceDate !== undefined)     updates.invoiceDate = body.invoiceDate;
   if (body.dueDate !== undefined)         updates.dueDate = body.dueDate;
-  if (body.jobId !== undefined)           updates.jobId = body.jobId;
+  // jobId is validated above through jobs -> enquiries ownership.
   if (body.materialsAllowance !== undefined) updates.materialsAllowance = String(body.materialsAllowance);
   if (body.estimatedTotal !== undefined)  updates.estimatedTotal = String(body.estimatedTotal);
   if (body.vatAmount !== undefined)       updates.vatAmount = String(body.vatAmount);

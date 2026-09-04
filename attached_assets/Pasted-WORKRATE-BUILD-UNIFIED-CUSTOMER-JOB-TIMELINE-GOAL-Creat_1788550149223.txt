@@ -1,0 +1,404 @@
+WORKRATE — BUILD UNIFIED CUSTOMER / JOB TIMELINE
+
+GOAL:
+Create one clear timeline that shows the full history of a customer and their work with the business.
+
+The timeline should bring together:
+
+- enquiries
+- website messages
+- phone / AI receptionist calls
+- Instagram / Facebook / WhatsApp messages when available
+- quotes / proposals
+- proposal questions
+- acceptance / decline
+- deposits
+- jobs
+- scheduling activity
+- invoices
+- payments
+- notes
+- important status changes
+
+IMPORTANT:
+Do NOT rebuild the underlying enquiry, messaging, quote, job, invoice, payment, Vapi, or integration systems.
+
+This task is about presenting existing activity in one unified tenant-safe timeline.
+
+==================================================
+1. CUSTOMER TIMELINE
+==================================================
+
+Add a timeline section to the customer detail page.
+
+If no dedicated customer detail page currently exists, inspect the current CRM/customer architecture and place the timeline in the most appropriate existing customer record view.
+
+The user should be able to see the customer relationship chronologically.
+
+Newest first by default, with option to switch to oldest first if practical.
+
+==================================================
+2. TIMELINE EVENT TYPES
+==================================================
+
+Support existing real events such as:
+
+ENQUIRY
+- enquiry created
+- enquiry updated
+- source/channel
+- customer message
+- photos/files received where practical
+
+PHONE / AI RECEPTIONIST
+- incoming call
+- call completed
+- AI summary
+- transcript available
+- extracted enquiry details
+- call requires review
+
+SOCIAL / MESSAGING
+When supported:
+- Instagram message
+- Facebook Messenger message
+- WhatsApp message
+- human takeover
+- AI resumed
+- conversation marked Personal / Not an enquiry
+
+QUOTES / PROPOSALS
+- quote created
+- quote sent
+- quote updated
+- customer viewed where tracked
+- customer asked question
+- accepted
+- declined
+- expired where supported
+
+DEPOSIT / PAYMENTS
+- deposit requested
+- deposit received
+- payment received
+- payment failed where applicable
+
+JOBS
+- converted to job
+- scheduled
+- rescheduled
+- status changed
+- completed
+- variation added where supported
+
+INVOICES
+- invoice created
+- invoice sent
+- invoice viewed where tracked
+- invoice overdue
+- invoice paid
+
+NOTES
+- internal note added
+
+Do not invent unsupported activity.
+
+==================================================
+3. VISUAL STRUCTURE
+==================================================
+
+Each timeline event should show:
+
+- icon/category
+- timestamp
+- plain-English event title
+- short supporting detail
+- source/channel where relevant
+- related amount/status where relevant
+- action link where useful
+
+Examples:
+
+"New website enquiry"
+"John asked about a fitted wardrobe"
+[View enquiry]
+
+"AI receptionist call completed"
+"3m 42s — enquiry captured"
+[Review call]
+
+"Proposal accepted"
+"Quote Q-104 — £4,850"
+[View proposal]
+
+"Deposit received"
+"£2,425 received"
+[View job]
+
+"Invoice paid"
+"INV-204 — £2,425"
+[View invoice]
+
+==================================================
+4. CHANNEL LABELS
+==================================================
+
+Show useful channel indicators where relevant:
+
+Website
+Phone
+Email
+Instagram
+Facebook
+WhatsApp
+Manual
+
+Do not overdecorate the UI.
+
+==================================================
+5. CUSTOMER IDENTITY / RECORD MATCHING
+==================================================
+
+Before implementation, inspect how WorkRate currently links:
+
+- enquiries
+- customers
+- phone calls
+- quotes
+- jobs
+- invoices
+
+The timeline must use real existing relationships.
+
+Do NOT create unsafe fuzzy matching purely by name.
+
+Where records are not linked to a customer:
+- do not guess
+- show them only in their existing entity context
+- optionally flag for future linking
+
+==================================================
+6. JOB TIMELINE
+==================================================
+
+Also add a related timeline/activity view on Job Detail.
+
+The Job timeline should be narrower than the Customer timeline and show activity specifically tied to that job.
+
+Examples:
+
+- enquiry source
+- quote
+- acceptance
+- deposit
+- schedule changes
+- job status
+- actual cost updates
+- invoice
+- payment
+
+Reuse the same timeline event model/components where practical.
+
+==================================================
+7. TIMELINE DATA MODEL
+==================================================
+
+First inspect whether WorkRate already has:
+
+- audit log
+- activity log
+- event table
+- notifications model
+- webhook event records
+
+Reuse existing event infrastructure if possible.
+
+Avoid creating a second parallel history system.
+
+If a derived timeline query can be safely built from existing tables, prefer that.
+
+If a persisted event model is genuinely needed, explain why before adding it.
+
+==================================================
+8. FILTERING
+==================================================
+
+Add simple filters if practical:
+
+All
+Messages
+Calls
+Quotes
+Jobs
+Invoices / Payments
+Notes
+
+Do not make filtering complicated.
+
+==================================================
+9. SEARCH
+==================================================
+
+If existing customer search supports it, timeline should not require a separate search system.
+
+Do not build global search in this task.
+
+==================================================
+10. INTERNAL NOTES
+==================================================
+
+Allow the business user to add an internal note directly from the timeline if this fits existing notes architecture.
+
+Notes should:
+- be business/internal only
+- never be sent to customer
+- be tenant scoped
+- show author/time where available
+
+Do not create a duplicate note system if one already exists.
+
+==================================================
+11. HUMAN / AI MESSAGE STATE
+==================================================
+
+For future social messaging integrations, timeline architecture should support events like:
+
+- AI active
+- human takeover
+- AI paused
+- returned to AI
+- marked Personal / excluded
+
+Do not build new social integration logic in this task.
+
+Just make sure the timeline can display these states when they exist.
+
+==================================================
+12. SECURITY
+==================================================
+
+Confirm:
+
+- tenant isolation
+- customer timeline only shows records owned by the current business
+- deep links re-authorize entity access
+- message/transcript access is tenant scoped
+- no provider credentials/secrets displayed
+
+==================================================
+13. PERFORMANCE
+==================================================
+
+Avoid loading every historical record for large customers at once.
+
+Use:
+- pagination
+or
+- sensible incremental loading
+
+where needed.
+
+Do not create N+1 queries across every timeline event.
+
+==================================================
+14. MOBILE
+==================================================
+
+Timeline must work properly on:
+
+- desktop
+- mobile web/PWA
+
+Events should remain readable on narrow screens.
+
+==================================================
+15. EXISTING USERS
+==================================================
+
+Existing customers/jobs should immediately show available historical activity derived from current data.
+
+Do not require manual migration/re-entry.
+
+Do not fabricate events that were never recorded.
+
+==================================================
+16. TESTING
+==================================================
+
+Test:
+
+CUSTOMER
+- enquiry → quote → acceptance → job → invoice → payment
+- phone enquiry
+- multiple jobs for same customer
+- customer with only one enquiry
+- customer with no timeline activity edge case
+
+JOB
+- quote/deposit/job/invoice chain
+- reschedule/status changes
+- completion activity
+
+SECURITY
+- cross-tenant access denial
+- unrelated record cannot appear in timeline
+- deep links remain protected
+
+UI
+- desktop
+- mobile
+- filtering
+- chronological ordering
+
+PERFORMANCE
+- customer with many events
+
+==================================================
+17. FIRST INSPECT
+==================================================
+
+Before coding, inspect and report briefly:
+
+A. current customer model
+B. how enquiries link to customers
+C. how quotes/jobs/invoices link to customers
+D. existing audit/event infrastructure
+E. whether timeline can be derived from current tables
+F. any missing relationship that prevents safe timeline inclusion
+
+Then implement the smallest clean solution.
+
+==================================================
+18. DO NOT OVERBUILD
+==================================================
+
+Do not add:
+
+- new social integrations
+- new payment providers
+- new CRM system
+- global search
+- unrelated dashboard redesign
+- AI summarisation of full timeline unless existing infrastructure already supports it cleanly
+
+This task is only:
+Unified Customer Timeline + Job Timeline.
+
+==================================================
+19. COMPLETION REPORT
+==================================================
+
+At completion report:
+
+A. timeline architecture
+B. existing data sources reused
+C. event types implemented
+D. customer/job routes updated
+E. filters added
+F. tenant protections
+G. performance approach
+H. tests passed
+I. any existing records that cannot safely appear due to missing linkage
+J. whether ONE publish is required
+
+Do not publish automatically.

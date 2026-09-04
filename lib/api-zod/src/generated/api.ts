@@ -263,6 +263,54 @@ export const ListEnquiryAiCallsResponse = zod.array(ListEnquiryAiCallsResponseIt
 
 
 /**
+ * @summary Get the unified activity timeline for an enquiry
+ */
+export const GetEnquiryTimelineParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const getEnquiryTimelineQueryLimitDefault = 30;
+export const getEnquiryTimelineQueryLimitMax = 100;
+
+export const getEnquiryTimelineQueryOffsetDefault = 0;
+export const getEnquiryTimelineQueryOffsetMin = 0;
+
+export const getEnquiryTimelineQueryOrderDefault = `newest`;
+
+export const GetEnquiryTimelineQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(getEnquiryTimelineQueryLimitMax).default(getEnquiryTimelineQueryLimitDefault),
+  "offset": zod.coerce.number().int().min(getEnquiryTimelineQueryOffsetMin).default(getEnquiryTimelineQueryOffsetDefault),
+  "order": zod.enum(['newest', 'oldest']).default(getEnquiryTimelineQueryOrderDefault),
+  "category": zod.enum(['messages', 'calls', 'quotes', 'jobs', 'invoices_payments']).optional()
+})
+
+export const GetEnquiryTimelineResponse = zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.string(),
+  "category": zod.enum(['messages', 'calls', 'quotes', 'jobs', 'invoices_payments']),
+  "eventType": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "title": zod.string(),
+  "detail": zod.string().nullable(),
+  "channel": zod.string().nullable(),
+  "amount": zod.number().nullable(),
+  "status": zod.string().nullable(),
+  "actionLabel": zod.string().nullable(),
+  "actionHref": zod.string().nullable(),
+  "dateOnly": zod.boolean().nullish(),
+  "transcriptAvailable": zod.boolean().nullish(),
+  "attachment": zod.object({
+  "filename": zod.string(),
+  "mimetype": zod.string(),
+  "fileSize": zod.number().nullable()
+}).nullish()
+})),
+  "hasMore": zod.boolean(),
+  "nextOffset": zod.number().nullable()
+})
+
+
+/**
  * @summary Get enquiry by ID
  */
 export const GetEnquiryParams = zod.object({
@@ -1019,6 +1067,54 @@ export const UpdateJobResponse = zod.object({
   "attachmentUrls": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get the unified activity timeline for a job
+ */
+export const GetJobTimelineParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const getJobTimelineQueryLimitDefault = 30;
+export const getJobTimelineQueryLimitMax = 100;
+
+export const getJobTimelineQueryOffsetDefault = 0;
+export const getJobTimelineQueryOffsetMin = 0;
+
+export const getJobTimelineQueryOrderDefault = `newest`;
+
+export const GetJobTimelineQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(getJobTimelineQueryLimitMax).default(getJobTimelineQueryLimitDefault),
+  "offset": zod.coerce.number().int().min(getJobTimelineQueryOffsetMin).default(getJobTimelineQueryOffsetDefault),
+  "order": zod.enum(['newest', 'oldest']).default(getJobTimelineQueryOrderDefault),
+  "category": zod.enum(['messages', 'calls', 'quotes', 'jobs', 'invoices_payments']).optional()
+})
+
+export const GetJobTimelineResponse = zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.string(),
+  "category": zod.enum(['messages', 'calls', 'quotes', 'jobs', 'invoices_payments']),
+  "eventType": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "title": zod.string(),
+  "detail": zod.string().nullable(),
+  "channel": zod.string().nullable(),
+  "amount": zod.number().nullable(),
+  "status": zod.string().nullable(),
+  "actionLabel": zod.string().nullable(),
+  "actionHref": zod.string().nullable(),
+  "dateOnly": zod.boolean().nullish(),
+  "transcriptAvailable": zod.boolean().nullish(),
+  "attachment": zod.object({
+  "filename": zod.string(),
+  "mimetype": zod.string(),
+  "fileSize": zod.number().nullable()
+}).nullish()
+})),
+  "hasMore": zod.boolean(),
+  "nextOffset": zod.number().nullable()
 })
 
 

@@ -60,7 +60,9 @@ import type {
   FinanceReceipt,
   FinanceSummary,
   FinanceTransaction,
+  GetEnquiryTimelineParams,
   GetFinanceSummaryParams,
+  GetJobTimelineParams,
   HealthStatus,
   HmrcAuthorizationStart,
   HmrcConnectionInput,
@@ -90,6 +92,7 @@ import type {
   QuoteUpdate,
   RecordProposalView200,
   RecordWidgetHeartbeat202,
+  TimelinePage,
   UploadEnquiryAttachmentBody,
   UploadFinanceReceipt201,
   UploadFinanceReceiptBody,
@@ -573,6 +576,95 @@ export function useListEnquiryAiCalls<TData = Awaited<ReturnType<typeof listEnqu
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListEnquiryAiCallsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetEnquiryTimelineUrl = (id: number,
+    params?: GetEnquiryTimelineParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/enquiries/${id}/timeline?${stringifiedParams}` : `/api/enquiries/${id}/timeline`
+}
+
+/**
+ * @summary Get the unified activity timeline for an enquiry
+ */
+export const getEnquiryTimeline = async (id: number,
+    params?: GetEnquiryTimelineParams, options?: Parameters<typeof customFetch>[1]): Promise<TimelinePage> => {
+
+  return customFetch<TimelinePage>(getGetEnquiryTimelineUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEnquiryTimelineQueryKey = (id: number,
+    params?: GetEnquiryTimelineParams,) => {
+    return [
+    `/api/enquiries/${id}/timeline`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetEnquiryTimelineQueryOptions = <TData = Awaited<ReturnType<typeof getEnquiryTimeline>>, TError = ErrorType<ApiError>>(id: number,
+    params?: GetEnquiryTimelineParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEnquiryTimeline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEnquiryTimelineQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEnquiryTimeline>>> = ({ signal }) => getEnquiryTimeline(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEnquiryTimeline>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEnquiryTimelineQueryResult = NonNullable<Awaited<ReturnType<typeof getEnquiryTimeline>>>
+export type GetEnquiryTimelineQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get the unified activity timeline for an enquiry
+ */
+
+export function useGetEnquiryTimeline<TData = Awaited<ReturnType<typeof getEnquiryTimeline>>, TError = ErrorType<ApiError>>(
+ id: number,
+    params?: GetEnquiryTimelineParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEnquiryTimeline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEnquiryTimelineQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -2204,6 +2296,95 @@ export const useUpdateJob = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getUpdateJobMutationOptions(options));
     }
+
+export const getGetJobTimelineUrl = (id: number,
+    params?: GetJobTimelineParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/jobs/${id}/timeline?${stringifiedParams}` : `/api/jobs/${id}/timeline`
+}
+
+/**
+ * @summary Get the unified activity timeline for a job
+ */
+export const getJobTimeline = async (id: number,
+    params?: GetJobTimelineParams, options?: Parameters<typeof customFetch>[1]): Promise<TimelinePage> => {
+
+  return customFetch<TimelinePage>(getGetJobTimelineUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetJobTimelineQueryKey = (id: number,
+    params?: GetJobTimelineParams,) => {
+    return [
+    `/api/jobs/${id}/timeline`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetJobTimelineQueryOptions = <TData = Awaited<ReturnType<typeof getJobTimeline>>, TError = ErrorType<ApiError>>(id: number,
+    params?: GetJobTimelineParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJobTimeline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetJobTimelineQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJobTimeline>>> = ({ signal }) => getJobTimeline(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJobTimeline>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetJobTimelineQueryResult = NonNullable<Awaited<ReturnType<typeof getJobTimeline>>>
+export type GetJobTimelineQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get the unified activity timeline for a job
+ */
+
+export function useGetJobTimeline<TData = Awaited<ReturnType<typeof getJobTimeline>>, TError = ErrorType<ApiError>>(
+ id: number,
+    params?: GetJobTimelineParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJobTimeline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetJobTimelineQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getScheduleJobUrl = (id: number,) => {
 

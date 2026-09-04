@@ -20,6 +20,7 @@ import invoicesRouter from "./invoices";
 import financeRouter from "./finance";
 import hmrcRouter from "./hmrc";
 import billingRouter from "./billing";
+import timelineRouter from "./timeline";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(invoicesRouter);
 router.use(financeRouter);
 router.use(hmrcRouter);
 router.use(billingRouter);
+router.use(timelineRouter);
 
 export default router;
