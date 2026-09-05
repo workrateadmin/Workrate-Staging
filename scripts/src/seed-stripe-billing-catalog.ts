@@ -6,11 +6,15 @@ function trialPriceGbp(item: { monthlyPriceGbp: string | null; trialPercentage: 
   if (item.manualTrialPriceGbp != null) return Number(item.manualTrialPriceGbp);
   return Math.round(Number(item.monthlyPriceGbp) * Number(item.trialPercentage ?? 50)) / 100;
 }
-async function ensurePrice(stripe: StripeApiClient, product: string, amount: number, recurring: boolean, kind: string) {
+async function ensurePrice(stripe: StripeApiClient, product: string, amount: number, recurring: boolean, kind: string, catalogCode: string) {
   const prices = await stripe.get<{ data: Price[] }>("prices", { product, active: true, limit: 100 });
   const existing = prices.data.find((price) => price.unit_amount === amount && Boolean(price.recurring) === recurring && price.metadata?.billing_kind === kind);
   if (existing) return existing.id;
-  const created = await stripe.post<Price>("prices", { product, currency: "gbp", unit_amount: amount, ...(recurring ? { "recurring[interval]": "month" } : {}), "metadata[billing_kind]": kind });
+  const created = await stripe.post<Price>(
+    "prices",
+    { product, currency: "gbp", unit_amount: amount, ...(recurring ? { "recurring[interval]": "month" } : {}), "metadata[billing_kind]": kind },
+    `workrate-catalog-${catalogCode}-${kind}-${amount}`,
+  );
   return created.id;
 }
 async function seed() {
@@ -22,10 +26,14 @@ async function seed() {
   ];
   for (const item of items) {
     if (item.row.monthlyPriceGbp == null) continue; // deliberately configuration-required
-    const found = await stripe.get<{ data: Product[] }>("products/search", { query: `metadata['${item.metadataKey}']:'${item.row.code}'` });
-    const product = found.data[0] ?? await stripe.post<Product>("products", { name: `WorkRate ${item.row.name}`, description: item.row.description ?? undefined, [`metadata[${item.metadataKey}]`]: item.row.code });
-    const monthly = await ensurePrice(stripe, product.id, Math.round(Number(item.row.monthlyPriceGbp) * 100), true, "monthly");
-    const trial = await ensurePrice(stripe, product.id, Math.round((trialPriceGbp(item.row) ?? 0) * 100), false, "paid_trial");
+    const found = await stripe.get<{ data: Product[] }>("products/search", { query: `active:'true' AND metadata['${item.metadataKey}']:'${item.row.code}'` });
+    const product = found.data[0] ?? await stripe.post<Product>(
+      "products",
+      { name: `WorkRate ${item.row.name}`, description: item.row.description ?? undefined, [`metadata[${item.metadataKey}]`]: item.row.code },
+      `workrate-catalog-${item.row.code}-product`,
+    );
+    const monthly = await ensurePrice(stripe, product.id, Math.round(Number(item.row.monthlyPriceGbp) * 100), true, "monthly", item.row.code);
+    const trial = await ensurePrice(stripe, product.id, Math.round((trialPriceGbp(item.row) ?? 0) * 100), false, "paid_trial", item.row.code);
     const [monthlyPrice, trialPrice] = await Promise.all([stripe.get<Price>(`prices/${monthly}`), stripe.get<Price>(`prices/${trial}`)]);
     const expectedMonthly = Math.round(Number(item.row.monthlyPriceGbp) * 100);
     const expectedTrial = Math.round((trialPriceGbp(item.row) ?? 0) * 100);

@@ -4,12 +4,15 @@ export type CatalogAddOn = { code: string; featureCategories: string[]; usageLim
 export type Entitlements = { access: "legacy" | "none" | "subscription"; categories: string[]; limits: Record<string, number>; paid: boolean };
 
 export function resolveEntitlements(input: {
-  legacyAccess: boolean; subscription: { status: string; planCode: string | null; addOnCodes: string[] } | undefined;
+  legacyAccess: boolean; subscription: { status: string; planCode: string | null; addOnCodes: string[]; currentPeriodEndsAt?: Date | null } | undefined;
   plans: CatalogPlan[]; addOns: CatalogAddOn[];
 }): Entitlements {
   if (input.legacyAccess) return { access: "legacy" as const, categories: ["*"], limits: {}, paid: false };
   const subscription = input.subscription;
-  if (!subscription || !["trialing", "active"].includes(subscription.status)) {
+  // A cancellation scheduled for period end remains active until that paid
+  // period closes; a fully cancelled subscription does not.
+  const cancelledButStillPaid = subscription?.status === "cancelled" && !!subscription.currentPeriodEndsAt && subscription.currentPeriodEndsAt > new Date();
+  if (!subscription || !["trialing", "active"].includes(subscription.status) && !cancelledButStillPaid) {
     return { access: "none" as const, categories: [], limits: {}, paid: false };
   }
   const selected = [input.plans.find((p) => p.code === subscription.planCode), ...subscription.addOnCodes.map((code) => input.addOns.find((a) => a.code === code))].filter(Boolean) as (CatalogPlan | CatalogAddOn)[];

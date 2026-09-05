@@ -131,6 +131,7 @@ export * from './uploadFinanceReceipt201';
 export * from './uploadFinanceReceiptBody';
 export * from './usageOverview';
 export * from './usageOverviewEventsItem';
+export * from './usageOverviewPeriod';
 export * from './vapiConnectionInput';
 export * from './vapiSettings';
 export * from './widgetHeartbeatInput';

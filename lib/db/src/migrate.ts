@@ -522,6 +522,121 @@ const MIGRATIONS: { name: string; sql: string }[] = [
         "feature_categories" = EXCLUDED."feature_categories";
     `,
   },
+  {
+    name: "0017_commercial_add_on_catalog",
+    sql: `
+      -- Initial commercial catalogue. Allowances are intentionally stored with
+      -- the catalogue so an operator can change them without a code deployment.
+      UPDATE "billing_plans"
+      SET "monthly_price_gbp" = 29.00, "trial_percentage" = 50,
+          "manual_trial_price_gbp" = 14.50, "trial_price_gbp" = 14.50,
+          "trial_days" = 7
+      WHERE "code" = 'core';
+      UPDATE "billing_plans"
+      SET "monthly_price_gbp" = 99.00, "trial_percentage" = 50,
+          "manual_trial_price_gbp" = 49.50, "trial_price_gbp" = 49.50,
+          "trial_days" = 7,
+          "included_allowance" = '{"ai_receptionist_minutes":500,"social_ai_messages":1500,"concept_visual_generations":30}'::jsonb
+      WHERE "code" = 'complete';
+
+      UPDATE "billing_add_ons"
+      SET "monthly_price_gbp" = 29.00, "trial_percentage" = 50,
+          "manual_trial_price_gbp" = 14.50,
+          "included_allowance" = '{"ai_receptionist_minutes":200}'::jsonb
+      WHERE "code" = 'ai_receptionist';
+      UPDATE "billing_add_ons"
+      SET "monthly_price_gbp" = 29.00, "trial_percentage" = 50,
+          "manual_trial_price_gbp" = 14.50,
+          "name" = 'Social AI / Meta',
+          "included_allowance" = '{"social_ai_messages":500}'::jsonb
+      WHERE "code" = 'social_ai_meta';
+      UPDATE "billing_add_ons"
+      SET "monthly_price_gbp" = 12.00, "trial_percentage" = 50,
+          "manual_trial_price_gbp" = 6.00,
+          "included_allowance" = '{"concept_visual_generations":10}'::jsonb
+      WHERE "code" = 'concept_visuals';
+      UPDATE "billing_add_ons"
+      SET "monthly_price_gbp" = 24.00, "trial_percentage" = 50,
+          "manual_trial_price_gbp" = 12.00,
+          "name" = 'Advanced Finance / MTD',
+          "included_allowance" = NULL
+      WHERE "code" = 'advanced_finance_mtd';
+      UPDATE "billing_add_ons"
+      SET "monthly_price_gbp" = 24.00, "trial_percentage" = 50,
+          "manual_trial_price_gbp" = 12.00,
+          "included_allowance" = NULL
+      WHERE "code" = 'cost_intelligence';
+    `,
+  },
+  {
+    name: "0017_central_usage_ledger",
+    sql: `
+      ALTER TABLE "billing_usage_events" ADD COLUMN IF NOT EXISTS "usage_category" text NOT NULL DEFAULT 'unspecified';
+      ALTER TABLE "billing_usage_events" ADD COLUMN IF NOT EXISTS "unit" text NOT NULL DEFAULT 'count';
+      ALTER TABLE "billing_usage_events" ADD COLUMN IF NOT EXISTS "source" text NOT NULL DEFAULT 'server';
+      ALTER TABLE "billing_usage_events" ADD COLUMN IF NOT EXISTS "provider_reference" text;
+      ALTER TABLE "billing_usage_events" ADD COLUMN IF NOT EXISTS "related_entity_id" text;
+      ALTER TABLE "billing_usage_events" ADD COLUMN IF NOT EXISTS "provider_cost_gbp" numeric(12,6);
+      ALTER TABLE "billing_usage_events" ADD COLUMN IF NOT EXISTS "period_starts_at" timestamptz;
+      ALTER TABLE "billing_usage_events" ADD COLUMN IF NOT EXISTS "period_ends_at" timestamptz;
+      ALTER TABLE "billing_usage_events" ADD COLUMN IF NOT EXISTS "dedupe_key" text;
+      CREATE UNIQUE INDEX IF NOT EXISTS "billing_usage_events_tenant_dedupe_unique"
+        ON "billing_usage_events" ("company_id","owner_user_id","dedupe_key") WHERE "dedupe_key" IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS "billing_usage_events_tenant_period_feature_idx"
+        ON "billing_usage_events" ("company_id","owner_user_id","period_starts_at","feature_code");
+      CREATE TABLE IF NOT EXISTS "billing_usage_warnings" (
+        "id" serial PRIMARY KEY, "company_id" integer NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
+        "owner_user_id" text NOT NULL, "usage_period_id" integer NOT NULL REFERENCES "billing_usage_periods"("id") ON DELETE CASCADE,
+        "feature_code" text NOT NULL, "threshold_percent" integer NOT NULL CHECK ("threshold_percent" IN (75,90,100)),
+        "created_at" timestamptz NOT NULL DEFAULT now(),
+        UNIQUE ("company_id","owner_user_id","usage_period_id","feature_code","threshold_percent")
+      );
+      UPDATE "billing_plans" SET "usage_limits" = '{"ai_receptionist":500,"social_ai_meta":1500,"concept_visuals":30}'::jsonb
+        WHERE "code" = 'complete' AND ("usage_limits" IS NULL OR "usage_limits" = '{}'::jsonb);
+      UPDATE "billing_add_ons" SET "monthly_price_gbp" = 29, "trial_percentage" = 50,
+        "usage_limits" = '{"ai_receptionist":200}'::jsonb WHERE "code" = 'ai_receptionist';
+      UPDATE "billing_add_ons" SET "monthly_price_gbp" = 29, "trial_percentage" = 50,
+        "usage_limits" = '{"social_ai_meta":500}'::jsonb WHERE "code" = 'social_ai_meta';
+      UPDATE "billing_add_ons" SET "monthly_price_gbp" = 12, "trial_percentage" = 50,
+        "usage_limits" = '{"concept_visuals":10}'::jsonb WHERE "code" = 'concept_visuals';
+      UPDATE "billing_add_ons" SET "monthly_price_gbp" = 24, "trial_percentage" = 50 WHERE "code" = 'advanced_finance_mtd';
+      UPDATE "billing_add_ons" SET "monthly_price_gbp" = 24, "trial_percentage" = 50 WHERE "code" = 'cost_intelligence';
+    `,
+  },
+  {
+    name: "0018_company_legacy_billing",
+    sql: `
+      -- The UPDATE is intentionally in this one-time migration: all rows that
+      -- exist now are grandfathered, whereas future inserts use false.
+      ALTER TABLE "companies"
+        ADD COLUMN IF NOT EXISTS "legacy_billing" boolean NOT NULL DEFAULT false;
+      UPDATE "companies" SET "legacy_billing" = true;
+      ALTER TABLE "companies"
+        ALTER COLUMN "legacy_billing" SET DEFAULT false;
+    `,
+  },
+  {
+    name: "0019_billing_usage_reservations",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "billing_usage_reservations" (
+        "id" serial PRIMARY KEY,
+        "company_id" integer NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
+        "owner_user_id" text NOT NULL,
+        "usage_period_id" integer NOT NULL REFERENCES "billing_usage_periods"("id") ON DELETE CASCADE,
+        "feature_code" text NOT NULL,
+        "quantity" integer NOT NULL CHECK ("quantity" > 0),
+        "dedupe_key" text NOT NULL,
+        "status" text NOT NULL DEFAULT 'reserved' CHECK ("status" IN ('reserved','finalized','released')),
+        "created_at" timestamptz NOT NULL DEFAULT now(),
+        "finalized_at" timestamptz,
+        "released_at" timestamptz,
+        UNIQUE ("company_id", "owner_user_id", "dedupe_key")
+      );
+      CREATE INDEX IF NOT EXISTS "billing_usage_reservations_active_idx"
+        ON "billing_usage_reservations" ("company_id", "owner_user_id", "usage_period_id", "feature_code")
+        WHERE "status" = 'reserved';
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

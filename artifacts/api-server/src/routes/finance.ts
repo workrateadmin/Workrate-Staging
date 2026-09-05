@@ -25,6 +25,7 @@ import {
   numberOrNull,
   validateFinanceAmounts,
 } from "../lib/financeValidation";
+import { requireBillingFeature } from "../services/billing/authorization";
 
 const router: IRouter = Router();
 
@@ -51,6 +52,10 @@ const requireAuth = (req: any, res: any, next: any) => {
   }
   next();
 };
+
+// Finance routes implement the Advanced Finance / MTD product. This boundary is
+// deliberately server-side; normal reports do not consume a made-up allowance.
+router.use("/finance", requireAuth, requireBillingFeature("advanced_finance_mtd"));
 
 const receiptUpload = multer({
   storage: multer.memoryStorage(),

@@ -14,7 +14,8 @@ import {
 import { billingProvider } from "../services/billing/provider";
 import { verifyCatalogPrice } from "../services/billing/provider";
 import { StripeApiClient } from "../services/billing/stripeClient";
-import { usageForTenant } from "../services/billing/usage";
+import { allowanceQuantity, providerCostForTenant, usageForTenant, usagePeriodForTenant } from "../services/billing/usage";
+import { tenantEntitlements } from "../services/billing/authorization";
 import { catalogAvailability, trialPriceGbp } from "../services/billing/pricing";
 import { isBillingAdmin } from "../services/billing/pricing";
 import { z } from "zod/v4";
@@ -72,6 +73,21 @@ router.get("/internal/billing/catalog", async (req, res): Promise<void> => {
   // Internal operational surface deliberately includes Stripe mappings; public catalog never does.
   const [plans, addOns] = await Promise.all([db.select().from(billingPlansTable).orderBy(asc(billingPlansTable.sortOrder)), db.select().from(billingAddOnsTable).orderBy(asc(billingAddOnsTable.sortOrder))]);
   res.json({ plans: plans.map((row) => normalizeInternalCatalogItem(row, row.trialDays)), addOns: addOns.map((row) => normalizeInternalCatalogItem(row, null)) });
+});
+router.get("/internal/billing/profitability/:companyId", async (req, res): Promise<void> => {
+  if (!requireBillingAdmin(req, res)) return;
+  const companyId = Number(req.params.companyId);
+  if (!Number.isSafeInteger(companyId) || companyId < 1) { res.status(400).json({ error: "Invalid company id" }); return; }
+  const [subscription] = await db.select().from(companySubscriptionsTable).where(eq(companySubscriptionsTable.companyId, companyId)).limit(1);
+  if (!subscription?.currentPeriodStartsAt || !subscription.currentPeriodEndsAt) { res.status(404).json({ error: "No Stripe billing period for this tenant" }); return; }
+  const [plan] = subscription.planCode ? await db.select().from(billingPlansTable).where(eq(billingPlansTable.code, subscription.planCode)).limit(1) : [];
+  const addOns = subscription.addOnCodes.length ? await db.select().from(billingAddOnsTable) : [];
+  const revenueGbp = Number(plan?.monthlyPriceGbp ?? 0) + addOns
+    .filter((addOn) => subscription.addOnCodes.includes(addOn.code)).reduce((total, addOn) => total + Number(addOn.monthlyPriceGbp ?? 0), 0);
+  const period = { startsAt: subscription.currentPeriodStartsAt, endsAt: subscription.currentPeriodEndsAt };
+  const providerCostGbp = await providerCostForTenant(companyId, subscription.ownerUserId, period);
+  // Costs are direct provider values only; no fabricated estimates are returned.
+  res.json({ companyId, period, subscriptionRevenueGbp: revenueGbp, directProviderCostGbp: providerCostGbp, grossContributionGbp: revenueGbp - providerCostGbp });
 });
 router.patch("/internal/billing/:kind/:code", async (req, res): Promise<void> => {
   const userId = requireBillingAdmin(req, res); if (!userId) return;
@@ -207,8 +223,27 @@ for (const [path, status, parser] of [["/onboarding/complete", "completed", Comp
 router.get("/billing/usage", async (req, res): Promise<void> => {
   const userId = authUser(req, res); if (!userId) return;
   const company = await tenantCompany(userId);
-  const events = company ? await usageForTenant(company.id, userId) : [];
-  res.json(GetBillingUsageResponse.parse({ events: events.map((event) => ({ ...event, quantity: Number(event.quantity) })) }));
+  if (!company) { res.json(GetBillingUsageResponse.parse({ events: [], period: null })); return; }
+  const subscription = await subscriptionFor(company.id, userId);
+  // Never present a calendar month as a production billing period for an
+  // unbilled legacy account. Development's explicit fallback is labelled.
+  if (!subscription?.currentPeriodStartsAt || !subscription.currentPeriodEndsAt) {
+    if (process.env.NODE_ENV !== "development") { res.json(GetBillingUsageResponse.parse({ events: [], period: null })); return; }
+  }
+  const period = await usagePeriodForTenant(company.id, userId);
+  const [events, entitlements] = await Promise.all([usageForTenant(company.id, userId, period), tenantEntitlements(userId)]);
+  res.json(GetBillingUsageResponse.parse({
+    period: { startsAt: period.startsAt, endsAt: period.endsAt, developmentFallback: period.isDevelopmentFallback },
+    events: events.map((event) => {
+      // The provider ledger retains exact Vapi seconds, but customers purchase
+      // and see call minutes. Never compare/display seconds against minute caps.
+      const quantity = event.featureCode === "ai_receptionist"
+        ? allowanceQuantity("ai_receptionist", events)
+        : Number(event.quantity);
+      const limit = entitlements.limits[event.featureCode] ?? null;
+      return { ...event, quantity, unit: event.featureCode === "ai_receptionist" ? "minutes" : event.unit, limit, remaining: limit == null ? null : Math.max(0, limit - quantity), percentageUsed: limit == null ? null : Math.min(100, quantity / limit * 100) };
+    }),
+  }));
 });
 router.post("/dev/billing/simulate", async (req, res): Promise<void> => {
   if (process.env.NODE_ENV !== "development") { res.sendStatus(404); return; }

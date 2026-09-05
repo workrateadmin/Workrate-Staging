@@ -228,6 +228,17 @@ type PatchPayload = {
   stripeTrialPriceId?: string | null;
 };
 
+const ALLOWANCE_FIELDS = {
+  ai_receptionist: [{ key: "ai_receptionist_minutes", label: "Receptionist minutes / month" }],
+  social_ai_meta: [{ key: "social_ai_messages", label: "Social AI messages / month" }],
+  concept_visuals: [{ key: "concept_visual_generations", label: "Concept visual generations / month" }],
+  complete: [
+    { key: "ai_receptionist_minutes", label: "Receptionist minutes / month" },
+    { key: "social_ai_messages", label: "Social AI messages / month" },
+    { key: "concept_visual_generations", label: "Concept visual generations / month" },
+  ],
+} as const;
+
 function ItemEditor({
   item,
   kind,
@@ -282,6 +293,29 @@ function ItemEditor({
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "ok" | "error">("idle");
   const [validateError, setValidateError] = useState<string | null>(null);
+  const allowanceFields = ALLOWANCE_FIELDS[item.code as keyof typeof ALLOWANCE_FIELDS] ?? [];
+
+  const allowanceValue = (key: string) => {
+    try {
+      const value = JSON.parse(includedAllowanceRaw || "{}")[key];
+      return typeof value === "number" ? String(value) : "";
+    } catch {
+      return "";
+    }
+  };
+
+  const updateAllowance = (key: string, value: string) => {
+    let current: Record<string, number> = {};
+    try {
+      const parsed = JSON.parse(includedAllowanceRaw || "{}");
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) current = parsed;
+    } catch {
+      // Replacing malformed JSON with a field edit is more useful than retaining it.
+    }
+    if (value.trim() === "") delete current[key];
+    else current[key] = Number(value);
+    setIncludedAllowanceRaw(Object.keys(current).length ? JSON.stringify(current) : "");
+  };
 
   // Computed trial price preview
   const computedTrial = computeTrialPrice({
@@ -532,6 +566,28 @@ function ItemEditor({
 
       {/* ── Usage limits / allowance ───────────────────────────────── */}
       <Section title="Usage limits and allowance">
+        {allowanceFields.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            {allowanceFields.map((field) => (
+              <Field key={field.key} label={field.label}>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={allowanceValue(field.key)}
+                  onChange={(e) => updateAllowance(field.key, e.target.value)}
+                  placeholder="Not set"
+                  className="h-8 text-sm"
+                />
+              </Field>
+            ))}
+          </div>
+        )}
+        {item.code === "advanced_finance_mtd" || item.code === "cost_intelligence" ? (
+          <p className="text-xs text-muted-foreground mb-3">
+            This add-on is feature access only and has no artificial usage cap.
+          </p>
+        ) : null}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Usage limits (JSON)">
             <Input
@@ -541,7 +597,7 @@ function ItemEditor({
               className="h-8 text-sm font-mono"
             />
           </Field>
-          <Field label="Included allowance (JSON)">
+          <Field label="Included allowance (advanced JSON)">
             <Input
               value={includedAllowanceRaw}
               onChange={(e) => setIncludedAllowanceRaw(e.target.value)}

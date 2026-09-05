@@ -31,6 +31,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@workspace/memphis-bold/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -428,7 +429,7 @@ export default function BillingPage() {
       )}
 
       {/* ── Usage ────────────────────────────────────────────────────────── */}
-      <UsageCard usage={usage} isLoading={usageLoading} />
+      <UsageCard usage={usage} overview={overview} catalog={catalog} isLoading={usageLoading} />
 
       {/* ── Pending selection notice ──────────────────────────────────────── */}
       {(overview?.pendingPlanCode || (overview?.pendingAddOnCodes?.length ?? 0) > 0) && (
@@ -673,8 +674,32 @@ function SubscriptionStatusCard({
 
 // ── Usage card ────────────────────────────────────────────────────────────────
 
-function UsageCard({ usage, isLoading }: { usage: any; isLoading: boolean }) {
+const USAGE_DETAILS = [
+  { key: "ai_receptionist_minutes", featureCode: "ai_receptionist", label: "AI Receptionist", unit: "minutes" },
+  { key: "social_ai_messages", featureCode: "social_ai_meta", label: "Social AI", unit: "messages" },
+  { key: "concept_visual_generations", featureCode: "concept_visuals", label: "Concept Visuals", unit: "generations" },
+] as const;
+
+function UsageCard({ usage, overview, catalog, isLoading }: {
+  usage: any;
+  overview: BillingOverview | undefined;
+  catalog: any;
+  isLoading: boolean;
+}) {
   const events = usage?.events ?? [];
+  const plan = catalog?.plans?.find((item: any) => item.code === overview?.planCode);
+  const addOns = catalog?.addOns ?? [];
+  const allowances = overview?.planCode === "complete"
+    ? plan?.includedAllowance
+    : (overview?.addOnCodes ?? []).reduce((all: Record<string, number>, code: string) => ({
+      ...all,
+      ...(addOns.find((item: any) => item.code === code)?.includedAllowance ?? {}),
+    }), {});
+  const usageByCode = events.reduce((all: Record<string, number>, event: any) => {
+    all[event.featureCode] = (all[event.featureCode] ?? 0) + Number(event.quantity ?? 0);
+    return all;
+  }, {});
+  const meteredUsage = USAGE_DETAILS.filter((detail) => typeof allowances?.[detail.key] === "number");
   return (
     <Card className="shadow-sm border-border/60 rounded-2xl overflow-hidden">
       <div className="px-6 py-5 border-b border-border/60 bg-secondary/30 flex items-center gap-3">
@@ -689,19 +714,54 @@ function UsageCard({ usage, isLoading }: { usage: any; isLoading: boolean }) {
       <CardContent className="p-6">
         {isLoading ? (
           <Skeleton className="h-24 rounded-xl" />
-        ) : events.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No usage recorded for this period.</p>
+        ) : meteredUsage.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Your current plan has no metered feature allowances.
+          </p>
         ) : (
-          <div className="space-y-0">
-            {events.map((event: any, i: number) => (
-              <div
-                key={i}
-                className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0"
-              >
-                <span className="text-sm font-medium">{event.featureCode}</span>
-                <span className="text-sm font-bold tabular-nums">{event.quantity.toLocaleString()}</span>
-              </div>
-            ))}
+          <div className="space-y-4">
+            {overview?.currentPeriodStartsAt && overview?.currentPeriodEndsAt && (
+              <p className="text-xs text-muted-foreground">
+                Allowances reset each billing period: <strong className="text-foreground">{fmtDate(overview.currentPeriodStartsAt)} – {fmtDate(overview.currentPeriodEndsAt)}</strong>.
+              </p>
+            )}
+            {meteredUsage.map((detail) => {
+              const allowance = Number(allowances[detail.key]);
+              const used = usageByCode[detail.featureCode] ?? 0;
+              const percentage = allowance > 0 ? Math.min(100, Math.round((used / allowance) * 100)) : 0;
+              const remaining = Math.max(0, allowance - used);
+              const locked = used >= allowance;
+              const warning = locked
+                ? "You've reached this month's included allowance."
+                : percentage >= 90
+                  ? `You've used ${percentage}% of this month's included ${detail.unit}.`
+                  : percentage >= 75
+                    ? `You're approaching your ${detail.label} allowance.`
+                    : null;
+              return (
+                <div key={detail.key} className="rounded-xl border border-border/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <p className="text-sm font-bold">{detail.label}</p>
+                    <Badge variant={locked ? "destructive" : percentage >= 75 ? "secondary" : "outline"}>
+                      {locked ? "Allowance reached" : `${percentage}% used`}
+                    </Badge>
+                  </div>
+                  <p className="text-sm font-semibold tabular-nums">
+                    {used.toLocaleString()} / {allowance.toLocaleString()} {detail.unit} used
+                  </p>
+                  <Progress value={percentage} className={cn("mt-3", locked && "[&>div]:bg-destructive")} />
+                  <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+                    <span>{remaining.toLocaleString()} {detail.unit} remaining</span>
+                    <span>{percentage}% used</span>
+                  </div>
+                  {warning && (
+                    <p className={cn("mt-3 text-xs font-semibold", locked ? "text-destructive" : "text-amber-700")}>
+                      {warning} {locked ? "Wait until your allowance resets or switch to Complete." : ""}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </CardContent>

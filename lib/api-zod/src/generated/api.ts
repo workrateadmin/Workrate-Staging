@@ -2899,9 +2899,19 @@ export const SkipOnboardingResponse = zod.object({
 
 
 export const GetBillingUsageResponse = zod.object({
+  "period": zod.object({
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date(),
+  "developmentFallback": zod.boolean()
+}).nullable(),
   "events": zod.array(zod.object({
   "featureCode": zod.string(),
-  "quantity": zod.number()
+  "usageCategory": zod.string(),
+  "unit": zod.string(),
+  "quantity": zod.number(),
+  "limit": zod.number().nullable(),
+  "remaining": zod.number().nullable(),
+  "percentageUsed": zod.number().nullable()
 }))
 })
 

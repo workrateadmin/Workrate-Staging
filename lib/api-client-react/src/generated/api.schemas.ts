@@ -270,12 +270,31 @@ export interface OnboardingUpdate {
   data?: OnboardingUpdateData;
 }
 
+/**
+ * @nullable
+ */
+export type UsageOverviewPeriod = {
+  startsAt: string;
+  endsAt: string;
+  developmentFallback: boolean;
+} | null;
+
 export type UsageOverviewEventsItem = {
   featureCode: string;
+  usageCategory: string;
+  unit: string;
   quantity: number;
+  /** @nullable */
+  limit: number | null;
+  /** @nullable */
+  remaining: number | null;
+  /** @nullable */
+  percentageUsed: number | null;
 };
 
 export interface UsageOverview {
+  /** @nullable */
+  period: UsageOverviewPeriod;
   events: UsageOverviewEventsItem[];
 }
 

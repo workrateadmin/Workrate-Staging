@@ -10,11 +10,12 @@
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getAuth } from "@clerk/express";
-import { db, enquiriesTable, enquiryAttachmentsTable, conceptVisualsTable } from "@workspace/db";
+import { db, enquiriesTable, enquiryAttachmentsTable, conceptVisualsTable, companiesTable } from "@workspace/db";
 import { eq, and, count, isNotNull } from "drizzle-orm";
 import OpenAI from "openai";
 import { toFile } from "openai/uploads";
-import { requireFeature } from "../services/billing/authorization";
+import { reserveMeteredFeature } from "../services/billing/authorization";
+import { finalizeUsageReservation, recordUsage, releaseUsageReservation } from "../services/billing/usage";
 import fs from "node:fs";
 import path from "node:path";
 import { mkdirSync } from "node:fs";
@@ -225,6 +226,9 @@ async function runConceptGeneration(
   promptBrief: string,
   baseUrl: string,     // e.g. "https://work-rate-manager.replit.app"
   isRevision: boolean,
+  companyId: number | null,
+  ownerUserId: string,
+  reservationKey: string,
 ): Promise<void> {
   const startedAt = Date.now();
   try {
@@ -284,6 +288,15 @@ async function runConceptGeneration(
         generatedAt: new Date(),
       })
       .where(eq(conceptVisualsTable.id, conceptRecordId));
+    // Only a completed image is billable; the unique concept record id makes
+    // retries of the background worker harmless.
+    if (companyId) await recordUsage({
+      companyId, ownerUserId, featureCode: "concept_visuals", usageCategory: "concept_generations",
+      quantity: 1, unit: "generations", source: "openai", providerReference: String(conceptRecordId),
+      relatedEntityId: String(enquiryId), dedupeKey: `concept_visual:${conceptRecordId}`,
+      metadata: { provider: "openai", conceptRecordId },
+    });
+    if (companyId) await finalizeUsageReservation(companyId, ownerUserId, reservationKey);
   } catch (err: any) {
     const elapsedMs = Date.now() - startedAt;
     const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
@@ -294,6 +307,7 @@ async function runConceptGeneration(
       .update(conceptVisualsTable)
       .set({ status: "failed" })
       .where(eq(conceptVisualsTable.id, conceptRecordId));
+    if (companyId) await releaseUsageReservation(companyId, ownerUserId, reservationKey);
   }
 }
 
@@ -320,8 +334,8 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
     res.status(402).json({ error: "PAYMENT_REQUIRED", featureKey: "concept_visuals", message: "An active subscription with concept_visuals is required." });
     return;
   }
-  const featureDenied = await requireFeature(enquiry.ownerUserId, "concept_visuals");
-  if (featureDenied) { res.status(402).json(featureDenied); return; }
+  const [company] = await db.select({ id: companiesTable.id }).from(companiesTable)
+    .where(eq(companiesTable.ownerUserId, enquiry.ownerUserId)).limit(1);
 
   if (!isConceptSupported(enquiry.projectType)) {
     res.status(400).json({ error: "Concept visuals not available for this project type" });
@@ -405,6 +419,13 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
       promptBrief,
     })
     .returning();
+  const reservationKey = `concept_visual:${conceptRecord.id}`;
+  const access = await reserveMeteredFeature(enquiry.ownerUserId, "concept_visuals", reservationKey);
+  if (!access.allowed) {
+    await db.update(conceptVisualsTable).set({ status: "failed" }).where(eq(conceptVisualsTable.id, conceptRecord.id));
+    res.status(402).json(access);
+    return;
+  }
 
   // Respond immediately — widget will poll for the result.
   res.json({ conceptId: conceptRecord.id, status: "generating" });
@@ -417,6 +438,9 @@ router.post("/chat/:token/concept-visual/generate", async (req: Request, res: Re
     promptBrief,
     baseUrl,
     !!revisionNotes,
+    company?.id ?? null,
+    enquiry.ownerUserId,
+    reservationKey,
   ).catch((err) => {
     console.error("[concept-visual] Unhandled background generation error:", err);
   });

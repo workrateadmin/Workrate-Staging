@@ -1,0 +1,690 @@
+WORKRATE — SET ADD-ON PRICING + BUILD REAL USAGE LIMITS / METERING
+
+GOAL:
+Finish the commercial configuration for WorkRate add-ons and make usage limits enforceable using real server-side usage data.
+
+IMPORTANT:
+Do NOT fake usage.
+Do NOT rely on frontend counters.
+Do NOT invent provider usage from page views or user clicks.
+Usage must be recorded only when the underlying paid service is actually consumed.
+
+Reuse the existing:
+- billing foundation
+- Stripe integration
+- entitlement model
+- usage-metering foundation
+- plan/add-on catalog
+- Vapi integration
+- AI/message systems
+- concept visual generation
+
+==================================================
+1. ADD-ON MONTHLY PRICES
+==================================================
+
+Configure these initial monthly add-on prices:
+
+AI ReceptionIST
+£29/month
+
+SOCIAL AI / META
+£29/month
+
+CONCEPT VISUALS
+£12/month
+
+ADVANCED FINANCE / MTD
+£24/month
+
+COST INTELLIGENCE
+£24/month
+
+All add-ons use the existing 7-day paid trial rule:
+
+50% of normal monthly price.
+
+Therefore:
+
+AI ReceptionIST
+£14.50 for first 7 days
+then £29/month
+
+SOCIAL AI / META
+£14.50 for first 7 days
+then £29/month
+
+CONCEPT VISUALS
+£6 for first 7 days
+then £12/month
+
+ADVANCED FINANCE / MTD
+£12 for first 7 days
+then £24/month
+
+COST INTELLIGENCE
+£12 for first 7 days
+then £24/month
+
+Core remains:
+£29/month
+£14.50 first 7 days
+
+Complete remains:
+£99/month
+£49.50 first 7 days
+
+==================================================
+2. COMPLETE VALUE RULE
+==================================================
+
+Complete includes all currently available premium feature categories.
+
+Complete still has usage limits.
+
+If Core + selected add-ons reaches or exceeds £99/month:
+
+show:
+
+"Complete is better value"
+
+and allow:
+"Switch to Complete"
+
+Do not automatically switch without user confirmation.
+
+==================================================
+3. STRIPE PRODUCTS / PRICES
+==================================================
+
+Create or reuse TEST-MODE Stripe products/prices for the configured add-ons.
+
+Do not create live Stripe objects.
+
+Map each add-on to its correct:
+- Stripe product
+- recurring monthly price
+- introductory/trial price handling
+
+Do not create duplicates.
+
+Do not make an add-on purchasable if Stripe mapping is unhealthy.
+
+==================================================
+4. CENTRAL USAGE LEDGER
+==================================================
+
+Implement or extend the existing server-side usage-metering foundation into one central tenant-scoped usage ledger.
+
+Each usage record should identify:
+
+- business / tenant
+- feature key
+- usage category
+- quantity
+- unit
+- source/provider
+- provider event/reference ID where available
+- related entity ID where appropriate
+- occurred_at
+- billing period
+- dedupe key
+
+Examples of units:
+
+AI receptionist:
+minutes
+
+Social AI:
+AI-assisted messages or AI runs
+
+Concept visuals:
+generations
+
+Document AI:
+documents processed / extraction runs
+
+Future:
+tokens, minutes, messages, generations, or other provider-specific units
+
+Do not use browser state as source of truth.
+
+==================================================
+5. AI RECEPTIONIST METERING
+==================================================
+
+Use the existing Vapi call data.
+
+When a completed billable call is finalized:
+
+record the actual call duration used for billing.
+
+Prefer provider-reported duration when trustworthy.
+
+Store usage in seconds internally if useful, but present customer allowance in minutes.
+
+Do not double-count webhook retries.
+
+Use provider call ID as part of deduplication.
+
+Example:
+
+Vapi call ID abc123
+Duration 7m 22s
+
+→ record one usage event representing 442 seconds
+→ aggregate to monthly AI Receptionist usage
+
+Do NOT meter:
+- failed connection attempts with zero provider charge unless provider bills them
+- page views
+- opening a call record
+
+==================================================
+6. SOCIAL AI METERING
+==================================================
+
+Prepare real metering for Instagram / Facebook / WhatsApp AI activity.
+
+The meter must count AI usage when WorkRate actually invokes the AI to process/respond.
+
+Do not count ordinary human messages as AI usage.
+
+Support future distinction between:
+
+- inbound customer message
+- AI processing run
+- AI-generated outbound response
+- human takeover message
+
+For launch, choose ONE simple billable unit and document it clearly.
+
+Preferred initial unit:
+
+AI-assisted conversation messages
+
+Example:
+Customer sends message
+→ AI processes/responds
+→ 1 billable Social AI usage event
+
+Human replies manually
+→ 0 AI usage
+
+Avoid double-counting retries/webhooks.
+
+==================================================
+7. CONCEPT VISUAL METERING
+==================================================
+
+Each successful completed concept image generation counts as:
+
+1 generation
+
+Do not count:
+- failed generations
+- validation failures before provider execution
+- opening an existing image
+- downloading an image
+
+If a provider charges for a failed request, record provider cost separately where possible, but do not consume the customer-facing allowance unless deliberately configured.
+
+==================================================
+8. FINANCE / MTD USAGE
+==================================================
+
+Advanced Finance / MTD is primarily feature access, not necessarily usage-priced.
+
+Do not invent a metered unit if none is commercially meaningful.
+
+Use entitlement access by default.
+
+If document extraction or other variable-cost AI is used inside Finance, meter that underlying AI/document category separately.
+
+==================================================
+9. COST INTELLIGENCE USAGE
+==================================================
+
+Cost Intelligence is primarily feature access.
+
+Do not invent artificial usage limits for normal reports/calculations if they have negligible marginal cost.
+
+If expensive AI analysis is later added, it can have a separate metered category.
+
+==================================================
+10. INITIAL USAGE ALLOWANCES
+==================================================
+
+IMPORTANT:
+We want sensible cost protection but do not want fake precision.
+
+Create configurable allowance fields and seed these conservative INITIAL allowances for testing only:
+
+AI Receptionist add-on:
+200 minutes/month
+
+Social AI add-on:
+500 AI-assisted messages/month
+
+Concept Visuals add-on:
+10 generations/month
+
+Advanced Finance / MTD:
+feature access, no artificial usage cap initially
+
+Cost Intelligence:
+feature access, no artificial usage cap initially
+
+COMPLETE:
+AI Receptionist:
+500 minutes/month
+
+Social AI:
+1,500 AI-assisted messages/month
+
+Concept Visuals:
+30 generations/month
+
+Advanced Finance / MTD:
+included
+
+Cost Intelligence:
+included
+
+IMPORTANT:
+These allowances must be admin-configurable.
+Do not scatter these numbers throughout frontend code.
+
+They may be changed later based on real provider cost data.
+
+==================================================
+11. USAGE PERIOD
+==================================================
+
+Usage should reset/aggregate against the customer’s actual Stripe subscription billing period.
+
+Use:
+current_period_start
+current_period_end
+
+where available.
+
+Do not simply reset on the first day of every calendar month if the customer's billing period is different.
+
+For legacy/test users without an active Stripe subscription, use a clear development fallback only.
+
+==================================================
+12. USAGE DISPLAY
+==================================================
+
+Update:
+
+Settings → Plan & Billing
+
+Show current usage clearly.
+
+Examples:
+
+AI Receptionist
+82 / 200 minutes used
+
+Social AI
+143 / 500 messages used
+
+Concept Visuals
+6 / 10 generations used
+
+Also show:
+- billing period dates
+- percentage used
+- remaining allowance
+
+Keep it understandable to non-technical users.
+
+==================================================
+13. USAGE WARNINGS
+==================================================
+
+Create threshold warnings at:
+
+75%
+90%
+100%
+
+Examples:
+
+"You're approaching your AI Receptionist allowance."
+
+"You've used 90% of this month's included call minutes."
+
+"You've reached your Concept Visual allowance."
+
+Avoid repeated notification spam.
+
+One notification/email per threshold per billing period is enough.
+
+==================================================
+14. LIMIT ENFORCEMENT
+==================================================
+
+For launch, use SAFE hard-cap behavior for expensive variable-cost features.
+
+At 100% allowance:
+
+AI Receptionist:
+do not silently continue unlimited AI provider spend.
+
+Social AI:
+pause new AI-generated responses.
+
+Concept Visuals:
+block new generations.
+
+Show a clear message:
+
+"You've reached this month's included allowance."
+
+Offer:
+- upgrade to Complete
+- purchase additional usage later
+- wait until allowance resets
+
+IMPORTANT:
+Do not break basic WorkRate access.
+
+Core CRM/jobs/quotes/invoices should remain usable.
+
+==================================================
+15. GRACE / IN-PROGRESS ACTIONS
+==================================================
+
+Do not cut off an action halfway through.
+
+Example:
+
+If a Vapi call starts while the customer still has remaining allowance:
+allow that active call to finish.
+
+Then update usage and block the next billable call if the allowance is exhausted.
+
+Do not terminate live customer calls abruptly because they crossed the final minute.
+
+==================================================
+16. COMPLETE PLAN IS NOT UNLIMITED
+==================================================
+
+Customer-facing wording:
+
+"All WorkRate features included, subject to generous usage allowances."
+
+Do not advertise:
+"Unlimited AI"
+"Unlimited calls"
+"Unlimited generations"
+
+unless later commercially approved.
+
+==================================================
+17. ADMIN PRICING + ALLOWANCE CONFIGURATION
+==================================================
+
+Extend the internal WorkRate pricing configuration area.
+
+Admin should be able to edit:
+
+PLANS
+- monthly price
+- trial percentage
+- availability
+
+ADD-ONS
+- monthly price
+- availability
+
+USAGE
+- Receptionist minutes
+- Social AI messages
+- Concept Visual generations
+
+for:
+- individual add-on
+- Complete
+
+Do not expose this configuration to normal customers.
+
+Changes must be server-side validated.
+
+==================================================
+18. PROVIDER COST TRACKING FOUNDATION
+==================================================
+
+Where provider APIs/webhooks expose actual monetary cost, add a separate optional internal cost field.
+
+Examples:
+
+- Vapi provider cost
+- OpenAI request cost
+- image generation cost
+
+Keep this separate from customer usage allowance.
+
+GOAL:
+later WorkRate admin can calculate actual cost-to-serve per tenant.
+
+Do not expose internal provider costs to customers.
+
+Do not block this task if a provider does not expose cost cleanly.
+
+==================================================
+19. INTERNAL PROFITABILITY VIEW
+==================================================
+
+Add a simple internal/admin-only foundation for:
+
+Tenant monthly revenue
+vs
+estimated/direct provider usage cost
+
+Example:
+
+Customer subscription revenue:
+£99
+
+AI voice cost:
+£12.40
+
+AI messaging:
+£3.20
+
+Image generation:
+£4.10
+
+Estimated direct variable cost:
+£19.70
+
+Gross contribution:
+£79.30
+
+Only show real provider-cost data where available.
+
+Label estimates honestly.
+
+This must never be customer-facing.
+
+==================================================
+20. DEDUPLICATION
+==================================================
+
+Critical:
+
+Usage must not double-count because of:
+
+- webhook retries
+- provider retries
+- page refresh
+- repeated polling
+- event replay
+
+Use deterministic source IDs/dedupe keys.
+
+Examples:
+
+vapi_call:{callId}
+social_ai:{providerMessageId}:{aiRunId}
+concept_visual:{generationId}
+
+Add database uniqueness protection where appropriate.
+
+==================================================
+21. SERVER-SIDE ENFORCEMENT
+==================================================
+
+All allowance checks must happen server-side BEFORE expensive provider calls begin where practical.
+
+Frontend UI is informational only.
+
+A customer must not be able to bypass a usage limit by editing browser requests.
+
+==================================================
+22. ENTITLEMENTS
+==================================================
+
+Usage and entitlement are separate.
+
+First check:
+
+Does this business have access to the feature?
+
+Then check:
+
+Does this business have remaining allowance?
+
+Example:
+
+Core with no AI Receptionist add-on:
+No entitlement → unavailable
+
+Core + AI Receptionist:
+Entitled → then check minutes
+
+Complete:
+Entitled → then check Complete allowance
+
+==================================================
+23. SECURITY / TENANT ISOLATION
+==================================================
+
+Confirm:
+
+- usage rows are tenant scoped
+- no business can query another business's usage
+- no client can submit arbitrary usage
+- provider webhooks remain authenticated
+- Stripe plan state remains server-authoritative
+- admin pricing endpoints are admin-only
+- internal provider costs are never exposed to customer UI
+
+==================================================
+24. EXISTING USERS
+==================================================
+
+Do not suddenly enforce these limits against existing legacy WorkRate production users unless their billing/entitlement state has been migrated.
+
+Preserve existing legacy-access safeguard.
+
+Allow usage data to begin collecting safely for existing users without unexpectedly locking them out.
+
+==================================================
+25. TEST
+==================================================
+
+Test:
+
+AI RECEPTIONIST
+- completed call creates usage
+- webhook retry does not duplicate
+- monthly aggregation
+- active call can finish at limit
+- next call blocked after limit
+
+SOCIAL AI
+- AI response counts
+- human response does not count
+- duplicate message does not double-count
+
+CONCEPT VISUAL
+- successful generation counts
+- failed generation does not consume allowance
+
+BILLING
+- correct subscription billing period
+- Core + add-on allowance
+- Complete allowance
+- add-on removed removes entitlement appropriately
+
+LIMITS
+- 75% warning
+- 90% warning
+- 100% hard cap
+- cannot bypass limit via frontend
+
+SECURITY
+- tenant isolation
+- admin pricing cannot be accessed by normal user
+- arbitrary usage submission rejected
+
+==================================================
+26. BEFORE IMPLEMENTING
+==================================================
+
+First inspect:
+
+A. current usage-metering tables/services
+B. Vapi call duration/cost data already persisted
+C. AI chat/social provider hooks
+D. concept generation provider hooks
+E. current Stripe subscription billing period fields
+F. existing admin pricing configuration
+G. whether provider monetary cost is currently available
+
+Then implement the smallest clean extension.
+
+Do NOT build parallel metering systems.
+
+==================================================
+27. DO NOT OVERBUILD
+==================================================
+
+Do not add:
+
+- usage-pack purchasing yet
+- automatic overage billing yet
+- new AI providers
+- new social integrations
+- unrelated subscription plans
+- customer-visible provider cost information
+
+This task is:
+pricing configuration + real metering + allowances + hard-cap protection + internal cost foundation.
+
+==================================================
+28. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. add-on prices configured
+B. Stripe products/prices mapped
+C. usage categories implemented
+D. exact source of truth for each usage category
+E. initial allowances configured
+F. usage enforcement behavior
+G. warning thresholds
+H. billing-period reset behavior
+I. provider-cost data available
+J. internal profitability foundation
+K. tests passed
+L. any provider usage that cannot yet be measured accurately
+M. whether ONE publish is required
+
+Do not publish automatically.

@@ -8,5 +8,13 @@
 
 export type UsageOverviewEventsItem = {
   featureCode: string;
+  usageCategory: string;
+  unit: string;
   quantity: number;
+  /** @nullable */
+  limit: number | null;
+  /** @nullable */
+  remaining: number | null;
+  /** @nullable */
+  percentageUsed: number | null;
 };

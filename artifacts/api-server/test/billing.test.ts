@@ -8,6 +8,7 @@ import { canonicalEventId, checkoutIdempotencyKey, checkoutLineItems, mapStripeS
 import { processRetryableReceipt } from "../src/services/billing/lifecycle";
 import { catalogAvailability, isBillingAdmin, trialPriceGbp } from "../src/services/billing/pricing";
 import { featureAccess } from "../src/services/billing/authorization";
+import { allowanceQuantity } from "../src/services/billing/usage";
 import { assertExpectedStripeTestAccount, WORKRATE_STRIPE_TEST_ACCOUNT_ID } from "../src/services/billing/stripeClient";
 
 test("Stripe operations fail closed outside the authoritative test account", () => {
@@ -60,6 +61,29 @@ test("complete unlocks categories but does not invent a metered allowance", () =
   });
   assert.equal(entitlement.categories.includes("*"), true);
   assert.deepEqual(canUseMeteredFeature(entitlement, "expensive-ai", 0, true), { allowed: false, reason: "LIMIT_NOT_CONFIGURED" });
+});
+
+test("configured add-on and Complete allowances hard-cap only the next costly action", () => {
+  const addOn = [{ code: "ai_receptionist", featureCategories: ["ai_receptionist"], usageLimits: { ai_receptionist: 200 } }];
+  const addonEntitlement = resolveEntitlements({ legacyAccess: false, subscription: { status: "active", planCode: "core", addOnCodes: ["ai_receptionist"] }, plans: [{ code: "core", featureCategories: [], usageLimits: null }], addOns: addOn });
+  assert.deepEqual(canUseMeteredFeature(addonEntitlement, "ai_receptionist", 199, true), { allowed: true, reason: "within_limit" });
+  assert.deepEqual(canUseMeteredFeature(addonEntitlement, "ai_receptionist", 200, true), { allowed: false, reason: "LIMIT_REACHED" });
+  const complete = resolveEntitlements({ legacyAccess: false, subscription: { status: "active", planCode: "complete", addOnCodes: [] }, plans: [{ code: "complete", featureCategories: [], usageLimits: { concept_visuals: 30 } }], addOns: [] });
+  assert.deepEqual(canUseMeteredFeature(complete, "concept_visuals", 30, true), { allowed: false, reason: "LIMIT_REACHED" });
+});
+
+test("receptionist allowance converts stored provider seconds to whole customer minutes", () => {
+  assert.equal(allowanceQuantity("ai_receptionist", [{ featureCode: "ai_receptionist", quantity: 199, unit: "seconds" }]), 4);
+  assert.equal(allowanceQuantity("ai_receptionist", [{ featureCode: "ai_receptionist", quantity: 11_999, unit: "seconds" }]), 200);
+  assert.equal(allowanceQuantity("ai_receptionist", [{ featureCode: "ai_receptionist", quantity: 12_000, unit: "seconds" }]), 200);
+  assert.equal(allowanceQuantity("ai_receptionist", [{ featureCode: "ai_receptionist", quantity: 12_001, unit: "seconds" }]), 201);
+});
+
+test("a cancelled subscription retains access only through its paid period", () => {
+  const future = new Date(Date.now() + 60_000);
+  const base = { plans: [{ code: "complete", featureCategories: [], usageLimits: null }], addOns: [], legacyAccess: false };
+  assert.equal(resolveEntitlements({ ...base, subscription: { status: "cancelled", planCode: "complete", addOnCodes: [], currentPeriodEndsAt: future } }).access, "subscription");
+  assert.equal(resolveEntitlements({ ...base, subscription: { status: "cancelled", planCode: "complete", addOnCodes: [], currentPeriodEndsAt: new Date(Date.now() - 60_000) } }).access, "none");
 });
 
 test("unavailable provider never creates a payment session", async () => {

@@ -116,11 +116,51 @@ export const billingUsageEventsTable = pgTable("billing_usage_events", {
   ownerUserId: text("owner_user_id").notNull(),
   usagePeriodId: integer("usage_period_id"),
   featureCode: text("feature_code").notNull(),
+  /** Commercial meter, e.g. ai_receptionist_minutes or concept_generations. */
+  usageCategory: text("usage_category").notNull().default("unspecified"),
   quantity: integer("quantity").notNull().default(1),
+  unit: text("unit").notNull().default("count"),
+  source: text("source").notNull().default("server"),
+  providerReference: text("provider_reference"),
+  relatedEntityId: text("related_entity_id"),
+  providerCostGbp: numeric("provider_cost_gbp", { precision: 12, scale: 6 }),
+  periodStartsAt: timestamp("period_starts_at", { withTimezone: true }),
+  periodEndsAt: timestamp("period_ends_at", { withTimezone: true }),
+  dedupeKey: text("dedupe_key"),
+  /** Deprecated name retained while existing provider integrations migrate. */
   idempotencyKey: text("idempotency_key"),
   metadata: jsonb("metadata"),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [uniqueIndex("billing_usage_events_tenant_idempotency_unique").on(table.companyId, table.ownerUserId, table.idempotencyKey)]);
+}, (table) => [
+  uniqueIndex("billing_usage_events_tenant_idempotency_unique").on(table.companyId, table.ownerUserId, table.idempotencyKey),
+  uniqueIndex("billing_usage_events_tenant_dedupe_unique").on(table.companyId, table.ownerUserId, table.dedupeKey),
+]);
+
+/** Short-lived server reservation made before invoking a variable-cost provider. */
+export const billingUsageReservationsTable = pgTable("billing_usage_reservations", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull(),
+  ownerUserId: text("owner_user_id").notNull(),
+  usagePeriodId: integer("usage_period_id").notNull(),
+  featureCode: text("feature_code").notNull(),
+  quantity: integer("quantity").notNull(),
+  dedupeKey: text("dedupe_key").notNull(),
+  status: text("status").notNull().default("reserved"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+  releasedAt: timestamp("released_at", { withTimezone: true }),
+}, (table) => [uniqueIndex("billing_usage_reservations_tenant_dedupe_unique").on(table.companyId, table.ownerUserId, table.dedupeKey)]);
+
+/** Delivery receipts ensure each allowance threshold is surfaced once per period. */
+export const billingUsageWarningsTable = pgTable("billing_usage_warnings", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull(),
+  ownerUserId: text("owner_user_id").notNull(),
+  usagePeriodId: integer("usage_period_id").notNull(),
+  featureCode: text("feature_code").notNull(),
+  thresholdPercent: integer("threshold_percent").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex("billing_usage_warnings_once_per_period").on(table.companyId, table.ownerUserId, table.usagePeriodId, table.featureCode, table.thresholdPercent)]);
 
 /** Provider event receipt; tenant identity is attached only after verification/mapping. */
 export const billingWebhookEventsTable = pgTable("billing_webhook_events", {

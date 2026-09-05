@@ -8,7 +8,7 @@
  * - Never hardcode a price, percentage, trial length, or "50%" string.
  * - Trial percentage is derived client-side from trialPriceGbp / monthlyPriceGbp
  *   (customer catalog does not expose a trialPercentage field).
- * - "Complete may be better value" uses >= of server monthly amounts only;
+ * - "Complete is better value" uses >= of server monthly amounts only;
  *   purchasability is a separate concern (disables the action, not the banner).
  * - Submitted amounts are absent — only planCode / addOnCodes go to the API.
  * - selectedAddOns=null means uninitialized; []=user deliberately cleared.
@@ -398,7 +398,7 @@ export function BillingPlanSelector({
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-amber-900 mb-1">
-                  Complete may be better value
+                  Complete is better value
                 </p>
                 <div className="text-xs text-amber-800 space-y-0.5 mb-3">
                   <p>

@@ -398,7 +398,12 @@ CALL_COMPLETE:{"customerName":"<name>","phone":"<phone>","address":"<address or 
 
 // POST /ai-receptionist/demo/message  (SSE stream)
 router.post("/ai-receptionist/demo/message", requireAuth, requireBillingFeature("ai_receptionist"), async (req, res): Promise<void> => {
-  const { messages = [], enabledQuestions = [], businessName = "", tradeType = "" } = req.body ?? {};
+  // The demo previously invoked OpenAI without a provider event identifier, so
+  // it could neither be safely deduplicated nor metered. Keep the endpoint
+  // entitled but fail closed rather than create unaccounted provider spend.
+  res.status(503).json({ error: "AI receptionist demo is temporarily unavailable." });
+  return;
+  /* const { messages = [], enabledQuestions = [], businessName = "", tradeType = "" } = req.body ?? {};
 
   const systemPrompt = DEMO_SYSTEM_PROMPT(businessName, tradeType, enabledQuestions);
 
@@ -436,6 +441,7 @@ router.post("/ai-receptionist/demo/message", requireAuth, requireBillingFeature(
 
   res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
   res.end();
+  */
 });
 
 // POST /ai-receptionist/demo/complete

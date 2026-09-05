@@ -1,0 +1,157 @@
+==================================================
+29. FEATURE ACCESS ENFORCEMENT
+==================================================
+
+CRITICAL:
+Features must be blocked if the business has not paid for the required plan/add-on.
+
+Do NOT rely only on hiding buttons in the frontend.
+
+Every premium feature must be protected server-side by the central entitlement system.
+
+Examples:
+
+AI Receptionist
+- Core without AI Receptionist add-on:
+  BLOCKED
+- Core + AI Receptionist:
+  ALLOWED, subject to usage allowance
+- Complete:
+  ALLOWED, subject to Complete allowance
+
+Social AI / Meta
+- Core without Social AI add-on:
+  BLOCKED
+- Core + Social AI:
+  ALLOWED, subject to usage allowance
+- Complete:
+  ALLOWED
+
+Concept Visuals
+- Core without Concept Visuals:
+  BLOCKED
+- Core + Concept Visuals:
+  ALLOWED, subject to usage allowance
+- Complete:
+  ALLOWED
+
+Advanced Finance / MTD
+- Core without add-on:
+  BLOCKED
+- Core + Advanced Finance / MTD:
+  ALLOWED
+- Complete:
+  ALLOWED
+
+Cost Intelligence
+- Core without add-on:
+  BLOCKED
+- Core + Cost Intelligence:
+  ALLOWED
+- Complete:
+  ALLOWED
+
+==================================================
+30. UNPAID / FAILED / CANCELLED BILLING STATES
+==================================================
+
+Feature access must respond correctly to billing state.
+
+Support at minimum:
+
+ACTIVE
+- paid features available
+
+TRIAL
+- only features included in the selected trial/package available
+
+PAST DUE
+- apply the chosen grace-period policy
+- do not silently allow indefinite premium access
+
+CANCELLED
+- retain customer data
+- remove premium feature access at the correct end-of-period date
+
+PAYMENT REQUIRED
+- premium features blocked
+
+INACTIVE
+- premium features blocked
+
+Do not delete customer records because billing access is blocked.
+
+==================================================
+31. UI BEHAVIOR FOR LOCKED FEATURES
+==================================================
+
+Do not simply make unpaid features disappear.
+
+Show them clearly as locked where useful.
+
+Example:
+
+AI Receptionist
+[Locked]
+"Add AI Receptionist for £29/month"
+
+[Add feature]
+
+Or:
+
+"Included with WorkRate Complete"
+
+This helps customers understand what they can upgrade to.
+
+However:
+frontend lock state is informational only.
+
+The backend must still reject unauthorized feature calls.
+
+==================================================
+32. DIRECT API BYPASS PROTECTION
+==================================================
+
+Test that a user cannot bypass billing by:
+
+- calling premium API endpoints directly
+- editing frontend state
+- changing plan/add-on IDs in requests
+- replaying old requests after cancellation
+- manually altering browser storage
+- calling provider endpoints directly through WorkRate routes
+
+All premium provider actions must call:
+
+1. tenant authorization
+2. billing entitlement check
+3. usage allowance check
+4. provider action
+
+in that order.
+
+==================================================
+33. BILLING CHANGE EFFECTS
+==================================================
+
+When an add-on is purchased:
+- entitlement should activate only after confirmed Stripe state
+
+When an add-on is removed:
+- entitlement should remain until the correct paid period end if that is the billing policy
+- then remove access automatically
+
+When switching to Complete:
+- activate Complete entitlements only after Stripe confirms the subscription change
+
+Do not trust the frontend success redirect as proof of payment.
+
+==================================================
+34. LEGACY USERS
+==================================================
+
+Keep the existing legacy-user safeguard during testing.
+
+Existing production accounts must not suddenly lose access before billing migration is deliberately completed.
+
+But all NEW paid customers must use the real entitlement rules from day one.

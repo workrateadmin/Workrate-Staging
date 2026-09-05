@@ -35,6 +35,8 @@ import {
 } from "../services/whatsapp";
 import { uploadBufferToStorage } from "../lib/storageUpload";
 import { handleEnquiryCompletion, getSystemPrompt } from "./chat";
+import { reserveMeteredFeature } from "../services/billing/authorization";
+import { finalizeUsageReservation, recordUsage, releaseUsageReservation } from "../services/billing/usage";
 
 const router: IRouter = Router();
 
@@ -204,6 +206,15 @@ async function processMessage(msg: any, business: WABusiness): Promise<void> {
     enquiry = created;
     console.log(`[wa-webhook] Created enquiry ${enquiry.id} for +${customerPhone}`);
   }
+  const reservationKey = `social_ai:whatsapp:${externalMessageId}`;
+  // Vision is an OpenAI request too. Reserve the one inbound-message unit
+  // before it runs, then the text response shares this same reservation.
+  const socialReservation = business.settings.aiEnabled !== false && !enquiry.description
+    ? await reserveMeteredFeature(business.ownerUserId, "social_ai_meta", reservationKey)
+    : null;
+  // Provider retries must stop before media download or OpenAI vision. The
+  // first claimant owns all AI work and the outbound response for this message.
+  if (socialReservation && "duplicate" in socialReservation && socialReservation.duplicate) return;
 
   // ── Handle media attachment ───────────────────────────────────────────────
   let visionContext = "";
@@ -213,7 +224,7 @@ async function processMessage(msg: any, business: WABusiness): Promise<void> {
       mediaContentType ?? "application/octet-stream",
       msgType,
       enquiry.id,
-      business,
+      business, Boolean(socialReservation?.allowed),
     );
   }
 
@@ -255,7 +266,21 @@ async function processMessage(msg: any, business: WABusiness): Promise<void> {
   }
 
   // ── AI response pipeline ──────────────────────────────────────────────────
-  await runAIResponse(enquiry, customerPhone, business, tradeType, company);
+  // Tenant mapping and the customer message insert above happen before this
+  // check. No AI/provider request is made unless the mapped tenant is entitled
+  // and has allowance remaining.
+  const access = socialReservation ?? await reserveMeteredFeature(business.ownerUserId, "social_ai_meta", reservationKey);
+  if (!access.allowed) {
+    console.warn(`[wa-webhook] Social AI unavailable for business ${business.ownerUserId}: ${access.error}`);
+    return;
+  }
+  // A provider retry for the same inbound message must acknowledge/no-op rather
+  // than invoke OpenAI or send another outbound reply. The reservation claim is
+  // serialized and deduped in PostgreSQL.
+  if ("duplicate" in access && access.duplicate) return;
+  const [meterCompany] = await db.select({ id: companiesTable.id }).from(companiesTable)
+    .where(eq(companiesTable.ownerUserId, business.ownerUserId)).limit(1);
+  await runAIResponse(enquiry, customerPhone, business, tradeType, company, externalMessageId, meterCompany?.id ?? null, reservationKey);
 }
 
 // ── Media handling ────────────────────────────────────────────────────────────
@@ -266,6 +291,7 @@ async function handleMedia(
   msgType: string,
   enquiryId: number,
   business: WABusiness,
+  allowVision: boolean,
 ): Promise<string> {
   let visionContext = "";
   try {
@@ -287,7 +313,7 @@ async function handleMedia(
     console.log(`[wa-webhook] Media stored: ${objectPath} (${buffer.length} B)`);
 
     // Vision analysis for images — enriches the conversation context
-    if (msgType === "image" && mimeType.startsWith("image/")) {
+    if (allowVision && msgType === "image" && mimeType.startsWith("image/")) {
       visionContext = await analyseImage(buffer, mimeType);
     }
   } catch (err: any) {
@@ -333,6 +359,9 @@ async function runAIResponse(
   business:      WABusiness,
   tradeType:     string,
   company:       typeof companiesTable.$inferSelect | undefined,
+  providerMessageId: string,
+  companyId: number | null,
+  reservationKey: string,
 ): Promise<void> {
   try {
     const openai       = getOpenAI();
@@ -394,6 +423,18 @@ async function runAIResponse(
 
     // ── Send WhatsApp reply ─────────────────────────────────────────────────
     await sendTextMessage(business.config, customerPhone, cleanReply);
+    // An inbound human message is never metered. One successful OpenAI-assisted
+    // WhatsApp response is, and webhook retries share the provider message id.
+    if (companyId) await recordUsage({
+      companyId,
+      ownerUserId: business.ownerUserId,
+      featureCode: "social_ai_meta",
+      usageCategory: "ai_assisted_messages", quantity: 1, unit: "messages",
+      source: "openai", providerReference: providerMessageId,
+      dedupeKey: `social_ai:whatsapp:${providerMessageId}`,
+      metadata: { provider: "openai", channel: "whatsapp", providerMessageId },
+    });
+    if (companyId) await finalizeUsageReservation(companyId, business.ownerUserId, reservationKey);
 
     // ── Handle enquiry completion ───────────────────────────────────────────
     if (extracted) {
@@ -402,6 +443,7 @@ async function runAIResponse(
     }
   } catch (err: any) {
     console.error(`[wa-webhook] AI pipeline failed for enquiry ${enquiry.id}:`, err?.message ?? err);
+    if (companyId) await releaseUsageReservation(companyId, business.ownerUserId, reservationKey);
     // Best-effort fallback so the customer isn't left waiting
     try {
       await sendTextMessage(

@@ -55,6 +55,10 @@ export const companiesTable = pgTable("companies", {
   // Persisted so the setup checklist stays dismissed across devices / browsers.
   onboardingDismissed: boolean("onboarding_dismissed").notNull().default(false),
 
+  // Only companies present when billing was introduced receive the temporary
+  // legacy entitlement safeguard. New companies must use subscription rules.
+  legacyBilling: boolean("legacy_billing").notNull().default(false),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

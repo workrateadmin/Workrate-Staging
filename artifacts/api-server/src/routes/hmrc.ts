@@ -321,7 +321,7 @@ async function synchronise(
   return updated;
 }
 
-router.get("/finance/hmrc/status", requireAuth, async (req, res): Promise<void> => {
+router.get("/finance/hmrc/status", requireAuth, requireBillingFeature("advanced_finance_mtd"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const company = await businessFor(userId!);
   if (!company) {
@@ -515,7 +515,7 @@ router.post("/finance/hmrc/sync", requireAuth, requireBillingFeature("advanced_f
   }
 });
 
-router.delete("/finance/hmrc", requireAuth, requireHmrcSameOrigin, async (req, res): Promise<void> => {
+router.delete("/finance/hmrc", requireAuth, requireBillingFeature("advanced_finance_mtd"), requireHmrcSameOrigin, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const company = await businessFor(userId!);
   if (!company) {

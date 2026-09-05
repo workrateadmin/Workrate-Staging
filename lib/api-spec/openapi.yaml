@@ -2211,9 +2211,28 @@ components:
         data: { type: object, additionalProperties: true }
     UsageOverview:
       type: object
-      required: [events]
+      required: [events, period]
       properties:
-        events: { type: array, items: { type: object, required: [featureCode, quantity], properties: { featureCode: { type: string }, quantity: { type: number } } } }
+        period:
+          type: ["object", "null"]
+          properties:
+            startsAt: { type: string, format: date-time }
+            endsAt: { type: string, format: date-time }
+            developmentFallback: { type: boolean }
+          required: [startsAt, endsAt, developmentFallback]
+        events:
+          type: array
+          items:
+            type: object
+            required: [featureCode, usageCategory, unit, quantity, limit, remaining, percentageUsed]
+            properties:
+              featureCode: { type: string }
+              usageCategory: { type: string }
+              unit: { type: string }
+              quantity: { type: number }
+              limit: { type: ["number", "null"] }
+              remaining: { type: ["number", "null"] }
+              percentageUsed: { type: ["number", "null"] }
     BillingSimulationInput:
       type: object
       required: [status, planCode, addOnCodes]

@@ -33,5 +33,21 @@ export class StripeApiClient {
     return this.safetyCheck;
   }
   async get<T>(path: string, query: Form = {}): Promise<T> { await this.assertTestAccount(); return this.raw<T>("GET", path, query); }
-  async post<T>(path: string, form: Form): Promise<T> { await this.assertTestAccount(); return this.raw<T>("POST", path, form); }
+  async post<T>(path: string, form: Form, idempotencyKey?: string): Promise<T> {
+    await this.assertTestAccount();
+    if (!idempotencyKey) return this.raw<T>("POST", path, form);
+    const params = new URLSearchParams(Object.entries(form).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value)]));
+    const response = await fetch(`${STRIPE_API_BASE}/${path.replace(/^\//, "")}`, {
+      method: "POST",
+      body: params.toString(),
+      headers: {
+        Authorization: `Bearer ${stripeSecretKey()}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Idempotency-Key": idempotencyKey,
+      },
+    });
+    const data: any = await response.json();
+    if (!response.ok) throw new Error(data?.error?.message ?? `Stripe request failed (${response.status})`);
+    return data as T;
+  }
 }

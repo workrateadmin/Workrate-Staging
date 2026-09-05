@@ -12,6 +12,8 @@ import {
   type VapiCallData,
 } from "../services/vapi";
 import { extractEmailWithFallback, isValidEmailAddress } from "../services/vapi-email";
+import { reserveMeteredFeature } from "../services/billing/authorization";
+import { finalizeUsageReservation, recordUsage, releaseUsageReservation } from "../services/billing/usage";
 
 const EMAIL_NEEDS_CONFIRMATION_NOTE = "Email needs confirmation — the transcript did not contain one clearly confirmed email address.";
 
@@ -311,8 +313,28 @@ router.post("/webhooks/vapi", async (req: Request, res: Response): Promise<void>
   }
 
   if (isVapiAssistantRequestEvent(req.body)) {
+    // This is the last point before Vapi starts the assistant. A call already
+    // accepted is never cut off; a subsequent call is denied after its final
+    // billed duration pushes the tenant over its allowance.
+    // Reserve one minute atomically. A started call is allowed to finish; its
+    // exact provider seconds are recorded at completion and converted only when
+    // checking/displaying the minute allowance.
+    const access = await reserveMeteredFeature(
+      mapping.business.ownerUserId, "ai_receptionist", `vapi_call:${call.providerCallId}`, 1,
+    );
+    if (!access.allowed) {
+      res.status(402).json(access.error);
+      return;
+    }
     const { assistantId } = mapping.business.config;
     if (!assistantId) {
+      if ("companyId" in access) {
+        await releaseUsageReservation(
+          access.companyId,
+          mapping.business.ownerUserId,
+          `vapi_call:${call.providerCallId}`,
+        );
+      }
       req.log.error(
         { providerCallId: call.providerCallId },
         "Rejected Vapi assistant-request: mapped tenant has no assistantId configured",
@@ -352,6 +374,22 @@ router.post("/webhooks/vapi", async (req: Request, res: Response): Promise<void>
   }
 
   const result = await processCompletedCall(call, mapping.business.ownerUserId);
+  if (!result.duplicated && call.callStatus === "completed" && (call.durationSeconds ?? 0) > 0) {
+    const [company] = await db.select({ id: companiesTable.id }).from(companiesTable)
+      .where(eq(companiesTable.ownerUserId, mapping.business.ownerUserId)).limit(1);
+    if (company) await recordUsage({
+      companyId: company.id, ownerUserId: mapping.business.ownerUserId,
+      featureCode: "ai_receptionist", usageCategory: "ai_receptionist_seconds", quantity: call.durationSeconds!,
+      unit: "seconds", source: "vapi", providerReference: call.providerCallId,
+      dedupeKey: `vapi_call:${call.providerCallId}`,
+      metadata: { provider: "vapi", providerCallId: call.providerCallId, unit: "seconds" },
+    });
+    if (company) await finalizeUsageReservation(company.id, mapping.business.ownerUserId, `vapi_call:${call.providerCallId}`);
+  } else if ((call.durationSeconds ?? 0) <= 0) {
+    const [company] = await db.select({ id: companiesTable.id }).from(companiesTable)
+      .where(eq(companiesTable.ownerUserId, mapping.business.ownerUserId)).limit(1);
+    if (company) await releaseUsageReservation(company.id, mapping.business.ownerUserId, `vapi_call:${call.providerCallId}`);
+  }
   req.log.info({
     providerCallId: call.providerCallId,
     enquiryId: result.call.enquiryId,

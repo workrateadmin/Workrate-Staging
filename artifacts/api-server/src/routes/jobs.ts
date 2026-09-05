@@ -10,6 +10,7 @@ import { eq, and, inArray, desc } from "drizzle-orm";
 import multer from "multer";
 import { uploadBufferToStorage, storageServingUrl } from "../lib/storageUpload";
 import { extractDocumentIntelligence, EXTRACTION_METHOD } from "../lib/intelligenceExtractor";
+import { requireBillingFeature } from "../services/billing/authorization";
 
 const router: IRouter = Router();
 
@@ -291,7 +292,7 @@ const docUpload = multer({
 });
 
 // List production documents for a job
-router.get("/jobs/:id/production-documents", requireAuth, async (req, res): Promise<void> => {
+router.get("/jobs/:id/production-documents", requireAuth, requireBillingFeature("cost_intelligence"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -309,7 +310,7 @@ router.get("/jobs/:id/production-documents", requireAuth, async (req, res): Prom
 });
 
 // Upload a production document → GCS → extract intelligence → insert rows
-router.post("/jobs/:id/production-documents", requireAuth, docUpload.single("file"), async (req, res): Promise<void> => {
+router.post("/jobs/:id/production-documents", requireAuth, requireBillingFeature("cost_intelligence"), docUpload.single("file"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -431,7 +432,7 @@ router.post("/jobs/:id/production-documents", requireAuth, docUpload.single("fil
 });
 
 // ── Intelligence: GET all extracted data for a job ────────────────────────────
-router.get("/jobs/:id/intelligence", requireAuth, async (req, res): Promise<void> => {
+router.get("/jobs/:id/intelligence", requireAuth, requireBillingFeature("cost_intelligence"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -454,7 +455,7 @@ router.get("/jobs/:id/intelligence", requireAuth, async (req, res): Promise<void
 // ── Intelligence: components CRUD ─────────────────────────────────────────────
 
 // Add a component manually
-router.post("/jobs/:id/intelligence/components", requireAuth, async (req, res): Promise<void> => {
+router.post("/jobs/:id/intelligence/components", requireAuth, requireBillingFeature("cost_intelligence"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -474,7 +475,7 @@ router.post("/jobs/:id/intelligence/components", requireAuth, async (req, res): 
 });
 
 // Update a component (review / correction)
-router.put("/jobs/:id/intelligence/components/:rowId", requireAuth, async (req, res): Promise<void> => {
+router.put("/jobs/:id/intelligence/components/:rowId", requireAuth, requireBillingFeature("cost_intelligence"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const id = Number(req.params.id);
   const rowId = Number(req.params.rowId);
@@ -510,7 +511,7 @@ router.put("/jobs/:id/intelligence/components/:rowId", requireAuth, async (req, 
 });
 
 // Delete a component
-router.delete("/jobs/:id/intelligence/components/:rowId", requireAuth, async (req, res): Promise<void> => {
+router.delete("/jobs/:id/intelligence/components/:rowId", requireAuth, requireBillingFeature("cost_intelligence"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const id = Number(req.params.id);
   const rowId = Number(req.params.rowId);
@@ -528,7 +529,7 @@ router.delete("/jobs/:id/intelligence/components/:rowId", requireAuth, async (re
 // ── Intelligence: invoice lines CRUD ──────────────────────────────────────────
 
 // Add an invoice line manually
-router.post("/jobs/:id/intelligence/invoice-lines", requireAuth, async (req, res): Promise<void> => {
+router.post("/jobs/:id/intelligence/invoice-lines", requireAuth, requireBillingFeature("cost_intelligence"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -548,7 +549,7 @@ router.post("/jobs/:id/intelligence/invoice-lines", requireAuth, async (req, res
 });
 
 // Update an invoice line
-router.put("/jobs/:id/intelligence/invoice-lines/:rowId", requireAuth, async (req, res): Promise<void> => {
+router.put("/jobs/:id/intelligence/invoice-lines/:rowId", requireAuth, requireBillingFeature("cost_intelligence"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const id = Number(req.params.id);
   const rowId = Number(req.params.rowId);
@@ -581,7 +582,7 @@ router.put("/jobs/:id/intelligence/invoice-lines/:rowId", requireAuth, async (re
 });
 
 // Delete an invoice line
-router.delete("/jobs/:id/intelligence/invoice-lines/:rowId", requireAuth, async (req, res): Promise<void> => {
+router.delete("/jobs/:id/intelligence/invoice-lines/:rowId", requireAuth, requireBillingFeature("cost_intelligence"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const id = Number(req.params.id);
   const rowId = Number(req.params.rowId);
@@ -597,7 +598,7 @@ router.delete("/jobs/:id/intelligence/invoice-lines/:rowId", requireAuth, async 
 });
 
 // Delete a production document
-router.delete("/jobs/:id/production-documents/:docId", requireAuth, async (req, res): Promise<void> => {
+router.delete("/jobs/:id/production-documents/:docId", requireAuth, requireBillingFeature("cost_intelligence"), async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const id = Number(req.params.id);
   const docId = Number(req.params.docId);
