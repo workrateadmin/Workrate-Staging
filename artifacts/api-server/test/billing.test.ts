@@ -8,6 +8,15 @@ import { canonicalEventId, checkoutIdempotencyKey, checkoutLineItems, mapStripeS
 import { processRetryableReceipt } from "../src/services/billing/lifecycle";
 import { catalogAvailability, isBillingAdmin, trialPriceGbp } from "../src/services/billing/pricing";
 import { featureAccess } from "../src/services/billing/authorization";
+import { assertExpectedStripeTestAccount, WORKRATE_STRIPE_TEST_ACCOUNT_ID } from "../src/services/billing/stripeClient";
+
+test("Stripe operations fail closed outside the authoritative test account", () => {
+  assert.doesNotThrow(() => assertExpectedStripeTestAccount({ key: "sk_test_example", accountId: WORKRATE_STRIPE_TEST_ACCOUNT_ID, livemode: false }));
+  assert.throws(() => assertExpectedStripeTestAccount({ key: "sk_live_example", accountId: WORKRATE_STRIPE_TEST_ACCOUNT_ID, livemode: false }), /safety check/);
+  assert.throws(() => assertExpectedStripeTestAccount({ key: "sk_test_example", accountId: "acct_other", livemode: false }), /safety check/);
+  assert.throws(() => assertExpectedStripeTestAccount({ key: "sk_test_example", accountId: WORKRATE_STRIPE_TEST_ACCOUNT_ID, livemode: true }), /safety check/);
+  assert.throws(() => assertExpectedStripeTestAccount({ key: undefined, accountId: WORKRATE_STRIPE_TEST_ACCOUNT_ID, livemode: false }), /safety check/);
+});
 
 test("server-owned trial prices use 50% defaults, overrides, and exact pence rounding", () => {
   assert.equal(trialPriceGbp({ monthlyPriceGbp: "29.00", trialPercentage: "50" }), 14.5);
@@ -230,7 +239,7 @@ test("provider webhook canonical recovery, duplicate receipt, and failed retry",
     async subscription() { return undefined; }, async establishAttempt() { throw new Error("unused"); },
     async updateAttempt() {}, async updateSubscription() {},
   };
-  const provider = new StripeBillingProvider(() => connector, checkoutRepo, webhookRepo);
+  const provider = new StripeBillingProvider(() => connector, checkoutRepo, webhookRepo, undefined, () => secret);
   const deliver = (id: string) => {
     const payload = Buffer.from(JSON.stringify({ id }));
     const timestamp = Math.floor(Date.now() / 1000);

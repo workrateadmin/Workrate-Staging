@@ -1,4 +1,4 @@
-import { StripeConnectorClient } from "./stripeClient";
+import { StripeApiClient } from "./stripeClient";
 import { db, billingAddOnsTable, billingPlansTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 type Product = { id: string; active?: boolean }; type Price = { id: string; product?: string; active?: boolean; currency?: string; unit_amount: number; recurring?: unknown; metadata?: Record<string, string> };
@@ -6,7 +6,7 @@ function trialPriceGbp(item: { monthlyPriceGbp: string | null; trialPercentage: 
   if (item.manualTrialPriceGbp != null) return Number(item.manualTrialPriceGbp);
   return Math.round(Number(item.monthlyPriceGbp) * Number(item.trialPercentage ?? 50)) / 100;
 }
-async function ensurePrice(stripe: StripeConnectorClient, product: string, amount: number, recurring: boolean, kind: string) {
+async function ensurePrice(stripe: StripeApiClient, product: string, amount: number, recurring: boolean, kind: string) {
   const prices = await stripe.get<{ data: Price[] }>("prices", { product, active: true, limit: 100 });
   const existing = prices.data.find((price) => price.unit_amount === amount && Boolean(price.recurring) === recurring && price.metadata?.billing_kind === kind);
   if (existing) return existing.id;
@@ -14,7 +14,8 @@ async function ensurePrice(stripe: StripeConnectorClient, product: string, amoun
   return created.id;
 }
 async function seed() {
-  const stripe = new StripeConnectorClient();
+  const stripe = new StripeApiClient();
+  await stripe.assertTestAccount();
   const items = [
     ...(await db.select().from(billingPlansTable)).map((row) => ({ row, table: billingPlansTable, metadataKey: "workrate_plan_code" })),
     ...(await db.select().from(billingAddOnsTable)).map((row) => ({ row, table: billingAddOnsTable, metadataKey: "workrate_add_on_code" })),

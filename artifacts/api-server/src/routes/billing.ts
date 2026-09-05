@@ -13,7 +13,7 @@ import {
 } from "@workspace/api-zod";
 import { billingProvider } from "../services/billing/provider";
 import { verifyCatalogPrice } from "../services/billing/provider";
-import { StripeConnectorClient } from "../services/billing/stripeClient";
+import { StripeApiClient } from "../services/billing/stripeClient";
 import { usageForTenant } from "../services/billing/usage";
 import { catalogAvailability, trialPriceGbp } from "../services/billing/pricing";
 import { isBillingAdmin } from "../services/billing/pricing";
@@ -92,7 +92,7 @@ router.post("/internal/billing/:kind/:code/validate-mapping", async (req, res): 
   const [item] = await db.select().from(table).where(eq(table.code, req.params.code)).limit(1);
   if (!item) { res.status(404).json({ error: "Catalog item not found" }); return; }
   try {
-    const stripe = new StripeConnectorClient();
+    const stripe = new StripeApiClient();
     await verifyCatalogPrice(item as any, "monthly", stripe);
     await verifyCatalogPrice(item as any, "paid_trial", stripe);
   } catch (error) {

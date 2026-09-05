@@ -1,8 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
-import { billingAddOnsTable, billingCheckoutAttemptsTable, billingPlansTable, billingProviderConfigsTable, billingWebhookEventsTable, companySubscriptionsTable, db } from "@workspace/db";
-import { StripeConnectorClient } from "./stripeClient";
+import { billingAddOnsTable, billingCheckoutAttemptsTable, billingPlansTable, billingWebhookEventsTable, companySubscriptionsTable, db } from "@workspace/db";
+import { StripeApiClient } from "./stripeClient";
 import { canonicalEventId, checkoutIdempotencyKey, checkoutLineItems, mapStripeSubscriptionStatus, requireCanonicalEventId, verifyStripeSignature } from "./lifecycle";
-import { decryptIntegrationSecret, encryptIntegrationSecret } from "../../lib/integration-secret";
 import { trialPriceGbp } from "./pricing";
 
 export type PaymentSetupUnavailable = { ok: false; code: "PAYMENT_SETUP_UNAVAILABLE"; message: string };
@@ -24,7 +23,7 @@ const returnUrl = () => {
 };
 const date = (seconds?: number | null) => seconds ? new Date(seconds * 1000) : null;
 const local = (companyId: number, ownerUserId: string) => db.select().from(companySubscriptionsTable).where(and(eq(companySubscriptionsTable.companyId, companyId), eq(companySubscriptionsTable.ownerUserId, ownerUserId))).limit(1);
-type StripeApi = Pick<StripeConnectorClient, "get" | "post">;
+type StripeApi = Pick<StripeApiClient, "get" | "post">;
 export interface CheckoutRepository {
   subscription(companyId: number, ownerUserId: string): Promise<any | undefined>;
   establishAttempt(input: { companyId: number; ownerUserId: string; fingerprint: string }): Promise<any>;
@@ -32,7 +31,6 @@ export interface CheckoutRepository {
   updateSubscription(companyId: number, ownerUserId: string, values: Record<string, unknown>): Promise<void>;
 }
 export interface WebhookRepository {
-  secret(url: string): Promise<string | undefined>;
   tenantForCustomer(customerId: string): Promise<{ companyId: number; ownerUserId: string } | undefined>;
   process(event: any, tenant: { companyId: number; ownerUserId: string }, subscriptionValues?: Record<string, unknown>): Promise<"processed" | "duplicate">;
 }
@@ -78,10 +76,6 @@ const checkoutRepository: CheckoutRepository = {
   async updateSubscription(companyId, ownerUserId, values) { await db.update(companySubscriptionsTable).set(values).where(and(eq(companySubscriptionsTable.companyId, companyId), eq(companySubscriptionsTable.ownerUserId, ownerUserId))); },
 };
 const webhookRepository: WebhookRepository = {
-  async secret(url) {
-    const [config] = await db.select().from(billingProviderConfigsTable).where(and(eq(billingProviderConfigsTable.provider, "stripe"), eq(billingProviderConfigsTable.webhookUrl, url))).limit(1);
-    return config ? decryptIntegrationSecret(config.encryptedWebhookSecret) : undefined;
-  },
   async tenantForCustomer(customerId) {
     const [row] = await db.select().from(companySubscriptionsTable).where(eq(companySubscriptionsTable.providerCustomerId, customerId)).limit(1);
     return row ? { companyId: row.companyId, ownerUserId: row.ownerUserId } : undefined;
@@ -119,7 +113,13 @@ export { canonicalEventId, checkoutIdempotencyKey, checkoutLineItems, mapStripeS
 
 /** Stripe implementation remains behind this provider-neutral interface. */
 export class StripeBillingProvider implements BillingProvider {
-  constructor(private readonly connectorFactory: () => StripeApi = () => new StripeConnectorClient(), private readonly checkoutRepo: CheckoutRepository = checkoutRepository, private readonly webhookRepo: WebhookRepository = webhookRepository, private readonly catalogRepo: BillingCatalogRepository = catalogRepository) {}
+  constructor(
+    private readonly connectorFactory: () => StripeApi = () => new StripeApiClient(),
+    private readonly checkoutRepo: CheckoutRepository = checkoutRepository,
+    private readonly webhookRepo: WebhookRepository = webhookRepository,
+    private readonly catalogRepo: BillingCatalogRepository = catalogRepository,
+    private readonly webhookSecret: () => string | undefined = () => process.env.STRIPE_WEBHOOK_SECRET,
+  ) {}
   async createCheckoutSession(input: { companyId: number; ownerUserId: string; planCode: string; addOnCodes: string[] }): Promise<ProviderResult> {
     if (!input.planCode) return unavailable();
     try {
@@ -229,7 +229,7 @@ export class StripeBillingProvider implements BillingProvider {
     const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
     if (!domain) throw new Error("REPLIT_DOMAINS is required for Stripe webhooks.");
     const url = `https://${domain}/api/stripe/webhook`;
-    const secret = await this.webhookRepo.secret(url);
+    const secret = this.webhookSecret();
     if (!secret) throw new Error("Stripe webhook signing configuration is unavailable.");
     verifyStripeSignature(input.payload, input.signature, secret);
     const signedId = canonicalEventId(input.payload, input.signature);
@@ -276,22 +276,15 @@ export async function initializeStripeBilling(): Promise<void> {
   if (!domain) throw new Error("REPLIT_DOMAINS is required to register the Stripe webhook.");
 
   const url = `https://${domain}/api/stripe/webhook`;
-  const stripe = new StripeConnectorClient();
+  const stripe = new StripeApiClient();
+  await stripe.assertTestAccount();
   const form: Record<string, string> = { url };
   webhookEventTypes.forEach((eventType, index) => {
     form[`enabled_events[${index}]`] = eventType;
   });
-  const [stored] = await db.select().from(billingProviderConfigsTable).where(and(eq(billingProviderConfigsTable.provider, "stripe"), eq(billingProviderConfigsTable.webhookUrl, url))).limit(1);
-  if (stored) {
-    await stripe.post(`webhook_endpoints/${stored.providerWebhookId}`, form);
-    return;
-  }
   const endpoints = await stripe.get<{ data: Array<{ id: string; url: string }> }>("webhook_endpoints", { limit: 100 });
-  for (const endpoint of endpoints.data) if (endpoint.url === url) await stripe.delete(`webhook_endpoints/${endpoint.id}`);
-  const created = await stripe.post<{ id: string; secret?: string }>("webhook_endpoints", form);
-  if (!created.secret) throw new Error("Stripe did not return the new webhook signing secret.");
-  await db.insert(billingProviderConfigsTable).values({
-    provider: "stripe", webhookUrl: url, providerWebhookId: created.id,
-    encryptedWebhookSecret: encryptIntegrationSecret(created.secret),
-  }).onConflictDoNothing();
+  const endpoint = endpoints.data.find((candidate) => candidate.url === url);
+  if (!endpoint) throw new Error("Stripe webhook endpoint is not configured for this environment.");
+  if (!process.env.STRIPE_WEBHOOK_SECRET) throw new Error("STRIPE_WEBHOOK_SECRET is required.");
+  await stripe.post(`webhook_endpoints/${endpoint.id}`, form);
 }

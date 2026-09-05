@@ -1,0 +1,183 @@
+WORKRATE — MIGRATE STRIPE FROM REPLIT CONNECTOR TO MY STRIPE TEST ACCOUNT
+
+Proceed with the recommended Stripe credential migration.
+
+AUTHORITATIVE TEST ACCOUNT:
+Stripe account ID:
+acct_1UC1BkDeP2oLIigw
+
+Use:
+STRIPE_SECRET_KEY
+as the authoritative server-side Stripe credential.
+
+Do NOT use the Replit Stripe connector for new Stripe operations after this migration.
+
+IMPORTANT:
+TEST MODE ONLY.
+Do not use live Stripe credentials.
+Do not create live products, prices, customers, subscriptions, or charges.
+Do not modify any production customer subscriptions.
+Do not publish automatically.
+
+==================================================
+1. MIGRATE CREDENTIAL SOURCE
+==================================================
+
+Replace the current Replit Stripe connector usage with the standard Stripe SDK / REST implementation using:
+
+STRIPE_SECRET_KEY
+
+Use STRIPE_PUBLISHABLE_KEY only where genuinely required.
+
+Do not expose secret credentials to the browser.
+
+Add support for:
+
+STRIPE_WEBHOOK_SECRET
+
+for webhook signature verification.
+
+==================================================
+2. HARD TEST-MODE SAFETY CHECK
+==================================================
+
+Before creating any Stripe object:
+
+Verify that STRIPE_SECRET_KEY belongs to:
+
+acct_1UC1BkDeP2oLIigw
+
+and that the account is operating in TEST MODE.
+
+Fail closed if:
+- account ID does not match
+- live mode is detected
+- credential is missing
+
+==================================================
+3. CREATE / REUSE TEST CATALOG
+==================================================
+
+In acct_1UC1BkDeP2oLIigw, idempotently create or reuse:
+
+CORE
+Recurring:
+£29/month
+
+7-day introductory payment:
+£14.50
+
+COMPLETE
+Recurring:
+£99/month
+
+7-day introductory payment:
+£49.50
+
+Do not create duplicates if equivalent WorkRate objects already exist.
+
+Preserve the current configurable add-on architecture.
+
+==================================================
+4. WEBHOOK
+==================================================
+
+Create or reuse the TEST webhook endpoint:
+
+https://work-rate-manager.replit.app/api/stripe/webhook
+
+Subscribe only to the events WorkRate currently handles:
+
+- checkout.session.completed
+- customer.subscription.created
+- customer.subscription.updated
+- customer.subscription.deleted
+- invoice.payment_failed
+- invoice.paid
+
+Store the signing secret in Replit Secret:
+
+STRIPE_WEBHOOK_SECRET
+
+Do not log it.
+Do not return it to the browser.
+
+==================================================
+5. CHECKOUT FLOW
+==================================================
+
+Verify in test mode:
+
+CORE
+£14.50 introductory payment
+→ 7-day introductory period
+→ £29/month recurring subscription
+
+COMPLETE
+£49.50 introductory payment
+→ 7-day introductory period
+→ £99/month recurring subscription
+
+Confirm WorkRate entitlement state follows Stripe webhook state rather than browser redirects.
+
+==================================================
+6. ADD-ONS
+==================================================
+
+Do not invent add-on prices.
+
+Any add-on without a configured price remains non-purchasable.
+
+Keep the existing configurable product / Stripe price mapping structure.
+
+==================================================
+7. OLD CONNECTOR
+==================================================
+
+Do NOT disconnect/delete the Replit Stripe connector yet.
+
+First complete and verify the migration.
+
+After successful verification, report whether it can safely be disconnected.
+
+Do not delete old connector-account test products/webhooks in this task.
+
+==================================================
+8. TEST
+==================================================
+
+Test:
+
+- Stripe account identity
+- test-mode enforcement
+- Core checkout
+- Complete checkout
+- trial/intro pricing
+- subscription activation
+- payment failure webhook
+- subscription cancellation webhook
+- webhook signature validation
+- webhook idempotency
+- entitlement sync
+- frontend cannot spoof Stripe price
+- no live-mode operation
+
+==================================================
+9. REPORT
+==================================================
+
+Report:
+
+A. WorkRate now uses STRIPE_SECRET_KEY or not
+B. verified Stripe account ID
+C. products created/reused
+D. prices created/reused
+E. webhook endpoint status
+F. STRIPE_WEBHOOK_SECRET configuration status
+G. Core flow result
+H. Complete flow result
+I. add-on status
+J. whether Replit Stripe connector can now be disconnected
+K. whether ONE publish is required
+
+Do not publish automatically.
