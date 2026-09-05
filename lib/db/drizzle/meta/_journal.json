@@ -43,6 +43,13 @@
       "when": 1755993600000,
       "tag": "0008_intelligence_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788635405922,
+      "tag": "0023_job_cost_evidence_foundation",
+      "breakpoints": true
     }
   ]
 }

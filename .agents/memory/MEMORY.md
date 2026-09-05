@@ -26,3 +26,4 @@
 - [WorkRate Stripe billing](workrate-stripe-billing.md) — direct test-key billing is locked to one account; webhook readiness gates all payment mutations
 - [WorkRate usage metering](workrate-usage-metering.md) — provider spend requires atomic reservation; legacy access is explicit; voice seconds convert to allowance minutes
 - [WorkRate timeline boundaries](workrate-timeline-boundaries.md) — timelines are enquiry-scoped and derived only from explicit links; never infer customer identity or historical events
+- [Actual-job evidence trust boundary](workrate-job-evidence.md) — completion evidence is core tenant data; readiness is completeness, and only confirmed linked costs enter history

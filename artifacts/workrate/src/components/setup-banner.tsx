@@ -66,17 +66,6 @@ export function SetupBanner() {
   const billingPastDue = billing?.status === "past_due";
   const billingCancelled = billing?.status === "cancelled";
 
-  // ── Don't show for completely fresh users with no company or onboarding ───
-  // Legacy users: no onboarding record AND legacyAccess = don't force banner
-  const isLegacyUser = !onboarding?.exists && billing?.legacyAccess;
-  if (isLegacyUser) return null;
-
-  // Don't show if fully set up and dismissed
-  if (dismissed) return null;
-
-  // Don't show until we have at least company data
-  if (!company) return null;
-
   const items: ChecklistItem[] = [
     {
       id: "onboarding",
@@ -115,14 +104,23 @@ export function SetupBanner() {
 
   const doneCount = items.filter((i) => i.done).length;
   const allDone = doneCount === items.length;
-
-  // Auto-dismiss after all done
   const autoDismissRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!allDone) return;
+    if (!allDone || dismissed) return;
     autoDismissRef.current = setTimeout(dismiss, 2500);
     return () => { if (autoDismissRef.current) clearTimeout(autoDismissRef.current); };
-  }, [allDone]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allDone, dismissed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Don't show for completely fresh users with no company or onboarding ───
+  // Legacy users: no onboarding record AND legacyAccess = don't force banner
+  const isLegacyUser = !onboarding?.exists && billing?.legacyAccess;
+  if (isLegacyUser) return null;
+
+  // Don't show if fully set up and dismissed
+  if (dismissed) return null;
+
+  // Don't show until we have at least company data
+  if (!company) return null;
 
   return (
     <div className="w-full bg-primary/[0.04] border-b border-primary/15 px-4 sm:px-6 md:px-8 py-3">

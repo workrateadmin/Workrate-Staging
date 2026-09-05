@@ -2086,8 +2086,100 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/BillingSimulationInput" } } } }
       responses: { "200": { description: Simulated state, content: { application/json: { schema: { $ref: "#/components/schemas/BillingOverview" } } } }, "404": { description: Not available } }
 
+  /jobs/{id}/evidence-summary:
+    get:
+      operationId: getJobEvidenceSummary
+      tags: [jobs]
+      summary: Get private job actual-cost evidence summary
+      security: [{ ClerkAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/JobEvidenceJobId" }]
+      responses:
+        "200": { description: Private summary, content: { application/json: { schema: { $ref: "#/components/schemas/JobEvidenceSummary" } } } }
+  /jobs/{id}/evidence/{kind}:
+    get:
+      operationId: listJobEvidence
+      tags: [jobs]
+      security: [{ ClerkAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/JobEvidenceJobId" }, { name: kind, in: path, required: true, schema: { type: string } }, { name: limit, in: query, schema: { type: number } }, { name: offset, in: query, schema: { type: number } }]
+      responses: { "200": { description: Evidence page, content: { application/json: { schema: { $ref: "#/components/schemas/EvidencePage" } } } } }
+    post:
+      operationId: createJobEvidence
+      tags: [jobs]
+      security: [{ ClerkAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/JobEvidenceJobId" }, { name: kind, in: path, required: true, schema: { type: string } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/JobEvidenceInput" } } } }
+      responses: { "201": { description: Created evidence, content: { application/json: { schema: { $ref: "#/components/schemas/JobEvidence" } } } } }
+  /jobs/{id}/evidence/{kind}/{rowId}:
+    patch:
+      operationId: updateJobEvidence
+      tags: [jobs]
+      security: [{ ClerkAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/JobEvidenceJobId" }, { name: kind, in: path, required: true, schema: { type: string } }, { name: rowId, in: path, required: true, schema: { type: number } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/JobEvidenceUpdate" } } } }
+      responses: { "200": { description: Updated evidence, content: { application/json: { schema: { $ref: "#/components/schemas/JobEvidence" } } } } }
+  /jobs/{id}/evidence/{kind}/{rowId}/{action}:
+    post:
+      operationId: actionJobEvidence
+      tags: [jobs]
+      security: [{ ClerkAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/JobEvidenceJobId" }, { name: kind, in: path, required: true, schema: { type: string } }, { name: rowId, in: path, required: true, schema: { type: number } }, { name: action, in: path, required: true, schema: { type: string, enum: [confirm, ignore] } }]
+      responses: { "200": { description: Updated evidence, content: { application/json: { schema: { $ref: "#/components/schemas/JobEvidence" } } } } }
+  /materials:
+    get:
+      operationId: listMaterials
+      tags: [jobs]
+      security: [{ ClerkAuth: [] }]
+      parameters: [{ name: search, in: query, schema: { type: string } }, { name: limit, in: query, schema: { type: number } }, { name: offset, in: query, schema: { type: number } }]
+      responses: { "200": { description: Tenant material page, content: { application/json: { schema: { $ref: "#/components/schemas/MaterialPage" } } } } }
+    post:
+      operationId: createMaterial
+      tags: [jobs]
+      security: [{ ClerkAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/MaterialInput" } } } }
+      responses: { "201": { description: Created material, content: { application/json: { schema: { $ref: "#/components/schemas/Material" } } } } }
+  /materials/{materialId}/history:
+    get:
+      operationId: listMaterialCostHistory
+      tags: [jobs]
+      security: [{ ClerkAuth: [] }]
+      parameters: [{ name: materialId, in: path, required: true, schema: { type: number } }]
+      responses: { "200": { description: Immutable history, content: { application/json: { schema: { $ref: "#/components/schemas/MaterialHistoryPage" } } } } }
+  /materials/{materialId}:
+    patch:
+      operationId: updateMaterial
+      tags: [jobs]
+      security: [{ ClerkAuth: [] }]
+      parameters: [{ name: materialId, in: path, required: true, schema: { type: number } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/MaterialUpdate" } } } }
+      responses: { "200": { description: Updated material, content: { application/json: { schema: { $ref: "#/components/schemas/Material" } } } } }
+  /jobs/{id}/finance-allocations:
+    get:
+      operationId: listJobFinanceAllocations
+      tags: [jobs]
+      security: [{ ClerkAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/JobEvidenceJobId" }]
+      responses: { "200": { description: Explicit finance allocations, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/FinanceAllocation" } } } } } }
+    post:
+      operationId: createJobFinanceAllocation
+      tags: [jobs]
+      security: [{ ClerkAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/JobEvidenceJobId" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/FinanceAllocationInput" } } } }
+      responses: { "201": { description: Created allocation, content: { application/json: { schema: { $ref: "#/components/schemas/FinanceAllocation" } } } } }
+  /jobs/{id}/finance-allocations/{allocationId}:
+    delete:
+      operationId: deleteJobFinanceAllocation
+      tags: [jobs]
+      security: [{ ClerkAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/JobEvidenceJobId" }, { name: allocationId, in: path, required: true, schema: { type: number } }]
+      responses: { "204": { description: Allocation deleted } }
 components:
   parameters:
+    JobEvidenceJobId:
+      name: id
+      in: path
+      required: true
+      schema: { type: number }
     TimelineLimit:
       name: limit
       in: query
@@ -4180,3 +4272,65 @@ components:
         - filename
         - mimetype
         - uploadedAt
+
+    JobEvidence:
+      type: object
+      additionalProperties: true
+    JobEvidenceInput:
+      type: object
+      additionalProperties: true
+    JobEvidenceUpdate:
+      type: object
+      additionalProperties: true
+    EvidencePage:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/JobEvidence" } }
+        limit: { type: number }
+        offset: { type: number }
+    JobEvidenceSummary:
+      type: object
+      additionalProperties: true
+    Material:
+      type: object
+      additionalProperties: true
+    MaterialInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        category: { type: string }
+        supplierName: { type: string }
+        supplierSku: { type: string }
+        unit: { type: string }
+        attributes: { type: object, additionalProperties: true }
+    MaterialUpdate:
+      type: object
+      additionalProperties: true
+    FinanceAllocation:
+      type: object
+      additionalProperties: true
+    FinanceAllocationInput:
+      type: object
+      required: [allocatedAmount]
+      properties:
+        receiptId: { type: number }
+        expenseId: { type: number }
+        allocatedAmount: { type: number, minimum: 0 }
+        allocatedQuantity: { type: number, minimum: 0 }
+        unit: { type: string }
+        receiptLineReference: { type: string }
+        notes: { type: string }
+    MaterialPage:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Material" } }
+        limit: { type: number }
+        offset: { type: number }
+    MaterialHistoryPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { type: object, additionalProperties: true } }

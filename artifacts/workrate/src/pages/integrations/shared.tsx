@@ -18,7 +18,7 @@ export function IntegrationPageHeader({
   return (
     <div className="flex items-center gap-3 mb-8">
       <Link
-        href="/integrations"
+        href="/settings/integrations"
         className="inline-flex items-center gap-1.5 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
       >
         <ChevronLeft className="w-4 h-4" />

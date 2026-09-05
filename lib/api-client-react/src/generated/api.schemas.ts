@@ -1518,6 +1518,61 @@ export interface EnquiryAttachment {
   uploadedAt: string;
 }
 
+export interface JobEvidence { [key: string]: unknown }
+
+export interface JobEvidenceInput { [key: string]: unknown }
+
+export interface JobEvidenceUpdate { [key: string]: unknown }
+
+export interface EvidencePage {
+  items: JobEvidence[];
+  limit: number;
+  offset: number;
+}
+
+export interface JobEvidenceSummary { [key: string]: unknown }
+
+export interface Material { [key: string]: unknown }
+
+export type MaterialInputAttributes = { [key: string]: unknown };
+
+export interface MaterialInput {
+  name: string;
+  category?: string;
+  supplierName?: string;
+  supplierSku?: string;
+  unit?: string;
+  attributes?: MaterialInputAttributes;
+}
+
+export interface MaterialUpdate { [key: string]: unknown }
+
+export interface FinanceAllocation { [key: string]: unknown }
+
+export interface FinanceAllocationInput {
+  receiptId?: number;
+  expenseId?: number;
+  /** @minimum 0 */
+  allocatedAmount: number;
+  /** @minimum 0 */
+  allocatedQuantity?: number;
+  unit?: string;
+  receiptLineReference?: string;
+  notes?: string;
+}
+
+export interface MaterialPage {
+  items: Material[];
+  limit: number;
+  offset: number;
+}
+
+export type MaterialHistoryPageItemsItem = { [key: string]: unknown };
+
+export interface MaterialHistoryPage {
+  items: MaterialHistoryPageItemsItem[];
+}
+
 export type TimelineLimitParameter = number;
 
 export type TimelineOffsetParameter = number;
@@ -1650,3 +1705,14 @@ to?: FinancePeriodToParameter;
 };
 
 export type UpdateInternalBillingCatalogItemBody = { [key: string]: unknown };
+
+export type ListJobEvidenceParams = {
+limit?: number;
+offset?: number;
+};
+
+export type ListMaterialsParams = {
+search?: string;
+limit?: number;
+offset?: number;
+};

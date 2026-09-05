@@ -5,12 +5,17 @@ import {
   jobProductionDocumentsTable,
   jobIntelligenceComponentsTable,
   jobIntelligenceInvoiceLinesTable,
+  companiesTable, financeAuditEventsTable, financeReceiptsTable, financeExpensesTable,
+  materialLibraryTable, materialCostHistoryTable, jobLabourEntriesTable, jobMaterialUsagesTable,
+  jobOtherDirectCostsTable, jobFinanceAllocationsTable,
 } from "@workspace/db";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, inArray, desc, ilike, or, sql } from "drizzle-orm";
 import multer from "multer";
 import { uploadBufferToStorage, storageServingUrl } from "../lib/storageUpload";
 import { extractDocumentIntelligence, EXTRACTION_METHOD } from "../lib/intelligenceExtractor";
 import { requireBillingFeature } from "../services/billing/authorization";
+import { buildJobEvidenceSummary, evidenceState, finiteNonNegative } from "../services/jobCostEvidence";
+import { CreateMaterialBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -61,6 +66,33 @@ async function verifyJobOwnership(jobId: number, userId: string): Promise<{ job:
   if (!enquiry) return null;
 
   return { job };
+}
+
+async function businessFor(userId: string) {
+  const [company] = await db.select({ id: companiesTable.id }).from(companiesTable)
+    .where(eq(companiesTable.ownerUserId, userId)).limit(1);
+  return company ?? null;
+}
+async function audit(companyId: number, userId: string, entityType: string, entityId: number, action: string, beforeData?: unknown, afterData?: unknown) {
+  await db.insert(financeAuditEventsTable).values({ companyId, ownerUserId: userId, entityType, entityId, action, actorUserId: userId, beforeData: beforeData ?? null, afterData: afterData ?? null });
+}
+function page(req: any) {
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 25) || 25));
+  const offset = Math.max(0, Number(req.query.offset ?? 0) || 0);
+  return { limit, offset };
+}
+const numericFields = new Set(["estimatedHours", "actualHours", "hourlyCost", "estimatedCost", "actualCost", "estimatedQuantity", "actualQuantity", "wasteQuantity", "wastePercent", "estimatedUnitCost", "actualUnitCost", "allocatedAmount", "allocatedQuantity"]);
+function validatedValues(body: any, fields: string[]) {
+  const values: Record<string, any> = {};
+  for (const field of fields) {
+    if (body[field] === undefined) continue;
+    if (numericFields.has(field)) {
+      const error = finiteNonNegative(body[field], field);
+      if (error) return { error };
+      values[field] = body[field] == null || body[field] === "" ? null : String(Number(body[field]));
+    } else values[field] = body[field] ?? null;
+  }
+  return { values };
 }
 
 // List all jobs (scoped to enquiries owned by this user)
@@ -218,6 +250,10 @@ router.post("/jobs/:id/complete", requireAuth, async (req, res): Promise<void> =
 
   const body = req.body ?? {};
   const today = new Date().toISOString().slice(0, 10);
+  for (const field of ["finalAmountCharged", "actualLabourHours", "actualLabourCost", "actualMaterialsCost", "variationAmount"]) {
+    const error = finiteNonNegative(body[field], field);
+    if (error) { res.status(400).json({ error }); return; }
+  }
 
   const updates: Record<string, any> = {
     status: "Completed",
@@ -239,6 +275,8 @@ router.post("/jobs/:id/complete", requireAuth, async (req, res): Promise<void> =
     .where(eq(jobsTable.id, id))
     .returning();
 
+  const company = await businessFor(userId!);
+  if (company) await audit(company.id, userId!, "job_completion", id, "actuals_recorded", owned.job, updated);
   res.json(parseJob(updated));
 });
 
@@ -464,9 +502,13 @@ router.post("/jobs/:id/intelligence/components", requireAuth, requireBillingFeat
   if (!owned) { res.status(404).json({ error: "Job not found" }); return; }
 
   const body = req.body ?? {};
+  const documentId = Number(body.documentId);
+  const [document] = await db.select({ id: jobProductionDocumentsTable.id }).from(jobProductionDocumentsTable)
+    .where(and(eq(jobProductionDocumentsTable.id, documentId), eq(jobProductionDocumentsTable.jobId, id))).limit(1);
+  if (!document) { res.status(404).json({ error: "Production document not found for this job" }); return; }
   const [row] = await db.insert(jobIntelligenceComponentsTable).values({
     jobId: id,
-    documentId: Number(body.documentId),
+    documentId,
     extractionStatus: body.extractionStatus ?? "manually_added",
     itemName: body.itemName ?? null,
   }).returning();
@@ -492,7 +534,8 @@ router.put("/jobs/:id/intelligence/components/:rowId", requireAuth, requireBilli
     "itemName","quantity","finishedLengthMm","finishedWidthMm","finishedThicknessMm",
     "sawnLengthMm","sawnWidthMm","sawnThicknessMm","material","timberSpecies","timberGrade",
     "boardType","sheetFinish","hardwareRef","supplierRef","unitCost","totalCost","notes",
-    "extractionStatus",
+    "unit","specification","attributes","estimatedQuantity","actualQuantity","estimatedCost","actualCost",
+    "wasteQuantity","wastePercent","extractionStatus",
   ];
   for (const f of fields) {
     if (body[f] !== undefined) updates[f] = body[f] || null;
@@ -620,6 +663,260 @@ router.delete("/jobs/:id/production-documents/:docId", requireAuth, requireBilli
 });
 
 // Convert enquiry → job
+// ── Private actual-cost evidence ─────────────────────────────────────────────
+router.get("/jobs/:id/evidence-summary", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req); const id = Number(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const owned = await verifyJobOwnership(id, userId!);
+  if (!owned) { res.status(404).json({ error: "Job not found" }); return; }
+  const [labour, materials, otherDirectCosts, allocations, documents, components] = await Promise.all([
+    db.select().from(jobLabourEntriesTable).where(eq(jobLabourEntriesTable.jobId, id)),
+    db.select().from(jobMaterialUsagesTable).where(eq(jobMaterialUsagesTable.jobId, id)),
+    db.select().from(jobOtherDirectCostsTable).where(eq(jobOtherDirectCostsTable.jobId, id)),
+    db.select().from(jobFinanceAllocationsTable).where(eq(jobFinanceAllocationsTable.jobId, id)),
+    db.select().from(jobProductionDocumentsTable).where(eq(jobProductionDocumentsTable.jobId, id)),
+    db.select().from(jobIntelligenceComponentsTable).where(eq(jobIntelligenceComponentsTable.jobId, id)),
+  ]);
+  res.json({ job: parseJob(owned.job), ...buildJobEvidenceSummary({ job: owned.job, labour, materials, otherDirectCosts, allocations, documents, components }), counts: { labour: labour.length, materials: materials.length, otherDirectCosts: otherDirectCosts.length, allocations: allocations.length, documents: documents.length, components: components.length } });
+});
+
+async function ownedEvidenceContext(req: any, res: any) {
+  const { userId } = getAuth(req); const jobId = Number(req.params.id);
+  if (!Number.isInteger(jobId)) { res.status(400).json({ error: "Invalid job id" }); return null; }
+  const [owned, company] = await Promise.all([verifyJobOwnership(jobId, userId!), businessFor(userId!)]);
+  if (!owned || !company) { res.status(404).json({ error: "Job or business not found" }); return null; }
+  return { jobId, userId: userId!, companyId: company.id };
+}
+async function sourceOwned(body: any, companyId: number, userId: string) {
+  if (body.materialId != null) {
+    const [row] = await db.select({ id: materialLibraryTable.id }).from(materialLibraryTable).where(and(eq(materialLibraryTable.id, Number(body.materialId)), eq(materialLibraryTable.companyId, companyId), eq(materialLibraryTable.ownerUserId, userId)));
+    if (!row) return false;
+  }
+  for (const [key, table] of [["sourceReceiptId", financeReceiptsTable], ["receiptId", financeReceiptsTable], ["sourceExpenseId", financeExpensesTable], ["expenseId", financeExpensesTable]] as const) {
+    if (body[key] != null) {
+      const [row] = await db.select({ id: table.id }).from(table).where(and(eq(table.id, Number(body[key])), eq(table.companyId, companyId), eq(table.ownerUserId, userId))).limit(1);
+      if (!row) return false;
+    }
+  }
+  if (body.sourceDocumentId != null) {
+    const [row] = await db.select({ id: jobProductionDocumentsTable.id }).from(jobProductionDocumentsTable)
+      .where(and(eq(jobProductionDocumentsTable.id, Number(body.sourceDocumentId)), eq(jobProductionDocumentsTable.jobId, Number(body.jobId ?? -1)))).limit(1);
+    if (!row) return false;
+  }
+  return true;
+}
+const evidenceDefinitions: Record<string, { table: any; fields: string[]; name: string }> = {
+  labour: { table: jobLabourEntriesTable, name: "labour entry", fields: ["workDate", "personName", "personReference", "entryType", "estimatedHours", "actualHours", "hourlyCost", "estimatedCost", "actualCost", "notes", "sourceType", "sourceDocumentId", "sourceReceiptId", "sourceExpenseId", "extractionMethod", "confidenceScore"] },
+  materials: { table: jobMaterialUsagesTable, name: "material usage", fields: ["materialId", "name", "supplierName", "supplierSku", "unit", "specification", "attributes", "estimatedQuantity", "actualQuantity", "wasteQuantity", "wastePercent", "estimatedUnitCost", "actualUnitCost", "estimatedCost", "actualCost", "notes", "sourceType", "sourceDocumentId", "sourceReceiptId", "sourceExpenseId", "extractionMethod", "confidenceScore"] },
+  "other-costs": { table: jobOtherDirectCostsTable, name: "direct cost", fields: ["description", "category", "estimatedCost", "actualCost", "notes", "sourceType", "sourceDocumentId", "sourceReceiptId", "sourceExpenseId", "extractionMethod", "confidenceScore"] },
+};
+
+function evidenceInput(path: string, body: any) {
+  const shared = {
+    notes: body.notes,
+    sourceType: body.sourceType,
+    sourceDocumentId: body.sourceDocumentId,
+    sourceReceiptId: body.sourceReceiptId,
+    sourceExpenseId: body.sourceExpenseId,
+    extractionMethod: body.extractionMethod,
+    confidenceScore: body.confidenceScore,
+  };
+  if (path === "labour") return {
+    ...body, ...shared,
+    entryType: body.entryType ?? body.description,
+    actualCost: body.actualCost ?? body.amount,
+    actualHours: body.actualHours ?? body.quantity,
+    workDate: body.workDate ?? body.date,
+  };
+  if (path === "materials") return {
+    ...body, ...shared,
+    name: body.name ?? body.description,
+    actualCost: body.actualCost ?? body.amount,
+    actualQuantity: body.actualQuantity ?? body.quantity,
+    actualUnitCost: body.actualUnitCost ?? (
+      Number(body.quantity) > 0 && body.amount != null
+        ? Number(body.amount) / Number(body.quantity)
+        : undefined
+    ),
+    supplierSku: body.supplierSku ?? body.reference,
+  };
+  return {
+    ...body, ...shared,
+    actualCost: body.actualCost ?? body.amount,
+  };
+}
+
+function evidenceOutput(path: string, row: any) {
+  if (path === "labour") return {
+    ...row,
+    kind: path,
+    description: row.entryType ?? row.personName,
+    amount: row.actualCost,
+    quantity: row.actualHours,
+    date: row.workDate,
+    reference: row.personReference,
+    sourceLabel: row.sourceType,
+    provenance: row.extractionMethod,
+  };
+  if (path === "materials") return {
+    ...row,
+    kind: path,
+    description: row.name,
+    amount: row.actualCost,
+    quantity: row.actualQuantity,
+    reference: row.supplierSku,
+    sourceLabel: row.sourceType,
+    provenance: row.extractionMethod,
+  };
+  return {
+    ...row,
+    kind: path,
+    amount: row.actualCost,
+    sourceLabel: row.sourceType,
+    provenance: row.extractionMethod,
+  };
+}
+
+for (const [path, def] of Object.entries(evidenceDefinitions)) {
+  router.get(`/jobs/:id/evidence/${path}`, requireAuth, async (req, res): Promise<void> => {
+    const ctx = await ownedEvidenceContext(req, res); if (!ctx) return; const { limit, offset } = page(req);
+    const rows = await db.select().from(def.table).where(and(eq(def.table.jobId, ctx.jobId), eq(def.table.companyId, ctx.companyId))).orderBy(desc(def.table.createdAt)).limit(limit).offset(offset);
+    res.json({ items: rows.map((row) => evidenceOutput(path, row)), limit, offset });
+  });
+  router.post(`/jobs/:id/evidence/${path}`, requireAuth, async (req, res): Promise<void> => {
+    const ctx = await ownedEvidenceContext(req, res); if (!ctx) return; const body = evidenceInput(path, req.body ?? {});
+    const parsed = validatedValues(body, def.fields); if (parsed.error) { res.status(400).json({ error: parsed.error }); return; }
+    if (path === "materials" && typeof body.name !== "string") { res.status(400).json({ error: "name is required" }); return; }
+    if (path === "other-costs" && typeof body.description !== "string") { res.status(400).json({ error: "description is required" }); return; }
+    if (!(await sourceOwned({ ...body, jobId: ctx.jobId }, ctx.companyId, ctx.userId))) { res.status(404).json({ error: "Referenced evidence is not owned by this business/job" }); return; }
+    const state = evidenceState(body.sourceType, body.confirmationState);
+    const createdRows: any[] = await db.insert(def.table).values({ ...parsed.values, jobId: ctx.jobId, companyId: ctx.companyId, ownerUserId: ctx.userId, confirmationState: state, confirmedByUserId: state === "confirmed" ? ctx.userId : null, confirmedAt: state === "confirmed" ? new Date() : null, createdByUserId: ctx.userId, updatedByUserId: ctx.userId }).returning() as any;
+    const row = createdRows[0];
+    if (path === "materials" && state === "confirmed" && row.materialId != null && row.actualUnitCost != null) {
+      const [history] = await db.insert(materialCostHistoryTable).values({
+        materialId: row.materialId, companyId: ctx.companyId, ownerUserId: ctx.userId,
+        unitCost: row.actualUnitCost, totalCost: row.actualCost, quantity: row.actualQuantity,
+        unit: row.unit, supplierName: row.supplierName, sourceType: row.sourceType,
+        sourceDocumentId: row.sourceDocumentId, sourceReceiptId: row.sourceReceiptId, sourceExpenseId: row.sourceExpenseId,
+        extractionMethod: row.extractionMethod, confidenceScore: row.confidenceScore,
+        confirmedByUserId: ctx.userId,
+      }).returning();
+      await db.update(materialLibraryTable).set({
+        latestConfirmedUnitCost: history.unitCost, latestConfirmedTotalCost: history.totalCost,
+        latestConfirmedAt: history.confirmedAt, latestSourceType: history.sourceType,
+        latestSourceDocumentId: history.sourceDocumentId, latestSourceReceiptId: history.sourceReceiptId,
+        latestSourceExpenseId: history.sourceExpenseId, updatedByUserId: ctx.userId,
+      }).where(and(eq(materialLibraryTable.id, row.materialId), eq(materialLibraryTable.companyId, ctx.companyId), eq(materialLibraryTable.ownerUserId, ctx.userId)));
+    }
+    if (state === "confirmed") await audit(ctx.companyId, ctx.userId, path, row.id, "created_confirmed", undefined, row);
+    res.status(201).json(evidenceOutput(path, row));
+  });
+  router.patch(`/jobs/:id/evidence/${path}/:rowId`, requireAuth, async (req, res): Promise<void> => {
+    const ctx = await ownedEvidenceContext(req, res); const rowId = Number(req.params.rowId); if (!ctx) return;
+    if (!Number.isInteger(rowId)) { res.status(400).json({ error: "Invalid evidence id" }); return; }
+    const [before] = await db.select().from(def.table).where(and(eq(def.table.id, rowId), eq(def.table.jobId, ctx.jobId), eq(def.table.companyId, ctx.companyId)));
+    if (!before) { res.status(404).json({ error: `${def.name} not found` }); return; }
+    const body = evidenceInput(path, req.body ?? {});
+    const parsed = validatedValues(body, def.fields); if (parsed.error) { res.status(400).json({ error: parsed.error }); return; }
+    if (!(await sourceOwned({ ...body, jobId: ctx.jobId }, ctx.companyId, ctx.userId))) { res.status(404).json({ error: "Referenced evidence is not owned by this business/job" }); return; }
+    const [row] = await db.update(def.table).set({ ...parsed.values, updatedByUserId: ctx.userId }).where(eq(def.table.id, rowId)).returning();
+    await audit(ctx.companyId, ctx.userId, path, rowId, "corrected", before, row); res.json(evidenceOutput(path, row));
+  });
+  router.post(`/jobs/:id/evidence/${path}/:rowId/:action`, requireAuth, async (req, res): Promise<void> => {
+    const ctx = await ownedEvidenceContext(req, res); const rowId = Number(req.params.rowId); const action = req.params.action;
+    if (!ctx || !Number.isInteger(rowId) || (action !== "confirm" && action !== "ignore")) { if (ctx) res.status(400).json({ error: "Invalid evidence action or id" }); return; }
+    const [before] = await db.select().from(def.table).where(and(eq(def.table.id, rowId), eq(def.table.jobId, ctx.jobId), eq(def.table.companyId, ctx.companyId)));
+    if (!before) { res.status(404).json({ error: `${def.name} not found` }); return; }
+    const state = action === "confirm" ? "confirmed" : "ignored";
+    if (state === "confirmed" && before.confirmationState === "confirmed") {
+      res.json(evidenceOutput(path, before));
+      return;
+    }
+    const [row] = await db.update(def.table).set({ confirmationState: state, confirmedByUserId: ctx.userId, confirmedAt: new Date(), updatedByUserId: ctx.userId }).where(eq(def.table.id, rowId)).returning();
+    // A price is reusable only after explicit confirmation. History is append-only:
+    // the library summary is a denormalized latest observation, never a replacement.
+    if (path === "materials" && state === "confirmed" && row.materialId != null && row.actualUnitCost != null) {
+      const [history] = await db.insert(materialCostHistoryTable).values({
+        materialId: row.materialId, companyId: ctx.companyId, ownerUserId: ctx.userId,
+        unitCost: row.actualUnitCost, totalCost: row.actualCost, quantity: row.actualQuantity,
+        unit: row.unit, supplierName: row.supplierName, sourceType: row.sourceType,
+        sourceDocumentId: row.sourceDocumentId, sourceReceiptId: row.sourceReceiptId, sourceExpenseId: row.sourceExpenseId,
+        extractionMethod: row.extractionMethod, confidenceScore: row.confidenceScore,
+        confirmedByUserId: ctx.userId,
+      }).returning();
+      await db.update(materialLibraryTable).set({
+        latestConfirmedUnitCost: history.unitCost, latestConfirmedTotalCost: history.totalCost,
+        latestConfirmedAt: history.confirmedAt, latestSourceType: history.sourceType,
+        latestSourceDocumentId: history.sourceDocumentId, latestSourceReceiptId: history.sourceReceiptId,
+        latestSourceExpenseId: history.sourceExpenseId, updatedByUserId: ctx.userId,
+      }).where(and(eq(materialLibraryTable.id, row.materialId), eq(materialLibraryTable.companyId, ctx.companyId), eq(materialLibraryTable.ownerUserId, ctx.userId)));
+    }
+    await audit(ctx.companyId, ctx.userId, path, rowId, state, before, row);
+    res.json(evidenceOutput(path, row));
+  });
+}
+
+router.get("/materials", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req); const company = await businessFor(userId!);
+  if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  const { limit, offset } = page(req); const query = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const condition = and(eq(materialLibraryTable.companyId, company.id), eq(materialLibraryTable.ownerUserId, userId!), query ? or(ilike(materialLibraryTable.name, `%${query}%`), ilike(materialLibraryTable.supplierName, `%${query}%`), ilike(materialLibraryTable.supplierSku, `%${query}%`)) : undefined);
+  const items = await db.select().from(materialLibraryTable).where(condition).orderBy(materialLibraryTable.name).limit(limit).offset(offset);
+  res.json({ items, limit, offset });
+});
+router.post("/materials", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req); const company = await businessFor(userId!); const body = req.body ?? {};
+  if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  const parsed = CreateMaterialBody.safeParse(body);
+  if (!parsed.success || !parsed.data.name.trim()) { res.status(400).json({ error: parsed.success ? "name is required" : parsed.error.message }); return; }
+  const [row] = await db.insert(materialLibraryTable).values({ companyId: company.id, ownerUserId: userId!, name: parsed.data.name.trim(), category: parsed.data.category ?? null, supplierName: parsed.data.supplierName ?? null, supplierSku: parsed.data.supplierSku ?? null, unit: parsed.data.unit ?? null, attributes: parsed.data.attributes ?? null, createdByUserId: userId!, updatedByUserId: userId! }).returning();
+  res.status(201).json(row);
+});
+router.patch("/materials/:materialId", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req); const company = await businessFor(userId!); const id = Number(req.params.materialId);
+  if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid material id" }); return; }
+  const fields = ["name", "category", "supplierName", "supplierSku", "unit", "attributes", "active"];
+  const values: any = { updatedByUserId: userId! }; for (const field of fields) if (req.body?.[field] !== undefined) values[field] = req.body[field];
+  const [row] = await db.update(materialLibraryTable).set(values).where(and(eq(materialLibraryTable.id, id), eq(materialLibraryTable.companyId, company.id), eq(materialLibraryTable.ownerUserId, userId!))).returning();
+  if (!row) { res.status(404).json({ error: "Material not found" }); return; } res.json(row);
+});
+router.get("/materials/:materialId/history", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req); const company = await businessFor(userId!); const id = Number(req.params.materialId);
+  if (!company || !Number.isInteger(id)) { res.status(400).json({ error: "Invalid material or business" }); return; }
+  const items = await db.select().from(materialCostHistoryTable).where(and(eq(materialCostHistoryTable.materialId, id), eq(materialCostHistoryTable.companyId, company.id), eq(materialCostHistoryTable.ownerUserId, userId!))).orderBy(desc(materialCostHistoryTable.confirmedAt));
+  res.json({ items });
+});
+
+router.get("/jobs/:id/finance-allocations", requireAuth, async (req, res): Promise<void> => {
+  const ctx = await ownedEvidenceContext(req, res); if (!ctx) return;
+  res.json(await db.select().from(jobFinanceAllocationsTable).where(and(eq(jobFinanceAllocationsTable.jobId, ctx.jobId), eq(jobFinanceAllocationsTable.companyId, ctx.companyId))).orderBy(desc(jobFinanceAllocationsTable.createdAt)));
+});
+router.post("/jobs/:id/finance-allocations", requireAuth, async (req, res): Promise<void> => {
+  const ctx = await ownedEvidenceContext(req, res); if (!ctx) return; const body = req.body ?? {};
+  const error = finiteNonNegative(body.allocatedAmount, "allocatedAmount", true) ?? finiteNonNegative(body.allocatedQuantity, "allocatedQuantity");
+  if (error) { res.status(400).json({ error }); return; }
+  if ((body.receiptId == null && body.expenseId == null) || !(await sourceOwned(body, ctx.companyId, ctx.userId))) { res.status(404).json({ error: "A tenant-owned receipt or expense is required" }); return; }
+  const sourceId = Number(body.receiptId ?? body.expenseId); const isReceipt = body.receiptId != null;
+  const source = isReceipt
+    ? (await db.select({ gross: financeExpensesTable.grossAmount }).from(financeReceiptsTable).innerJoin(financeExpensesTable, eq(financeReceiptsTable.expenseId, financeExpensesTable.id)).where(eq(financeReceiptsTable.id, sourceId)))[0]
+    : (await db.select({ gross: financeExpensesTable.grossAmount }).from(financeExpensesTable).where(eq(financeExpensesTable.id, sourceId)))[0];
+  const allocations = await db.select().from(jobFinanceAllocationsTable).where(isReceipt ? eq(jobFinanceAllocationsTable.receiptId, sourceId) : eq(jobFinanceAllocationsTable.expenseId, sourceId));
+  const used = allocations.reduce((total, row) => total + Number(row.allocatedAmount), 0);
+  if (source?.gross == null || used + Number(body.allocatedAmount) > Number(source.gross) + 0.00001) { res.status(400).json({ error: "Allocation exceeds the source gross amount or source total is unknown" }); return; }
+  const [row] = await db.insert(jobFinanceAllocationsTable).values({ jobId: ctx.jobId, companyId: ctx.companyId, ownerUserId: ctx.userId, receiptId: body.receiptId == null ? null : Number(body.receiptId), expenseId: body.expenseId == null ? null : Number(body.expenseId), receiptLineReference: body.receiptLineReference ?? null, allocatedAmount: String(Number(body.allocatedAmount)), allocatedQuantity: body.allocatedQuantity == null ? null : String(Number(body.allocatedQuantity)), unit: body.unit ?? null, notes: body.notes ?? null, confirmationState: "confirmed", confirmedByUserId: ctx.userId, confirmedAt: new Date(), createdByUserId: ctx.userId, updatedByUserId: ctx.userId }).returning();
+  await audit(ctx.companyId, ctx.userId, "finance_allocation", row.id, "created_confirmed", undefined, row); res.status(201).json(row);
+});
+router.delete("/jobs/:id/finance-allocations/:allocationId", requireAuth, async (req, res): Promise<void> => {
+  const ctx = await ownedEvidenceContext(req, res); const allocationId = Number(req.params.allocationId);
+  if (!ctx) return;
+  if (!Number.isInteger(allocationId)) { res.status(400).json({ error: "Invalid allocation id" }); return; }
+  const [before] = await db.select().from(jobFinanceAllocationsTable).where(and(eq(jobFinanceAllocationsTable.id, allocationId), eq(jobFinanceAllocationsTable.jobId, ctx.jobId), eq(jobFinanceAllocationsTable.companyId, ctx.companyId)));
+  if (!before) { res.status(404).json({ error: "Allocation not found" }); return; }
+  await db.delete(jobFinanceAllocationsTable).where(eq(jobFinanceAllocationsTable.id, allocationId));
+  await audit(ctx.companyId, ctx.userId, "finance_allocation", allocationId, "deleted", before);
+  res.status(204).send();
+});
 router.post("/enquiries/:id/convert-to-job", requireAuth, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   const enquiryId = Number(req.params.id);

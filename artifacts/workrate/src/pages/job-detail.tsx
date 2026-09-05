@@ -8,13 +8,17 @@ import {
   useListInvoices,
   useCreateInvoice,
   useSendInvoice,
+  useGetJobEvidenceSummary,
   getGetEnquiryQueryKey,
-  getGetJobQueryKey,
   getGetQuoteQueryKey,
   getListEnquiryAttachmentsQueryKey,
   getListInvoicesQueryKey,
+  getGetJobEvidenceSummaryQueryKey,
 } from "@workspace/api-client-react";
 import { JobTimeline } from "@/components/activity-timeline";
+import { JobEvidenceSection } from "@/components/job-evidence-section";
+import { JobFinanceAllocations } from "@/components/job-finance-allocations";
+import { MaterialsLibrary } from "@/components/materials-library";
 import { useParams, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,6 +60,7 @@ import {
   AlertCircle,
   Plus,
   Send,
+  Package,
 } from "lucide-react";
 import {
   Select,
@@ -114,6 +119,9 @@ export default function JobDetail() {
   });
   const { data: invoices = [], isLoading: invoicesLoading } = useListInvoices({
     query: { queryKey: getListInvoicesQueryKey() },
+  });
+  const { data: evidenceSummary } = useGetJobEvidenceSummary(id, {
+    query: { enabled: !!id, queryKey: getGetJobEvidenceSummaryQueryKey(id) },
   });
   const createInvoice = useCreateInvoice();
   const sendInvoice = useSendInvoice();
@@ -1016,6 +1024,44 @@ export default function JobDetail() {
               </CardContent>
             </Card>
           )}
+
+          {/* ── Job Evidence & Finance Allocations (always visible) ──────── */}
+          <Card className="shadow-sm border-border/60 rounded-2xl">
+            <div className="px-5 py-4 border-b border-border/60">
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <ClipboardList className="w-4 h-4 text-muted-foreground" /> Cost Evidence
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Capture individual labour, material, and direct cost rows — or link finance records.
+                Evidence is optional and can be added at any stage, before or after completion.
+                Never visible on customer or public pages.
+              </p>
+            </div>
+            <CardContent className="p-5 space-y-6">
+              <JobEvidenceSection
+                jobId={id}
+                summary={evidenceSummary as any ?? null}
+              />
+              <div className="pt-4 border-t border-border/40">
+                <JobFinanceAllocations jobId={id} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── Materials Library (always visible — private, not on customer pages) ── */}
+          <Card className="shadow-sm border-border/60 rounded-2xl">
+            <div className="px-5 py-4 border-b border-border/60">
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <Package className="w-4 h-4 text-muted-foreground" /> Materials Library
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Private company catalogue — search, create, and track price history. Never visible to customers.
+              </p>
+            </div>
+            <CardContent className="p-5">
+              <MaterialsLibrary />
+            </CardContent>
+          </Card>
 
           {/* Photos from enquiry */}
           {attachments && attachments.length > 0 && (

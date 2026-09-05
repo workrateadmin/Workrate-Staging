@@ -13,25 +13,23 @@ import Dashboard from "./pages/dashboard";
 import Enquiries from "./pages/enquiries";
 import EnquiryDetail from "./pages/enquiry-detail";
 import QuoteEditor from "./pages/quote-editor";
+import QuotesPage from "./pages/quotes";
 import Jobs from "./pages/jobs";
 import JobDetail from "./pages/job-detail";
 import Schedule from "./pages/schedule";
 import AiReceptionist from "./pages/ai-receptionist";
-import Settings from "./pages/settings";
 import WidgetPage from "./pages/widget";
 import IntegrationsPage from "./pages/integrations";
 import ProposalPage from "./pages/proposal";
 import NotFound from "./pages/not-found";
-import DiagnosticsPage from "./pages/diagnostics";
 import InvoicesPage from "./pages/invoices";
 import InvoiceEditor from "./pages/invoice-editor";
 import FinancePage from "./pages/finance";
 import { DevBanner } from "@/components/dev-banner";
 import OnboardingPage from "./pages/onboarding";
-import BillingPage from "./pages/settings/billing";
 import InternalProductPricingPage from "./pages/internal/product-pricing";
 
-// Integration detail pages
+// ── Integration detail pages ──────────────────────────────────────────────────
 import WebsiteWidgetPage from "./pages/integrations/website-widget";
 import PhonePage from "./pages/integrations/phone";
 import WhatsAppPage from "./pages/integrations/whatsapp";
@@ -42,6 +40,16 @@ import EmailIntegrationPage from "./pages/integrations/email-integration";
 import XeroPage from "./pages/integrations/xero";
 import QuickBooksPage from "./pages/integrations/quickbooks";
 import StripePage from "./pages/integrations/stripe";
+
+// ── New settings pages ────────────────────────────────────────────────────────
+import SettingsLanding from "./pages/settings/index";
+import BusinessSettingsPage from "./pages/settings/business";
+import SettingsIntegrationsPage from "./pages/settings/integrations";
+import SettingsAiReceptionistPage from "./pages/settings/integrations/ai-receptionist";
+import SettingsBillingWrapper from "./pages/settings/billing-wrapper";
+import AccountSettingsPage from "./pages/settings/account";
+import AdvancedSettingsPage from "./pages/settings/advanced";
+import SettingsDiagnosticsWrapper from "./pages/settings/diagnostics-wrapper";
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -112,10 +120,6 @@ const clerkAppearance = {
   },
 };
 
-/**
- * Business sign-in page.
- * Shown when a business owner navigates to /sign-in.
- */
 function SignInPage() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 px-4">
@@ -160,14 +164,6 @@ function SignUpPage() {
   );
 }
 
-/**
- * Home route:
- * - Always renders the public landing page immediately (no blank-page flash).
- * - Once Clerk resolves, signed-in business owners are redirected to /dashboard.
- *
- * Rendering unconditionally means buttons are interactive from the first paint,
- * even while Clerk is still initialising in the background.
- */
 function HomeRedirect() {
   const { isSignedIn, isLoaded } = useAuth();
   const [, navigate] = useLocation();
@@ -178,15 +174,9 @@ function HomeRedirect() {
     }
   }, [isLoaded, isSignedIn, navigate]);
 
-  // Always show the landing page. Signed-in users are redirected by the effect above.
   return <LandingPage />;
 }
 
-/**
- * Onboarding route — protected (must be signed in) but renders without AppLayout shell.
- * New sign-ups are redirected here; existing users with completed onboarding are
- * redirected to /dashboard from within the OnboardingPage itself.
- */
 function OnboardingProtectedRoute() {
   const { isSignedIn, isLoaded } = useAuth();
   const [, navigate] = useLocation();
@@ -214,17 +204,12 @@ function ProtectedRoute({ component: Component }: { component: any }) {
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Cancel any pending redirect first
     if (redirectTimerRef.current) {
       clearTimeout(redirectTimerRef.current);
       redirectTimerRef.current = null;
     }
 
     if (isLoaded && !isSignedIn) {
-      // Brief grace period before redirecting — Clerk calls routerReplace()
-      // before its isSignedIn state has propagated through the React context,
-      // so a synchronous redirect here fires too early and ejects an
-      // already-authenticated user back to the sign-in page.
       redirectTimerRef.current = setTimeout(() => navigate("/sign-in"), 300);
     }
 
@@ -307,20 +292,26 @@ function ClerkProviderWithRoutes() {
           <Route path="/dashboard"><ProtectedRoute component={Dashboard} /></Route>
           <Route path="/enquiries"><ProtectedRoute component={Enquiries} /></Route>
           <Route path="/enquiries/:id"><ProtectedRoute component={EnquiryDetail} /></Route>
+          <Route path="/quotes"><ProtectedRoute component={QuotesPage} /></Route>
           <Route path="/quotes/:id"><ProtectedRoute component={QuoteEditor} /></Route>
           <Route path="/jobs"><ProtectedRoute component={Jobs} /></Route>
           <Route path="/jobs/:id"><ProtectedRoute component={JobDetail} /></Route>
           <Route path="/schedule"><ProtectedRoute component={Schedule} /></Route>
-          <Route path="/ai-receptionist"><ProtectedRoute component={AiReceptionist} /></Route>
-          <Route path="/integrations"><ProtectedRoute component={IntegrationsPage} /></Route>
-          <Route path="/settings/billing"><ProtectedRoute component={BillingPage} /></Route>
-          <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
-          <Route path="/diagnostics"><ProtectedRoute component={DiagnosticsPage} /></Route>
           <Route path="/invoices"><ProtectedRoute component={InvoicesPage} /></Route>
           <Route path="/invoices/:id"><ProtectedRoute component={InvoiceEditor} /></Route>
           <Route path="/finance"><ProtectedRoute component={FinancePage} /></Route>
 
-          {/* Integration detail pages */}
+          {/* ── Settings: category landing ── */}
+          <Route path="/settings"><ProtectedRoute component={SettingsLanding} /></Route>
+          <Route path="/settings/business"><ProtectedRoute component={BusinessSettingsPage} /></Route>
+          <Route path="/settings/integrations"><ProtectedRoute component={SettingsIntegrationsPage} /></Route>
+          <Route path="/settings/integrations/ai-receptionist"><ProtectedRoute component={SettingsAiReceptionistPage} /></Route>
+          <Route path="/settings/billing"><ProtectedRoute component={SettingsBillingWrapper} /></Route>
+          <Route path="/settings/account"><ProtectedRoute component={AccountSettingsPage} /></Route>
+          <Route path="/settings/advanced"><ProtectedRoute component={AdvancedSettingsPage} /></Route>
+          <Route path="/settings/advanced/diagnostics"><ProtectedRoute component={SettingsDiagnosticsWrapper} /></Route>
+
+          {/* Integration detail pages — canonical at /settings/integrations/* */}
           <Route path="/settings/integrations/website-widget"><ProtectedRoute component={WebsiteWidgetPage} /></Route>
           <Route path="/settings/integrations/phone"><ProtectedRoute component={PhonePage} /></Route>
           <Route path="/settings/integrations/whatsapp"><ProtectedRoute component={WhatsAppPage} /></Route>
@@ -332,6 +323,20 @@ function ClerkProviderWithRoutes() {
           <Route path="/settings/integrations/quickbooks"><ProtectedRoute component={QuickBooksPage} /></Route>
           <Route path="/settings/integrations/stripe"><ProtectedRoute component={StripePage} /></Route>
 
+          {/* ── Old route compatibility redirects ── */}
+          {/* /ai-receptionist → /settings/integrations/ai-receptionist */}
+          <Route path="/ai-receptionist">
+            <Redirect to="/settings/integrations/ai-receptionist" />
+          </Route>
+          {/* /integrations → /settings/integrations */}
+          <Route path="/integrations">
+            <Redirect to="/settings/integrations" />
+          </Route>
+          {/* /diagnostics → canonical path is /settings/advanced/diagnostics */}
+          <Route path="/diagnostics">
+            <Redirect to="/settings/advanced/diagnostics" />
+          </Route>
+
           {/* ── Internal admin (never in customer navigation) ── */}
           <Route path="/internal/product-pricing"><ProtectedRoute component={InternalProductPricingPage} /></Route>
 
@@ -342,11 +347,6 @@ function ClerkProviderWithRoutes() {
   );
 }
 
-/**
- * Invalidates all React Query caches when the home-screen PWA is foregrounded.
- * This ensures stale enquiry data from a backgrounded session is always
- * refreshed when the user returns to the app — satisfying requirement F.
- */
 function VisibilityRefresher() {
   const qc = useQueryClient();
   useEffect(() => {

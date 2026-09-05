@@ -1,0 +1,614 @@
+WORKRATE — BUILD ACTUAL JOB EVIDENCE + STRUCTURED COST CAPTURE FOUNDATION
+
+GOAL:
+Strengthen WorkRate’s completed-job data collection so every finished job can build a trustworthy private Cost Intelligence dataset for that business.
+
+IMPORTANT:
+Do NOT build automatic AI pricing recommendations yet.
+Do NOT invent material quantities, labour hours, waste, margins, or job costs.
+Do NOT pool one business’s pricing history with another business.
+
+This task is about:
+- capturing actual job evidence
+- structuring it cleanly
+- linking evidence to jobs
+- preserving source/provenance
+- preparing WorkRate for future accurate pricing intelligence
+
+Reuse the existing:
+- Jobs
+- Job Completion / Actual Costs
+- Finance
+- Receipts
+- Expenses
+- GCS document storage
+- Cost Intelligence
+- tenant isolation
+- audit/provenance patterns
+
+==================================================
+1. ACTUAL JOB DATA MODEL
+==================================================
+
+Extend the existing completed-job / actual-cost model rather than replacing it.
+
+A completed job should be able to hold:
+
+FINANCIAL
+- original quoted amount
+- final amount charged
+- variations
+- discounts where supported
+- actual material cost
+- actual labour cost
+- other direct job costs
+- gross profit
+- gross margin
+
+LABOUR
+- estimated labour hours
+- actual labour hours
+- labour entries by person/date where available
+- labour cost
+- installation/site hours where useful
+
+MATERIALS
+- material/product name
+- supplier
+- quantity
+- unit
+- unit cost
+- total cost
+- waste quantity / waste percentage where known
+- linked receipt/supplier invoice
+- notes/specification
+
+PRODUCTION / BUILD DATA
+- components
+- BOM items
+- cutting list items
+- drawings
+- job sheets
+- production documents
+
+OUTCOME
+- completed date
+- completion notes
+- issues/problems
+- rework
+- variations
+- completion photos
+
+==================================================
+2. EVIDENCE-FIRST PRINCIPLE
+==================================================
+
+Every important actual-cost data point should support provenance.
+
+Example:
+
+Material:
+18mm MR MDF
+Quantity: 12 sheets
+Total cost: £486
+
+Source:
+Supplier receipt R-104
+Confirmed by user
+Linked to Job J-204
+
+Store where practical:
+
+- source type
+- source document ID
+- source expense/receipt ID
+- extraction method
+- confidence if AI extracted
+- confirmed/corrected by user
+- confirmation timestamp
+
+Do not silently convert AI suggestions into trusted actual-cost data.
+
+==================================================
+3. RECEIPTS / SUPPLIER DOCUMENTS
+==================================================
+
+Reuse existing private GCS Finance storage.
+
+Allow receipts, supplier invoices and related documents to be linked to a Job.
+
+If Finance already links receipts/expenses to jobs:
+reuse that relationship.
+
+Do not create duplicate files.
+
+A linked receipt should be usable as evidence for:
+- material purchase
+- supplier
+- amount
+- VAT where supported
+- date
+
+But do NOT assume the entire receipt belongs to one job if line-level attribution has not been confirmed.
+
+==================================================
+4. RECEIPT LINE ITEMS
+==================================================
+
+Where receipt/invoice extraction supports it, introduce structured line items.
+
+Each extracted line item may include:
+
+- description
+- quantity
+- unit
+- unit price
+- total
+- VAT/tax where available
+- supplier product code where available
+- confidence
+- linked material record
+- linked job
+- confirmed status
+
+AI extraction is suggestion-only.
+
+Allow user to:
+- confirm
+- correct
+- ignore
+- split between jobs
+where practical.
+
+==================================================
+5. MATERIAL LIBRARY FOUNDATION
+==================================================
+
+Create or extend a private per-business Material / Product library.
+
+Do NOT create a global shared pricing database across tenants.
+
+Each business can gradually build its own library from confirmed job evidence.
+
+Material record should support:
+
+- name
+- category
+- supplier
+- supplier SKU/code
+- unit
+- most recent confirmed cost
+- historical confirmed costs
+- specification/attributes
+- trade-specific attributes
+- source/provenance
+
+Example:
+18mm MR MDF
+Supplier: ABC Timber
+Unit: sheet
+2400x1200
+Most recent confirmed cost: £XX
+Source: supplier invoice...
+
+==================================================
+6. TRADE-SPECIFIC ATTRIBUTES
+==================================================
+
+Use a universal core plus extensible attributes.
+
+Universal core:
+
+- material
+- quantity
+- unit
+- cost
+- supplier
+- component
+- labour
+- document
+
+Then allow trade-specific attributes.
+
+For timber/joinery specifically:
+
+Keep separate:
+
+- nominal / sawn dimensions
+- finished / planed dimensions
+
+Never assume they are interchangeable.
+
+Example:
+
+Nominal:
+50 x 100mm
+
+Finished:
+44 x 94mm
+
+Do not hardcode joinery as the only trade.
+
+Other trades must be able to add relevant specifications without changing the universal core model.
+
+==================================================
+7. COMPONENTS / BOM
+==================================================
+
+Add a structured Job BOM / Components area.
+
+A component can reference:
+
+- component name
+- quantity
+- material/product
+- dimensions/specification
+- unit
+- estimated quantity
+- actual quantity
+- estimated cost
+- actual cost
+- waste
+- notes
+
+Examples across trades:
+
+Joinery:
+Cabinet carcass
+Door
+Drawer
+Worktop
+
+Electrical:
+Socket
+Cable run
+Consumer-unit component
+
+Plumbing:
+Valve
+Pipe fitting
+Sanitary item
+
+Do not force all trades into joinery terminology.
+
+==================================================
+8. CUTTING LISTS / PRODUCTION DOCUMENTS
+==================================================
+
+Allow jobs to store structured or uploaded:
+
+- cutting lists
+- BOMs
+- supplier order lists
+- drawings
+- production sheets
+- job sheets
+
+Preserve original uploaded documents privately in GCS.
+
+If AI later extracts structured information:
+store that separately with provenance.
+
+Never overwrite/delete the source document after extraction.
+
+==================================================
+9. ACTUAL VS ESTIMATED
+==================================================
+
+Preserve both estimated and actual values.
+
+Never overwrite quote estimates with completed-job actuals.
+
+Examples:
+
+Estimated labour:
+32 hours
+
+Actual labour:
+41.5 hours
+
+Estimated material:
+£1,200
+
+Actual material:
+£1,438
+
+Then calculate:
+
+- labour variance
+- material variance
+- total cost variance
+- final selling-price variance
+- gross profit
+- gross margin
+
+Reuse existing calculations where they already exist.
+
+==================================================
+10. JOB COMPLETION WORKFLOW
+==================================================
+
+Improve Job Completion so WorkRate prompts for missing actual evidence.
+
+Suggested completion sections:
+
+A. Job outcome
+B. Final selling price / variations
+C. Labour
+D. Materials
+E. Receipts / supplier documents
+F. BOM / production documents
+G. Completion photos
+H. Review actual vs quoted
+
+Do NOT make every field mandatory.
+
+Use clear states:
+
+Complete
+Partially complete
+Missing evidence
+
+The tradesperson should still be able to finish a job without filling in every optional data point.
+
+==================================================
+11. DATA QUALITY SCORE
+==================================================
+
+Add a simple internal/job-level data-completeness indicator.
+
+Example:
+
+Cost Intelligence readiness:
+82%
+
+Possible factors:
+
+- final price confirmed
+- actual labour recorded
+- actual materials recorded
+- receipts linked
+- materials confirmed
+- BOM/cutting list present
+- variations recorded
+
+Do not pretend this is AI confidence.
+
+It is simply data completeness/readiness.
+
+==================================================
+12. COST INTELLIGENCE ELIGIBILITY
+==================================================
+
+Mark completed jobs as:
+
+- not ready
+- partially ready
+- ready for Cost Intelligence
+
+Do not exclude incomplete jobs from normal WorkRate use.
+
+The future pricing engine should prefer confirmed, evidence-backed jobs over sparse historical data.
+
+==================================================
+13. PRIVATE BUSINESS INTELLIGENCE
+==================================================
+
+CRITICAL:
+
+All materials, historical costs, labour data, BOMs, pricing outcomes and Cost Intelligence remain tenant scoped.
+
+Do NOT:
+
+- expose Business A's job data to Business B
+- use another business's exact pricing history for recommendations
+- create a cross-tenant shared pricing catalog
+
+Future benchmarking, if ever implemented, must be a separate explicitly designed/legalized feature.
+
+==================================================
+14. DOCUMENT SECURITY
+==================================================
+
+Confirm:
+
+- original receipts/documents remain private
+- authorized download/view only
+- tenant ownership enforced
+- signed/private access pattern used
+- no public GCS object URLs
+- duplicate detection preserved
+- uploaded documents are not executable
+- content type/size validation remains in place
+
+==================================================
+15. AUDIT / PROVENANCE
+==================================================
+
+For important corrections and confirmations record where practical:
+
+- original AI-extracted value
+- corrected value
+- who confirmed/corrected it
+- timestamp
+- source document
+
+Do not create unnecessary audit noise for every UI click.
+
+==================================================
+16. SEARCH / REUSE
+==================================================
+
+When adding a new material to a job:
+
+allow search/reuse from that business’s own confirmed Material library.
+
+Example:
+
+User types:
+"18mm MR MDF"
+
+WorkRate can suggest:
+"18mm MR MDF — ABC Timber — last confirmed £XX/sheet"
+
+But require user confirmation before treating a historical price as the current job’s actual cost.
+
+==================================================
+17. FUTURE PRICING ENGINE PREPARATION
+==================================================
+
+Design the data so future WorkRate intelligence can answer questions such as:
+
+- What did similar jobs actually cost?
+- What labour hours were originally estimated vs actual?
+- Which materials frequently exceed estimate?
+- What was the average real margin on this job type?
+- What suppliers/material prices changed over time?
+- What quantity/waste was typical?
+
+Do NOT implement those AI recommendations in this task.
+
+==================================================
+18. PERFORMANCE
+==================================================
+
+Avoid loading every historical material/document record on every Job Detail request.
+
+Use:
+- pagination
+- search
+- indexed job relationships
+- efficient summaries
+
+where appropriate.
+
+==================================================
+19. EXISTING DATA
+==================================================
+
+Do not fabricate historical detail for old jobs.
+
+Reuse existing:
+
+- actual costs
+- linked receipts
+- completion data
+- invoices
+- documents
+
+where relationships are safe.
+
+If an old job only has:
+actual_materials_cost = £1,200
+
+keep that valid.
+
+Do not invent the individual materials that made up the £1,200.
+
+==================================================
+20. SECURITY / TENANT TESTS
+==================================================
+
+Test:
+
+- cross-tenant receipt link rejected
+- cross-tenant material access rejected
+- cross-tenant BOM access rejected
+- document access authorized
+- customer/public proposal routes cannot access internal evidence
+- AI-extracted suggestions cannot become trusted without confirmation where required
+
+==================================================
+21. FUNCTIONAL TESTS
+==================================================
+
+Test:
+
+JOB A
+- quote estimate
+- receipt upload
+- line-item confirmation
+- material linked
+- labour recorded
+- final amount
+- completion
+- actual vs estimated calculated
+
+JOB B
+- completed with only basic actual totals
+- remains valid
+- shows partial Cost Intelligence readiness
+
+MATERIAL
+- historical cost preserved
+- new confirmed supplier price appended
+- previous cost not overwritten/lost
+
+DOCUMENT
+- source original remains preserved
+- extracted structured data updates separately
+
+==================================================
+22. FIRST INSPECT
+==================================================
+
+Before coding, inspect and report briefly:
+
+A. existing Job Completion/Actual Costs schema
+B. existing Finance receipt/expense relationships
+C. existing GCS document architecture
+D. existing Cost Intelligence schema/services
+E. current receipt AI extraction fields
+F. existing material/component/BOM structures if any
+G. migrations required
+
+Then extend the existing architecture.
+
+Do not create competing job-cost systems.
+
+==================================================
+23. DO NOT OVERBUILD
+==================================================
+
+Do not build:
+
+- automatic job pricing
+- cross-business benchmarking
+- supplier price scraping
+- purchase ordering
+- inventory management
+- payroll
+- full manufacturing ERP
+
+This task is:
+
+ACTUAL JOB EVIDENCE
++
+STRUCTURED MATERIAL/LABOUR DATA
++
+DOCUMENT PROVENANCE
++
+COST INTELLIGENCE DATA FOUNDATION
+
+==================================================
+24. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. existing systems reused
+B. schema/data structures added
+C. receipt/document linking
+D. material library behavior
+E. BOM/components behavior
+F. labour capture
+G. job completion changes
+H. actual-vs-estimated calculations
+I. Cost Intelligence readiness behavior
+J. provenance/audit behavior
+K. security/tenant protections
+L. tests passed
+M. any historical data that cannot be safely structured
+N. whether ONE publish is required
+
+Do not publish automatically.

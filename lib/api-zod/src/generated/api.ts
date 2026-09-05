@@ -3098,3 +3098,143 @@ export const SimulateBillingStateResponse = zod.object({
   "cancelledAt": zod.coerce.date().nullable(),
   "failedPaymentAt": zod.coerce.date().nullable()
 })
+
+
+/**
+ * @summary Get private job actual-cost evidence summary
+ */
+export const GetJobEvidenceSummaryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetJobEvidenceSummaryResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListJobEvidenceParams = zod.object({
+  "id": zod.coerce.number(),
+  "kind": zod.coerce.string()
+})
+
+export const ListJobEvidenceQueryParams = zod.object({
+  "limit": zod.coerce.number().optional(),
+  "offset": zod.coerce.number().optional()
+})
+
+export const ListJobEvidenceResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "limit": zod.number(),
+  "offset": zod.number()
+})
+
+
+export const CreateJobEvidenceParams = zod.object({
+  "id": zod.coerce.number(),
+  "kind": zod.coerce.string()
+})
+
+export const CreateJobEvidenceBody = zod.record(zod.string(), zod.unknown())
+
+export const CreateJobEvidenceResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const UpdateJobEvidenceParams = zod.object({
+  "id": zod.coerce.number(),
+  "kind": zod.coerce.string(),
+  "rowId": zod.coerce.number()
+})
+
+export const UpdateJobEvidenceBody = zod.record(zod.string(), zod.unknown())
+
+export const UpdateJobEvidenceResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ActionJobEvidenceParams = zod.object({
+  "id": zod.coerce.number(),
+  "kind": zod.coerce.string(),
+  "rowId": zod.coerce.number(),
+  "action": zod.enum(['confirm', 'ignore'])
+})
+
+export const ActionJobEvidenceResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListMaterialsQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().optional(),
+  "offset": zod.coerce.number().optional()
+})
+
+export const ListMaterialsResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "limit": zod.number(),
+  "offset": zod.number()
+})
+
+
+export const CreateMaterialBody = zod.object({
+  "name": zod.string(),
+  "category": zod.string().optional(),
+  "supplierName": zod.string().optional(),
+  "supplierSku": zod.string().optional(),
+  "unit": zod.string().optional(),
+  "attributes": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+export const CreateMaterialResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListMaterialCostHistoryParams = zod.object({
+  "materialId": zod.coerce.number()
+})
+
+export const ListMaterialCostHistoryResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+
+export const UpdateMaterialParams = zod.object({
+  "materialId": zod.coerce.number()
+})
+
+export const UpdateMaterialBody = zod.record(zod.string(), zod.unknown())
+
+export const UpdateMaterialResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListJobFinanceAllocationsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListJobFinanceAllocationsResponseItem = zod.record(zod.string(), zod.unknown())
+export const ListJobFinanceAllocationsResponse = zod.array(ListJobFinanceAllocationsResponseItem)
+
+
+export const CreateJobFinanceAllocationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const createJobFinanceAllocationBodyAllocatedAmountMin = 0;
+
+export const createJobFinanceAllocationBodyAllocatedQuantityMin = 0;
+
+
+
+export const CreateJobFinanceAllocationBody = zod.object({
+  "receiptId": zod.number().optional(),
+  "expenseId": zod.number().optional(),
+  "allocatedAmount": zod.number().min(createJobFinanceAllocationBodyAllocatedAmountMin),
+  "allocatedQuantity": zod.number().min(createJobFinanceAllocationBodyAllocatedQuantityMin).optional(),
+  "unit": zod.string().optional(),
+  "receiptLineReference": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const CreateJobFinanceAllocationResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const DeleteJobFinanceAllocationParams = zod.object({
+  "id": zod.coerce.number(),
+  "allocationId": zod.coerce.number()
+})
+
+export const DeleteJobFinanceAllocationResponse = zod.void()
