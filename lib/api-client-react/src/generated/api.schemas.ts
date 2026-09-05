@@ -192,9 +192,45 @@ export interface InternalBillingCatalogItem {
   updatedByUserId: string | null;
 }
 
+export type InternalReceptionistTopUpPackCurrency = typeof InternalReceptionistTopUpPackCurrency[keyof typeof InternalReceptionistTopUpPackCurrency];
+
+
+export const InternalReceptionistTopUpPackCurrency = {
+  gbp: 'gbp',
+} as const;
+
+export type InternalReceptionistTopUpPackExpiryPolicy = typeof InternalReceptionistTopUpPackExpiryPolicy[keyof typeof InternalReceptionistTopUpPackExpiryPolicy];
+
+
+export const InternalReceptionistTopUpPackExpiryPolicy = {
+  period_end: 'period_end',
+} as const;
+
+export interface InternalReceptionistTopUpPack {
+  id: number;
+  code: string;
+  name: string;
+  minutes: number;
+  /** @nullable */
+  customerPriceGbp: number | null;
+  currency: InternalReceptionistTopUpPackCurrency;
+  expiryPolicy: InternalReceptionistTopUpPackExpiryPolicy;
+  active: boolean;
+  sortOrder: number;
+  /** @nullable */
+  stripeProductId: string | null;
+  /** @nullable */
+  stripePriceId: string | null;
+  /** @nullable */
+  stripeMappingValidatedAt: string | null;
+  /** @nullable */
+  updatedByUserId: string | null;
+}
+
 export interface InternalBillingCatalog {
   plans: InternalBillingCatalogItem[];
   addOns: InternalBillingCatalogItem[];
+  receptionistTopUpPacks: InternalReceptionistTopUpPack[];
 }
 
 export interface BillingOverview {
@@ -292,10 +328,27 @@ export type UsageOverviewEventsItem = {
   percentageUsed: number | null;
 };
 
+/**
+ * @nullable
+ */
+export type UsageOverviewAiReceptionist = {
+  includedMinutes: number;
+  topUpMinutes: number;
+  effectiveMinutes: number;
+  usedMinutes: number;
+  remainingMinutes: number;
+  /** @nullable */
+  percentageUsed: number | null;
+  periodStartsAt: string;
+  periodEndsAt: string;
+} | null;
+
 export interface UsageOverview {
   /** @nullable */
   period: UsageOverviewPeriod;
   events: UsageOverviewEventsItem[];
+  /** @nullable */
+  aiReceptionist: UsageOverviewAiReceptionist;
 }
 
 export type BillingSimulationInputStatus = typeof BillingSimulationInputStatus[keyof typeof BillingSimulationInputStatus];
@@ -320,6 +373,65 @@ export interface BillingSimulationInput {
   status: BillingSimulationInputStatus;
   planCode: BillingSimulationInputPlanCode;
   addOnCodes: string[];
+}
+
+export interface ReceptionistTopUpCheckoutInput {
+  packCode: string;
+}
+
+export interface ReceptionistTopUpCheckout {
+  ok: true;
+  url: string;
+  purchaseId: number;
+}
+
+export type ReceptionistTopUpPackExpiryPolicy = typeof ReceptionistTopUpPackExpiryPolicy[keyof typeof ReceptionistTopUpPackExpiryPolicy];
+
+
+export const ReceptionistTopUpPackExpiryPolicy = {
+  period_end: 'period_end',
+} as const;
+
+export interface ReceptionistTopUpPack {
+  code: string;
+  name: string;
+  minutes: number;
+  /** @nullable */
+  customerPriceGbp: number | null;
+  currency: string;
+  expiryPolicy: ReceptionistTopUpPackExpiryPolicy;
+  active: boolean;
+  sortOrder: number;
+  purchasable: boolean;
+  /** @nullable */
+  configurationMessage: string | null;
+}
+
+export interface ReceptionistTopUpPackList {
+  packs: ReceptionistTopUpPack[];
+}
+
+export type InternalReceptionistTopUpPackUpdateExpiryPolicy = typeof InternalReceptionistTopUpPackUpdateExpiryPolicy[keyof typeof InternalReceptionistTopUpPackUpdateExpiryPolicy];
+
+
+export const InternalReceptionistTopUpPackUpdateExpiryPolicy = {
+  period_end: 'period_end',
+} as const;
+
+export interface InternalReceptionistTopUpPackUpdate {
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  customerPriceGbp?: number | null;
+  active?: boolean;
+  /** @minimum 0 */
+  sortOrder?: number;
+  expiryPolicy?: InternalReceptionistTopUpPackUpdateExpiryPolicy;
+  /** @nullable */
+  stripeProductId?: string | null;
+  /** @nullable */
+  stripePriceId?: string | null;
 }
 
 export interface HealthStatus {

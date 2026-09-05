@@ -25,10 +25,16 @@ import {
   useGetInternalBillingCatalog,
   useUpdateInternalBillingCatalogItem,
   useValidateInternalBillingCatalogMapping,
+  useUpdateInternalReceptionistTopUpPack,
+  useValidateInternalReceptionistTopUpPackMapping,
   getGetInternalBillingCatalogQueryKey,
   getGetBillingCatalogQueryKey,
+  getGetReceptionistTopUpPacksQueryKey,
 } from "@workspace/api-client-react";
-import type { InternalBillingCatalog } from "@workspace/api-client-react";
+import type {
+  InternalBillingCatalog,
+  InternalReceptionistTopUpPack,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +46,7 @@ import { cn } from "@/lib/utils";
 import {
   ShieldOff, ChevronDown, ChevronUp, Save, AlertCircle,
   Check, Loader2, RefreshCw, ShieldCheck, ShieldAlert,
+  Phone,
 } from "lucide-react";
 
 // ─── Type helpers ─────────────────────────────────────────────────────────────
@@ -802,6 +809,434 @@ function CatalogItemCard({
   );
 }
 
+// ─── Receptionist top-up packs (editable admin) ───────────────────────────────
+
+/**
+ * The only server validation error we surface verbatim is the neutral
+ * "Billing configuration required." string. Anything else may leak connector
+ * detail so we replace it with a safe generic.
+ */
+function safeTopUpValidationError(err: unknown): string {
+  const raw =
+    (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+    (err as { message?: string })?.message ??
+    "";
+  if (typeof raw === "string" && raw.trim() === "Billing configuration required.") {
+    return "Stripe mapping could not be verified — check the product ID, price ID, and customer price, then try again.";
+  }
+  return "Validation failed. The stored mapping could not be verified. Review the configuration and try again.";
+}
+
+/**
+ * Read the validated-at timestamp permissively from an InternalReceptionistTopUpPack
+ * or any unknown shape returned by the API.
+ */
+function readTopUpValidatedAt(item: unknown): string | null {
+  const v = (item as { stripeMappingValidatedAt?: string | null } | null | undefined)
+    ?.stripeMappingValidatedAt;
+  return v ?? null;
+}
+
+function ReceptionistPacksAdminSection({
+  packs,
+  isLoading,
+}: {
+  packs: InternalReceptionistTopUpPack[];
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-20 rounded-xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (packs.length === 0) {
+    return (
+      <div className="rounded-xl border border-border/40 bg-secondary/20 p-6 text-center">
+        <Phone className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+        <p className="text-sm font-semibold text-muted-foreground">No top-up packs found.</p>
+        <p className="text-xs text-muted-foreground mt-1">Packs are added server-side.</p>
+      </div>
+    );
+  }
+
+  const sortedPacks = [...packs].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  return (
+    <div className="space-y-3">
+      {sortedPacks.map((pack) => (
+        <TopUpPackEditorCard key={pack.code} pack={pack} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Editable top-up pack card ────────────────────────────────────────────────
+
+function TopUpPackEditorCard({ pack }: { pack: InternalReceptionistTopUpPack }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const updatePack = useUpdateInternalReceptionistTopUpPack();
+  const validateMapping = useValidateInternalReceptionistTopUpPackMapping();
+
+  const [open, setOpen] = useState(false);
+
+  // ── Local form state — initialised from InternalReceptionistTopUpPack which
+  //    already carries stripeProductId, stripePriceId, and stripeMappingValidatedAt
+  //    from the internal catalog endpoint. No need to wait for a save round-trip.
+  const [customerPrice, setCustomerPrice] = useState(
+    pack.customerPriceGbp != null ? String(pack.customerPriceGbp) : ""
+  );
+  const [active, setActive] = useState(pack.active);
+  const [sortOrder, setSortOrder] = useState(String(pack.sortOrder));
+  // expiryPolicy: only "period_end" is defined in the update enum
+  const [expiryPolicy] = useState<"period_end">("period_end");
+  const [stripeProductId, setStripeProductId] = useState(pack.stripeProductId ?? "");
+  const [stripePriceId, setStripePriceId] = useState(pack.stripePriceId ?? "");
+
+  // Validation timestamp — initialised from catalog row, then updated locally
+  // on save/validate so the UI reflects changes immediately without a refetch.
+  const [validatedAt, setValidatedAt] = useState<string | null>(
+    pack.stripeMappingValidatedAt ?? null
+  );
+
+  // After a successful save/validate we receive the updated InternalReceptionistTopUpPack
+  // which carries all Stripe fields. Apply it so the form stays in sync.
+  const applyServerResponse = useCallback((updated: InternalReceptionistTopUpPack) => {
+    setCustomerPrice(updated.customerPriceGbp != null ? String(updated.customerPriceGbp) : "");
+    setActive(updated.active);
+    setSortOrder(String(updated.sortOrder));
+    setStripeProductId(updated.stripeProductId ?? "");
+    setStripePriceId(updated.stripePriceId ?? "");
+    setValidatedAt(readTopUpValidatedAt(updated));
+  }, []);
+
+  // ── Save state ────────────────────────────────────────────────────────────
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "ok" | "error">("idle");
+  const [validateError, setValidateError] = useState<string | null>(null);
+
+  // ── Derived flags ─────────────────────────────────────────────────────────
+  const priceSet = customerPrice.trim() !== "";
+  const canValidate =
+    priceSet &&
+    stripeProductId.trim() !== "" &&
+    stripePriceId.trim() !== "";
+
+  // Header validation view
+  const headerValidationView: ValidationView = validatedAt
+    ? { kind: "validated", at: validatedAt }
+    : canValidate
+    ? { kind: "required" }
+    : { kind: "blocked", detail: !priceSet ? "No price" : "Missing Stripe IDs" };
+
+  const handleSave = useCallback(() => {
+    const priceVal = customerPrice.trim() === "" ? null : Number(customerPrice.trim());
+    const sortVal = parseInt(sortOrder, 10);
+
+    setSaveState("saving");
+    setValidateError(null);
+
+    updatePack.mutate(
+      {
+        code: pack.code,
+        data: {
+          customerPriceGbp: priceVal,
+          active,
+          sortOrder: isNaN(sortVal) ? 0 : sortVal,
+          expiryPolicy,
+          stripeProductId: stripeProductId.trim() || null,
+          stripePriceId: stripePriceId.trim() || null,
+        },
+      },
+      {
+        onSuccess: (updated) => {
+          setSaveState("ok");
+          setTimeout(() => setSaveState("idle"), 2500);
+          // Server clears stripeMappingValidatedAt whenever price/IDs change.
+          applyServerResponse(updated);
+          // Reload internal catalog so the list reflects updated data after save.
+          queryClient.invalidateQueries({ queryKey: getGetInternalBillingCatalogQueryKey() });
+          // Invalidate public customer pack list so purchasable/price changes propagate.
+          queryClient.invalidateQueries({ queryKey: getGetReceptionistTopUpPacksQueryKey() });
+        },
+        onError: (err: unknown) => {
+          setSaveState("error");
+          setTimeout(() => setSaveState("idle"), 3000);
+          const msg = (err as { message?: string })?.message ?? "Save failed";
+          toast({ title: `Save failed: ${msg}`, variant: "destructive" });
+        },
+      }
+    );
+  }, [
+    customerPrice, active, sortOrder, expiryPolicy,
+    stripeProductId, stripePriceId,
+    pack.code, updatePack, applyServerResponse, queryClient, toast,
+  ]);
+
+  const handleValidate = useCallback(() => {
+    setValidateError(null);
+    validateMapping.mutate(
+      { code: pack.code },
+      {
+        onSuccess: (updated) => {
+          applyServerResponse(updated);
+          toast({ title: "Stripe mapping validated" });
+          // Reload internal catalog for consistency, then public list for purchasable state.
+          queryClient.invalidateQueries({ queryKey: getGetInternalBillingCatalogQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetReceptionistTopUpPacksQueryKey() });
+        },
+        onError: (err: unknown) => {
+          const safe = safeTopUpValidationError(err);
+          setValidateError(safe);
+          toast({ title: "Validation failed", description: safe, variant: "destructive" });
+        },
+      }
+    );
+  }, [pack.code, validateMapping, applyServerResponse, queryClient, toast]);
+
+  const validating = validateMapping.isPending;
+  const saving = saveState === "saving";
+
+  return (
+    <Card className="shadow-sm border-border/60 rounded-xl overflow-hidden">
+      {/* ── Collapsible header ──────────────────────────────────────────── */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-secondary/30 transition-colors text-left"
+      >
+        <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-sm">{pack.name}</span>
+            <span className="text-[10px] text-muted-foreground font-mono bg-secondary px-1.5 py-0.5 rounded">
+              {pack.code}
+            </span>
+            <MappingStatusPill view={headerValidationView} />
+            {!active && (
+              <Badge variant="secondary" className="text-[10px]">Inactive</Badge>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-4 mt-1.5">
+            <span className="text-xs text-muted-foreground">
+              Minutes: <strong className="text-foreground">{pack.minutes.toLocaleString()}</strong>
+            </span>
+            {priceSet ? (
+              <span className="text-xs text-muted-foreground">
+                Price: <strong className="text-foreground">
+                  £{Number(customerPrice).toFixed(2)}
+                </strong>
+              </span>
+            ) : (
+              <span className="text-xs text-amber-600 font-medium">Price not set</span>
+            )}
+            {validatedAt && (
+              <span className="text-xs text-muted-foreground">
+                Validated: <strong className="text-foreground">{fmtTimestamp(validatedAt)}</strong>
+              </span>
+            )}
+          </div>
+        </div>
+        {open ? (
+          <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+        )}
+      </button>
+
+      {/* ── Editor body ─────────────────────────────────────────────────── */}
+      {open && (
+        <div className="border-t border-border/50 space-y-5 px-5 py-4">
+
+          {/* Validation status row */}
+          <div className="flex flex-wrap items-center gap-3">
+            <MappingStatusPill view={headerValidationView} />
+            {headerValidationView.kind === "validated" && (
+              <span className="text-xs text-muted-foreground">
+                Last validated{" "}
+                <strong className="text-foreground">{fmtTimestamp(validatedAt)}</strong>
+              </span>
+            )}
+            {headerValidationView.kind === "blocked" && (
+              <span className="text-xs text-muted-foreground">
+                {!priceSet ? "Set a customer price." : "Set both Stripe IDs to enable validation."}
+              </span>
+            )}
+          </div>
+
+          {/* ── Pricing ───────────────────────────────────────────────── */}
+          <PackSection title="Pricing">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <PackField label="Customer price (£)">
+                <Input
+                  value={customerPrice}
+                  onChange={(e) => setCustomerPrice(e.target.value)}
+                  placeholder="e.g. 9.99"
+                  className="h-8 text-sm"
+                />
+              </PackField>
+              <PackField label="Minutes (read-only)">
+                <Input
+                  value={pack.minutes.toLocaleString()}
+                  readOnly
+                  className="h-8 text-sm bg-secondary/40 cursor-default"
+                />
+              </PackField>
+              <PackField label="Currency (read-only)">
+                <Input
+                  value={pack.currency.toUpperCase()}
+                  readOnly
+                  className="h-8 text-sm bg-secondary/40 cursor-default"
+                />
+              </PackField>
+            </div>
+          </PackSection>
+
+          {/* ── Configuration ─────────────────────────────────────────── */}
+          <PackSection title="Configuration">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <PackField label="Sort order">
+                <Input
+                  type="number"
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </PackField>
+              <PackField label="Expiry policy (read-only)">
+                <Input
+                  value={expiryPolicy}
+                  readOnly
+                  className="h-8 text-sm font-mono bg-secondary/40 cursor-default"
+                />
+              </PackField>
+              <PackField label="">
+                <div className="flex items-center gap-3 mt-1">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={(e) => setActive(e.target.checked)}
+                      className="rounded border-border"
+                    />
+                    Active
+                  </label>
+                </div>
+              </PackField>
+            </div>
+          </PackSection>
+
+          {/* ── Stripe IDs ────────────────────────────────────────────── */}
+          <PackSection title="Stripe IDs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <PackField label="Product ID">
+                <Input
+                  value={stripeProductId}
+                  onChange={(e) => setStripeProductId(e.target.value)}
+                  placeholder="prod_..."
+                  className="h-8 text-sm font-mono"
+                />
+              </PackField>
+              <PackField label="One-time price ID">
+                <Input
+                  value={stripePriceId}
+                  onChange={(e) => setStripePriceId(e.target.value)}
+                  placeholder="price_..."
+                  className="h-8 text-sm font-mono"
+                />
+              </PackField>
+            </div>
+          </PackSection>
+
+          {/* ── Validate error (safe, no connector detail) ─────────────── */}
+          {validateError && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800 leading-relaxed">{validateError}</p>
+            </div>
+          )}
+
+          {/* ── Actions ───────────────────────────────────────────────── */}
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={saving || validating}
+              className="gap-2 font-bold"
+            >
+              {saving ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : saveState === "ok" ? (
+                <Check className="w-3.5 h-3.5" />
+              ) : (
+                <Save className="w-3.5 h-3.5" />
+              )}
+              {saving ? "Saving…" : saveState === "ok" ? "Saved" : "Save"}
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleValidate}
+              disabled={!canValidate || validating || saving}
+              className="gap-2 font-bold"
+              title={
+                !canValidate
+                  ? "Set a customer price and both Stripe IDs to enable validation."
+                  : undefined
+              }
+            >
+              {validating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <ShieldCheck className="w-3.5 h-3.5" />
+              )}
+              {validating ? "Validating…" : "Validate Stripe mapping"}
+            </Button>
+
+            {saveState === "error" && (
+              <span className="text-xs text-destructive font-medium">Save failed</span>
+            )}
+            {!canValidate && (
+              <span className="text-xs text-muted-foreground">
+                {!priceSet
+                  ? "Set a customer price to enable validation."
+                  : "Add both Stripe IDs to enable validation."}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─── Pack section / field layout helpers ──────────────────────────────────────
+
+function PackSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+function PackField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      {label && (
+        <label className="block text-xs font-semibold text-foreground mb-1">{label}</label>
+      )}
+      {children}
+    </div>
+  );
+}
+
 // ─── Section / Field helpers ──────────────────────────────────────────────────
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -910,6 +1345,7 @@ export default function InternalProductPricingPage() {
 
   const plans = catalog?.plans ?? [];
   const addOns = catalog?.addOns ?? [];
+  const receptionistTopUpPacks: InternalReceptionistTopUpPack[] = catalog?.receptionistTopUpPacks ?? [];
 
   return (
     <div className="max-w-4xl mx-auto px-4 pb-24 animate-in fade-in-0 duration-500">
@@ -957,7 +1393,7 @@ export default function InternalProductPricingPage() {
       </section>
 
       {/* Add-ons */}
-      <section>
+      <section className="mb-10">
         <h2 className="text-base font-black uppercase tracking-wide text-muted-foreground mb-4">
           Add-ons
         </h2>
@@ -975,6 +1411,22 @@ export default function InternalProductPricingPage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* AI Receptionist Top-up Packs */}
+      <section>
+        <div className="mb-4">
+          <h2 className="text-base font-black uppercase tracking-wide text-muted-foreground">
+            AI Receptionist Top-up Packs
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Edit pack prices, Stripe IDs, and configuration. Validate the Stripe mapping to make a pack purchasable by customers.
+          </p>
+        </div>
+        <ReceptionistPacksAdminSection
+          packs={receptionistTopUpPacks}
+          isLoading={isLoading}
+        />
       </section>
     </div>
   );

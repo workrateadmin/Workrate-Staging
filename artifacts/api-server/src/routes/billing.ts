@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import {
-  billingAddOnsTable, billingPlansTable, billingUsageEventsTable, companiesTable,
+  billingAddOnsTable, billingPlansTable, billingReceptionistTopUpPacksTable, billingReceptionistTopUpPurchasesTable, billingUsageEventsTable, companiesTable,
   companySubscriptionsTable, db, onboardingProgressTable,
 } from "@workspace/db";
 import {
@@ -14,10 +14,11 @@ import {
 import { billingProvider } from "../services/billing/provider";
 import { verifyCatalogPrice } from "../services/billing/provider";
 import { StripeApiClient } from "../services/billing/stripeClient";
-import { allowanceQuantity, providerCostForTenant, usageForTenant, usagePeriodForTenant } from "../services/billing/usage";
+import { allowanceQuantity, grantedReceptionistTopUpMinutes, providerCostForTenant, usageForTenant, usagePeriodForTenant } from "../services/billing/usage";
 import { tenantEntitlements } from "../services/billing/authorization";
 import { catalogAvailability, trialPriceGbp } from "../services/billing/pricing";
 import { isBillingAdmin } from "../services/billing/pricing";
+import { createReceptionistTopUpCheckout, listReceptionistTopUps, verifyTopUpPrice } from "../services/billing/topups";
 import { z } from "zod/v4";
 
 const router: IRouter = Router();
@@ -67,12 +68,38 @@ function normalizeInternalCatalogItem(row: any, trialDays: number | null) {
     stripeMappingValidatedAt: row.stripeMappingValidatedAt, updatedByUserId: row.updatedByUserId,
   };
 }
+function normalizeInternalTopUpPack(row: any) {
+  return {
+    id: row.id, code: row.code, name: row.name, minutes: Number(row.minutes),
+    customerPriceGbp: row.customerPriceGbp == null ? null : Number(row.customerPriceGbp),
+    currency: row.currency, expiryPolicy: row.expiryPolicy, active: row.active, sortOrder: Number(row.sortOrder),
+    stripeProductId: row.stripeProductId, stripePriceId: row.stripePriceId,
+    stripeMappingValidatedAt: row.stripeMappingValidatedAt, updatedByUserId: row.updatedByUserId,
+  };
+}
 
 router.get("/internal/billing/catalog", async (req, res): Promise<void> => {
   if (!requireBillingAdmin(req, res)) return;
   // Internal operational surface deliberately includes Stripe mappings; public catalog never does.
-  const [plans, addOns] = await Promise.all([db.select().from(billingPlansTable).orderBy(asc(billingPlansTable.sortOrder)), db.select().from(billingAddOnsTable).orderBy(asc(billingAddOnsTable.sortOrder))]);
-  res.json({ plans: plans.map((row) => normalizeInternalCatalogItem(row, row.trialDays)), addOns: addOns.map((row) => normalizeInternalCatalogItem(row, null)) });
+  const [plans, addOns, topUpPacks] = await Promise.all([db.select().from(billingPlansTable).orderBy(asc(billingPlansTable.sortOrder)), db.select().from(billingAddOnsTable).orderBy(asc(billingAddOnsTable.sortOrder)), db.select().from(billingReceptionistTopUpPacksTable).orderBy(asc(billingReceptionistTopUpPacksTable.sortOrder))]);
+  res.json({ plans: plans.map((row) => normalizeInternalCatalogItem(row, row.trialDays)), addOns: addOns.map((row) => normalizeInternalCatalogItem(row, null)), receptionistTopUpPacks: topUpPacks.map(normalizeInternalTopUpPack) });
+});
+const topUpPatch = z.object({ customerPriceGbp: money, active: z.boolean().optional(), sortOrder: z.number().int().nonnegative().optional(), expiryPolicy: z.literal("period_end").optional(), stripeProductId: z.string().nullable().optional(), stripePriceId: z.string().nullable().optional() }).strict();
+router.patch("/internal/billing/receptionist-top-ups/:code", async (req, res): Promise<void> => {
+  const userId = requireBillingAdmin(req, res); if (!userId) return;
+  const parsed = topUpPatch.safeParse(req.body); if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const mappingChanged = ["customerPriceGbp", "stripeProductId", "stripePriceId"].some((key) => key in parsed.data);
+  const [row] = await db.update(billingReceptionistTopUpPacksTable).set({ ...parsed.data, updatedByUserId: userId, ...(mappingChanged ? { stripeMappingValidatedAt: null } : {}) } as any).where(eq(billingReceptionistTopUpPacksTable.code, req.params.code)).returning();
+  if (!row) { res.status(404).json({ error: "Top-up pack not found" }); return; }
+  res.json(normalizeInternalTopUpPack(row));
+});
+router.post("/internal/billing/receptionist-top-ups/:code/validate-mapping", async (req, res): Promise<void> => {
+  if (!requireBillingAdmin(req, res)) return;
+  const [pack] = await db.select().from(billingReceptionistTopUpPacksTable).where(eq(billingReceptionistTopUpPacksTable.code, req.params.code)).limit(1);
+  if (!pack) { res.status(404).json({ error: "Top-up pack not found" }); return; }
+  try { await verifyTopUpPrice(pack, new StripeApiClient(), false); } catch { res.status(400).json({ error: "Top-up billing configuration required." }); return; }
+  const [updated] = await db.update(billingReceptionistTopUpPacksTable).set({ stripeMappingValidatedAt: new Date() }).where(eq(billingReceptionistTopUpPacksTable.id, pack.id)).returning();
+  res.json(normalizeInternalTopUpPack(updated));
 });
 router.get("/internal/billing/profitability/:companyId", async (req, res): Promise<void> => {
   if (!requireBillingAdmin(req, res)) return;
@@ -82,12 +109,18 @@ router.get("/internal/billing/profitability/:companyId", async (req, res): Promi
   if (!subscription?.currentPeriodStartsAt || !subscription.currentPeriodEndsAt) { res.status(404).json({ error: "No Stripe billing period for this tenant" }); return; }
   const [plan] = subscription.planCode ? await db.select().from(billingPlansTable).where(eq(billingPlansTable.code, subscription.planCode)).limit(1) : [];
   const addOns = subscription.addOnCodes.length ? await db.select().from(billingAddOnsTable) : [];
-  const revenueGbp = Number(plan?.monthlyPriceGbp ?? 0) + addOns
+  const subscriptionRevenueGbp = Number(plan?.monthlyPriceGbp ?? 0) + addOns
     .filter((addOn) => subscription.addOnCodes.includes(addOn.code)).reduce((total, addOn) => total + Number(addOn.monthlyPriceGbp ?? 0), 0);
   const period = { startsAt: subscription.currentPeriodStartsAt, endsAt: subscription.currentPeriodEndsAt };
+  const [topUpRevenue] = await db.select({ value: sql<string>`coalesce(sum(${billingReceptionistTopUpPurchasesTable.customerPriceGbp}), 0)` }).from(billingReceptionistTopUpPurchasesTable).where(and(
+    eq(billingReceptionistTopUpPurchasesTable.companyId, companyId), eq(billingReceptionistTopUpPurchasesTable.ownerUserId, subscription.ownerUserId),
+    eq(billingReceptionistTopUpPurchasesTable.status, "granted"), eq(billingReceptionistTopUpPurchasesTable.periodStartsAt, period.startsAt), eq(billingReceptionistTopUpPurchasesTable.periodEndsAt, period.endsAt),
+  ));
+  const topUpRevenueGbp = Number(topUpRevenue?.value ?? 0);
+  const revenueGbp = subscriptionRevenueGbp + topUpRevenueGbp;
   const providerCostGbp = await providerCostForTenant(companyId, subscription.ownerUserId, period);
   // Costs are direct provider values only; no fabricated estimates are returned.
-  res.json({ companyId, period, subscriptionRevenueGbp: revenueGbp, directProviderCostGbp: providerCostGbp, grossContributionGbp: revenueGbp - providerCostGbp });
+  res.json({ companyId, period, subscriptionRevenueGbp, topUpRevenueGbp, totalRevenueGbp: revenueGbp, directProviderCostGbp: providerCostGbp, grossContributionGbp: revenueGbp - providerCostGbp });
 });
 router.patch("/internal/billing/:kind/:code", async (req, res): Promise<void> => {
   const userId = requireBillingAdmin(req, res); if (!userId) return;
@@ -129,6 +162,20 @@ router.get("/billing/catalog", async (_req, res): Promise<void> => {
     plans: plans.map((p) => ({ code: p.code, name: p.name, description: p.description, monthlyPriceGbp: Number(p.monthlyPriceGbp), trialPriceGbp: trialPriceGbp(p), trialDays: p.trialDays, featureCategories: p.featureCategories, usageLimits: p.usageLimits as Record<string, number> | null, includedAllowance: p.includedAllowance as Record<string, number> | null, overagePolicy: p.overagePolicy, active: p.active, comingSoon: p.comingSoon, sortOrder: p.sortOrder, ...catalogAvailability(p) })),
     addOns: addOns.map((a) => ({ code: a.code, name: a.name, description: a.description, monthlyPriceGbp: a.monthlyPriceGbp == null ? null : Number(a.monthlyPriceGbp), trialPriceGbp: trialPriceGbp(a), trialDays: 7, featureCategories: a.featureCategories, usageLimits: a.usageLimits as Record<string, number> | null, includedAllowance: a.includedAllowance as Record<string, number> | null, overagePolicy: a.overagePolicy, active: a.active, comingSoon: a.comingSoon, sortOrder: a.sortOrder, ...catalogAvailability(a) })),
   }));
+});
+router.get("/billing/receptionist-top-ups", async (_req, res): Promise<void> => {
+  res.json({ packs: await listReceptionistTopUps() });
+});
+router.post("/billing/receptionist-top-ups/checkout", async (req, res): Promise<void> => {
+  const userId = authUser(req, res); if (!userId) return;
+  const parsed = z.object({ packCode: z.string().min(1).max(100) }).strict().safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Only a top-up pack code may be submitted." }); return; }
+  const company = await tenantCompany(userId); if (!company) { res.status(400).json({ error: "Company profile is required" }); return; }
+  try {
+    const result = await createReceptionistTopUpCheckout({ companyId: company.id, ownerUserId: userId, packCode: parsed.data.packCode });
+    if (!result.ok) { res.status(501).json(result); return; }
+    res.json(result);
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Unable to create top-up Checkout." }); }
 });
 
 router.get("/billing", async (req, res): Promise<void> => {
@@ -223,24 +270,40 @@ for (const [path, status, parser] of [["/onboarding/complete", "completed", Comp
 router.get("/billing/usage", async (req, res): Promise<void> => {
   const userId = authUser(req, res); if (!userId) return;
   const company = await tenantCompany(userId);
-  if (!company) { res.json(GetBillingUsageResponse.parse({ events: [], period: null })); return; }
+  if (!company) { res.json(GetBillingUsageResponse.parse({ events: [], period: null, aiReceptionist: null })); return; }
   const subscription = await subscriptionFor(company.id, userId);
   // Never present a calendar month as a production billing period for an
   // unbilled legacy account. Development's explicit fallback is labelled.
   if (!subscription?.currentPeriodStartsAt || !subscription.currentPeriodEndsAt) {
-    if (process.env.NODE_ENV !== "development") { res.json(GetBillingUsageResponse.parse({ events: [], period: null })); return; }
+    if (process.env.NODE_ENV !== "development") { res.json(GetBillingUsageResponse.parse({ events: [], period: null, aiReceptionist: null })); return; }
   }
   const period = await usagePeriodForTenant(company.id, userId);
-  const [events, entitlements] = await Promise.all([usageForTenant(company.id, userId, period), tenantEntitlements(userId)]);
+  const [events, entitlements, receptionistTopUps] = await Promise.all([
+    usageForTenant(company.id, userId, period),
+    tenantEntitlements(userId),
+    grantedReceptionistTopUpMinutes(company.id, userId, period),
+  ]);
+  const includedMinutes = entitlements.limits.ai_receptionist ?? 0;
+  const usedMinutes = allowanceQuantity("ai_receptionist", events);
+  const effectiveMinutes = includedMinutes + receptionistTopUps;
   res.json(GetBillingUsageResponse.parse({
     period: { startsAt: period.startsAt, endsAt: period.endsAt, developmentFallback: period.isDevelopmentFallback },
+    aiReceptionist: {
+      includedMinutes, topUpMinutes: receptionistTopUps, effectiveMinutes, usedMinutes,
+      remainingMinutes: Math.max(0, effectiveMinutes - usedMinutes),
+      percentageUsed: effectiveMinutes === 0 ? null : Math.min(100, usedMinutes / effectiveMinutes * 100),
+      periodStartsAt: period.startsAt, periodEndsAt: period.endsAt,
+    },
     events: events.map((event) => {
       // The provider ledger retains exact Vapi seconds, but customers purchase
       // and see call minutes. Never compare/display seconds against minute caps.
       const quantity = event.featureCode === "ai_receptionist"
         ? allowanceQuantity("ai_receptionist", events)
         : Number(event.quantity);
-      const limit = entitlements.limits[event.featureCode] ?? null;
+      const includedLimit = entitlements.limits[event.featureCode] ?? null;
+      const limit = event.featureCode === "ai_receptionist" && includedLimit != null
+        ? includedLimit + receptionistTopUps
+        : includedLimit;
       return { ...event, quantity, unit: event.featureCode === "ai_receptionist" ? "minutes" : event.unit, limit, remaining: limit == null ? null : Math.max(0, limit - quantity), percentageUsed: limit == null ? null : Math.min(100, quantity / limit * 100) };
     }),
   }));

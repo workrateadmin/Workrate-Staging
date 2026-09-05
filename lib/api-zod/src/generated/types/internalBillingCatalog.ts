@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { InternalBillingCatalogItem } from './internalBillingCatalogItem';
+import type { InternalReceptionistTopUpPack } from './internalReceptionistTopUpPack';
 
 export interface InternalBillingCatalog {
   plans: InternalBillingCatalogItem[];
   addOns: InternalBillingCatalogItem[];
+  receptionistTopUpPacks: InternalReceptionistTopUpPack[];
 }

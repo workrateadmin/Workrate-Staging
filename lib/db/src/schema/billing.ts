@@ -202,6 +202,48 @@ export const billingCheckoutAttemptsTable = pgTable("billing_checkout_attempts",
   uniqueIndex("billing_checkout_attempts_attempt_key_unique").on(table.attemptKey),
 ]);
 
+/** Operator-configured one-time AI Receptionist minute packs. */
+export const billingReceptionistTopUpPacksTable = pgTable("billing_receptionist_top_up_packs", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  minutes: integer("minutes").notNull(),
+  customerPriceGbp: numeric("customer_price_gbp", { precision: 10, scale: 2 }),
+  currency: text("currency").notNull().default("gbp"),
+  expiryPolicy: text("expiry_policy").notNull().default("period_end"),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  stripeProductId: text("stripe_product_id"),
+  stripePriceId: text("stripe_price_id"),
+  stripeMappingValidatedAt: timestamp("stripe_mapping_validated_at", { withTimezone: true }),
+  updatedByUserId: text("updated_by_user_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (table) => [uniqueIndex("billing_receptionist_top_up_packs_code_unique").on(table.code)]);
+
+/** One-time purchase snapshots are deliberately independent from future plans. */
+export const billingReceptionistTopUpPurchasesTable = pgTable("billing_receptionist_top_up_purchases", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull(),
+  ownerUserId: text("owner_user_id").notNull(),
+  packCode: text("pack_code").notNull(),
+  packMinutes: integer("pack_minutes").notNull(),
+  customerPriceGbp: numeric("customer_price_gbp", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("gbp"),
+  expiryPolicy: text("expiry_policy").notNull().default("period_end"),
+  periodStartsAt: timestamp("period_starts_at", { withTimezone: true }).notNull(),
+  periodEndsAt: timestamp("period_ends_at", { withTimezone: true }).notNull(),
+  stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  status: text("status").notNull().default("pending"),
+  grantedAt: timestamp("granted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (table) => [
+  uniqueIndex("billing_receptionist_top_up_checkout_unique").on(table.stripeCheckoutSessionId),
+  uniqueIndex("billing_receptionist_top_up_payment_unique").on(table.stripePaymentIntentId),
+]);
+
 export const insertOnboardingProgressSchema = createInsertSchema(onboardingProgressTable).omit({ id: true, companyId: true, ownerUserId: true, createdAt: true, updatedAt: true });
 export type BillingPlan = typeof billingPlansTable.$inferSelect;
 export type BillingAddOn = typeof billingAddOnsTable.$inferSelect;

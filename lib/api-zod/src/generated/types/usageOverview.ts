@@ -5,6 +5,7 @@
  * WorkRate API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { UsageOverviewAiReceptionist } from './usageOverviewAiReceptionist';
 import type { UsageOverviewEventsItem } from './usageOverviewEventsItem';
 import type { UsageOverviewPeriod } from './usageOverviewPeriod';
 
@@ -12,4 +13,6 @@ export interface UsageOverview {
   /** @nullable */
   period: UsageOverviewPeriod;
   events: UsageOverviewEventsItem[];
+  /** @nullable */
+  aiReceptionist: UsageOverviewAiReceptionist;
 }

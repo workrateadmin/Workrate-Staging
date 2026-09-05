@@ -2688,6 +2688,39 @@ export const GetBillingCatalogResponse = zod.object({
 
 
 /**
+ * @summary List AI Receptionist one-time minute packs
+ */
+export const GetReceptionistTopUpPacksResponse = zod.object({
+  "packs": zod.array(zod.object({
+  "code": zod.string(),
+  "name": zod.string(),
+  "minutes": zod.number(),
+  "customerPriceGbp": zod.number().nullable(),
+  "currency": zod.string(),
+  "expiryPolicy": zod.enum(['period_end']),
+  "active": zod.boolean(),
+  "sortOrder": zod.number(),
+  "purchasable": zod.boolean(),
+  "configurationMessage": zod.string().nullable()
+}))
+})
+
+
+/**
+ * @summary Create hosted one-time Checkout for a server-selected pack
+ */
+export const CreateReceptionistTopUpCheckoutBody = zod.object({
+  "packCode": zod.string()
+})
+
+export const CreateReceptionistTopUpCheckoutResponse = zod.object({
+  "ok": zod.literal(true),
+  "url": zod.string(),
+  "purchaseId": zod.number()
+})
+
+
+/**
  * Requires the authenticated Clerk user ID to be present in the comma-separated WORKRATE_ADMIN_USER_IDS server allowlist. Access is denied when it is unset.
  * @summary View server billing configuration (internal administrators only)
  */
@@ -2735,7 +2768,86 @@ export const GetInternalBillingCatalogResponse = zod.object({
   "stripeTrialPriceId": zod.string().nullable(),
   "stripeMappingValidatedAt": zod.coerce.date().nullable(),
   "updatedByUserId": zod.string().nullable()
+})),
+  "receptionistTopUpPacks": zod.array(zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "minutes": zod.number(),
+  "customerPriceGbp": zod.number().nullable(),
+  "currency": zod.enum(['gbp']),
+  "expiryPolicy": zod.enum(['period_end']),
+  "active": zod.boolean(),
+  "sortOrder": zod.number(),
+  "stripeProductId": zod.string().nullable(),
+  "stripePriceId": zod.string().nullable(),
+  "stripeMappingValidatedAt": zod.coerce.date().nullable(),
+  "updatedByUserId": zod.string().nullable()
 }))
+})
+
+
+/**
+ * Internal only. Customer prices and Stripe one-time mappings remain unavailable until the mapping is explicitly validated.
+ * @summary Update an AI Receptionist top-up pack
+ */
+export const UpdateInternalReceptionistTopUpPackParams = zod.object({
+  "code": zod.coerce.string()
+})
+
+export const updateInternalReceptionistTopUpPackBodyCustomerPriceGbpMin = 0;
+
+export const updateInternalReceptionistTopUpPackBodySortOrderMin = 0;
+
+
+
+export const UpdateInternalReceptionistTopUpPackBody = zod.object({
+  "customerPriceGbp": zod.number().min(updateInternalReceptionistTopUpPackBodyCustomerPriceGbpMin).nullish(),
+  "active": zod.boolean().optional(),
+  "sortOrder": zod.number().min(updateInternalReceptionistTopUpPackBodySortOrderMin).optional(),
+  "expiryPolicy": zod.enum(['period_end']).optional(),
+  "stripeProductId": zod.string().nullish(),
+  "stripePriceId": zod.string().nullish()
+})
+
+export const UpdateInternalReceptionistTopUpPackResponse = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "minutes": zod.number(),
+  "customerPriceGbp": zod.number().nullable(),
+  "currency": zod.enum(['gbp']),
+  "expiryPolicy": zod.enum(['period_end']),
+  "active": zod.boolean(),
+  "sortOrder": zod.number(),
+  "stripeProductId": zod.string().nullable(),
+  "stripePriceId": zod.string().nullable(),
+  "stripeMappingValidatedAt": zod.coerce.date().nullable(),
+  "updatedByUserId": zod.string().nullable()
+})
+
+
+/**
+ * @summary Verify an AI Receptionist one-time Stripe price mapping
+ */
+export const ValidateInternalReceptionistTopUpPackMappingParams = zod.object({
+  "code": zod.coerce.string()
+})
+
+export const ValidateInternalReceptionistTopUpPackMappingResponse = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "minutes": zod.number(),
+  "customerPriceGbp": zod.number().nullable(),
+  "currency": zod.enum(['gbp']),
+  "expiryPolicy": zod.enum(['period_end']),
+  "active": zod.boolean(),
+  "sortOrder": zod.number(),
+  "stripeProductId": zod.string().nullable(),
+  "stripePriceId": zod.string().nullable(),
+  "stripeMappingValidatedAt": zod.coerce.date().nullable(),
+  "updatedByUserId": zod.string().nullable()
 })
 
 
@@ -2912,7 +3024,17 @@ export const GetBillingUsageResponse = zod.object({
   "limit": zod.number().nullable(),
   "remaining": zod.number().nullable(),
   "percentageUsed": zod.number().nullable()
-}))
+})),
+  "aiReceptionist": zod.object({
+  "includedMinutes": zod.number(),
+  "topUpMinutes": zod.number(),
+  "effectiveMinutes": zod.number(),
+  "usedMinutes": zod.number(),
+  "remainingMinutes": zod.number(),
+  "percentageUsed": zod.number().nullable(),
+  "periodStartsAt": zod.coerce.date(),
+  "periodEndsAt": zod.coerce.date()
+}).nullable()
 })
 
 

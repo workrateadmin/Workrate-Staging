@@ -1900,6 +1900,22 @@ paths:
       operationId: getBillingCatalog
       tags: [billing]
       responses: { "200": { description: Catalog, content: { application/json: { schema: { $ref: "#/components/schemas/BillingCatalog" } } } } }
+  /billing/receptionist-top-ups:
+    get:
+      operationId: getReceptionistTopUpPacks
+      tags: [billing]
+      summary: List AI Receptionist one-time minute packs
+      responses: { "200": { description: Top-up packs, content: { application/json: { schema: { $ref: "#/components/schemas/ReceptionistTopUpPackList" } } } } }
+  /billing/receptionist-top-ups/checkout:
+    post:
+      operationId: createReceptionistTopUpCheckout
+      tags: [billing]
+      summary: Create hosted one-time Checkout for a server-selected pack
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ReceptionistTopUpCheckoutInput" } } } }
+      responses:
+        "200": { description: Hosted Checkout, content: { application/json: { schema: { $ref: "#/components/schemas/ReceptionistTopUpCheckout" } } } }
+        "400": { description: "Invalid pack, missing entitlement, or no authoritative billing period" }
+        "501": { description: Payment provider unavailable }
   /internal/billing/catalog:
     get:
       operationId: getInternalBillingCatalog
@@ -1913,6 +1929,42 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/InternalBillingCatalog" }
         "403": { description: Administrator access required }
+  /internal/billing/receptionist-top-ups/{code}:
+    patch:
+      operationId: updateInternalReceptionistTopUpPack
+      tags: [billing]
+      summary: Update an AI Receptionist top-up pack
+      description: Internal only. Customer prices and Stripe one-time mappings remain unavailable until the mapping is explicitly validated.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InternalReceptionistTopUpPackUpdate" }
+      responses:
+        "200": { description: Updated top-up pack, content: { application/json: { schema: { $ref: "#/components/schemas/InternalReceptionistTopUpPack" } } } }
+        "400": { description: Invalid configuration }
+        "403": { description: Administrator access required }
+        "404": { description: Top-up pack not found }
+  /internal/billing/receptionist-top-ups/{code}/validate-mapping:
+    post:
+      operationId: validateInternalReceptionistTopUpPackMapping
+      tags: [billing]
+      summary: Verify an AI Receptionist one-time Stripe price mapping
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Verified top-up pack, content: { application/json: { schema: { $ref: "#/components/schemas/InternalReceptionistTopUpPack" } } } }
+        "400": { description: Mapping invalid or billing configuration required }
+        "403": { description: Administrator access required }
+        "404": { description: Top-up pack not found }
   /internal/billing/{kind}/{code}:
     patch:
       operationId: updateInternalBillingCatalogItem
@@ -2159,10 +2211,11 @@ components:
         updatedByUserId: { type: ["string", "null"] }
     InternalBillingCatalog:
       type: object
-      required: [plans, addOns]
+      required: [plans, addOns, receptionistTopUpPacks]
       properties:
         plans: { type: array, items: { $ref: "#/components/schemas/InternalBillingCatalogItem" } }
         addOns: { type: array, items: { $ref: "#/components/schemas/InternalBillingCatalogItem" } }
+        receptionistTopUpPacks: { type: array, items: { $ref: "#/components/schemas/InternalReceptionistTopUpPack" } }
     BillingOverview:
       type: object
       required: [legacyAccess, status, planCode, addOnCodes, pendingPlanCode, pendingAddOnCodes, cancelAtPeriodEnd, provider, trialEndsAt, currentPeriodStartsAt, currentPeriodEndsAt, cancelledAt, failedPaymentAt]
@@ -2211,7 +2264,7 @@ components:
         data: { type: object, additionalProperties: true }
     UsageOverview:
       type: object
-      required: [events, period]
+      required: [events, period, aiReceptionist]
       properties:
         period:
           type: ["object", "null"]
@@ -2233,6 +2286,18 @@ components:
               limit: { type: ["number", "null"] }
               remaining: { type: ["number", "null"] }
               percentageUsed: { type: ["number", "null"] }
+        aiReceptionist:
+          type: ["object", "null"]
+          required: [includedMinutes, topUpMinutes, effectiveMinutes, usedMinutes, remainingMinutes, percentageUsed, periodStartsAt, periodEndsAt]
+          properties:
+            includedMinutes: { type: number }
+            topUpMinutes: { type: number }
+            effectiveMinutes: { type: number }
+            usedMinutes: { type: number }
+            remainingMinutes: { type: number }
+            percentageUsed: { type: ["number", "null"] }
+            periodStartsAt: { type: string, format: date-time }
+            periodEndsAt: { type: string, format: date-time }
     BillingSimulationInput:
       type: object
       required: [status, planCode, addOnCodes]
@@ -2240,6 +2305,65 @@ components:
         status: { type: string, enum: [trialing, active, past_due, cancelled] }
         planCode: { type: string, enum: [core, complete] }
         addOnCodes: { type: array, items: { type: string } }
+    ReceptionistTopUpCheckoutInput:
+      type: object
+      additionalProperties: false
+      required: [packCode]
+      properties:
+        packCode: { type: string }
+    ReceptionistTopUpCheckout:
+      type: object
+      required: [ok, url, purchaseId]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        url: { type: string }
+        purchaseId: { type: number }
+    ReceptionistTopUpPack:
+      type: object
+      required: [code, name, minutes, customerPriceGbp, currency, expiryPolicy, active, sortOrder, purchasable, configurationMessage]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        minutes: { type: number }
+        customerPriceGbp: { type: [number, "null"] }
+        currency: { type: string }
+        expiryPolicy: { type: string, enum: [period_end] }
+        active: { type: boolean }
+        sortOrder: { type: number }
+        purchasable: { type: boolean }
+        configurationMessage: { type: [string, "null"] }
+    ReceptionistTopUpPackList:
+      type: object
+      required: [packs]
+      properties:
+        packs: { type: array, items: { $ref: "#/components/schemas/ReceptionistTopUpPack" } }
+    InternalReceptionistTopUpPackUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        customerPriceGbp: { type: [number, "null"], minimum: 0 }
+        active: { type: boolean }
+        sortOrder: { type: number, minimum: 0 }
+        expiryPolicy: { type: string, enum: [period_end] }
+        stripeProductId: { type: [string, "null"] }
+        stripePriceId: { type: [string, "null"] }
+    InternalReceptionistTopUpPack:
+      type: object
+      required: [id, code, name, minutes, customerPriceGbp, currency, expiryPolicy, active, sortOrder, stripeProductId, stripePriceId, stripeMappingValidatedAt, updatedByUserId]
+      properties:
+        id: { type: number }
+        code: { type: string }
+        name: { type: string }
+        minutes: { type: number }
+        customerPriceGbp: { type: [number, "null"] }
+        currency: { type: string, enum: [gbp] }
+        expiryPolicy: { type: string, enum: [period_end] }
+        active: { type: boolean }
+        sortOrder: { type: number }
+        stripeProductId: { type: [string, "null"] }
+        stripePriceId: { type: [string, "null"] }
+        stripeMappingValidatedAt: { type: [string, "null"], format: date-time }
+        updatedByUserId: { type: [string, "null"] }
     HealthStatus:
       type: object
       properties:

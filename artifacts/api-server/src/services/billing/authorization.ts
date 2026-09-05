@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { billingAddOnsTable, billingPlansTable, companiesTable, companySubscriptionsTable, db } from "@workspace/db";
 import { canUseMeteredFeature, resolveEntitlements } from "./entitlements";
-import { allowanceQuantity, reserveUsage, usageForTenant, usagePeriodForTenant } from "./usage";
+import { allowanceQuantity, grantedReceptionistTopUpMinutes, reserveUsage, usageForTenant, usagePeriodForTenant } from "./usage";
 
 export type BillingAccessError = { error: "PAYMENT_REQUIRED"; featureKey: string; message: string };
 
@@ -36,10 +36,12 @@ export async function authorizeMeteredFeature(ownerUserId: string, featureKey: s
   const period = await usagePeriodForTenant(company.id, ownerUserId);
   const usage = await usageForTenant(company.id, ownerUserId, period);
   const used = allowanceQuantity(featureKey, usage);
-  const decision = canUseMeteredFeature(entitlement, featureKey, used, true);
+  const topUpMinutes = featureKey === "ai_receptionist" ? await grantedReceptionistTopUpMinutes(company.id, ownerUserId, period) : 0;
+  const effectiveEntitlement = { ...entitlement, limits: { ...entitlement.limits, [featureKey]: (entitlement.limits[featureKey] ?? 0) + topUpMinutes } };
+  const decision = canUseMeteredFeature(effectiveEntitlement, featureKey, used, true);
   return decision.allowed
-    ? { allowed: true as const, reason: decision.reason, used, limit: entitlement.limits[featureKey], period }
-    : { allowed: false as const, error: "USAGE_LIMIT_REACHED" as const, featureKey, message: "You've reached this month's included allowance.", reason: decision.reason, used, limit: entitlement.limits[featureKey], period };
+    ? { allowed: true as const, reason: decision.reason, used, limit: effectiveEntitlement.limits[featureKey], period }
+    : { allowed: false as const, error: "USAGE_LIMIT_REACHED" as const, featureKey, message: "You've reached this month's included allowance.", reason: decision.reason, used, limit: effectiveEntitlement.limits[featureKey], period };
 }
 
 /** Atomically reserves allowance before a provider invocation. */
@@ -51,7 +53,8 @@ export async function reserveMeteredFeature(ownerUserId: string, featureKey: str
   if (entitlement.access === "legacy") return { allowed: true as const, reason: "legacy_safeguard" as const };
   if (!company || !entitlement.limits[featureKey]) return { allowed: false as const, error: "PAYMENT_REQUIRED" as const, featureKey, message: "An active subscription with an allowance is required." };
   const period = await usagePeriodForTenant(company.id, ownerUserId);
-  const reserved = await reserveUsage({ companyId: company.id, ownerUserId, period, featureCode: featureKey, quantity, limit: entitlement.limits[featureKey], dedupeKey });
+  const topUpMinutes = featureKey === "ai_receptionist" ? await grantedReceptionistTopUpMinutes(company.id, ownerUserId, period) : 0;
+  const reserved = await reserveUsage({ companyId: company.id, ownerUserId, period, featureCode: featureKey, quantity, limit: entitlement.limits[featureKey] + topUpMinutes, dedupeKey });
   return reserved.allowed
     ? { ...reserved, companyId: company.id, period }
     : { ...reserved, error: "USAGE_LIMIT_REACHED" as const, featureKey, message: "You've reached this month's included allowance." };

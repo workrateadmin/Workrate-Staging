@@ -1,5 +1,5 @@
 import { and, eq, gte, lt, sql } from "drizzle-orm";
-import { billingUsageEventsTable, billingUsagePeriodsTable, billingUsageReservationsTable, billingUsageWarningsTable, companySubscriptionsTable, db } from "@workspace/db";
+import { billingReceptionistTopUpPurchasesTable, billingUsageEventsTable, billingUsagePeriodsTable, billingUsageReservationsTable, billingUsageWarningsTable, companySubscriptionsTable, db } from "@workspace/db";
 
 export type UsagePeriod = { id: number; startsAt: Date; endsAt: Date; isDevelopmentFallback: boolean };
 export type UsageInput = {
@@ -63,6 +63,19 @@ export function allowanceQuantity(featureCode: string, rows: Array<{ featureCode
   if (featureCode !== "ai_receptionist") return matching.reduce((total, row) => total + Number(row.quantity), 0);
   const seconds = matching.reduce((total, row) => total + (row.unit === "seconds" ? Number(row.quantity) : Number(row.quantity) * 60), 0);
   return Math.ceil(seconds / 60);
+}
+
+/** Granted packs are immutable period snapshots, so plan changes/cancellation cannot revoke them early. */
+export async function grantedReceptionistTopUpMinutes(companyId: number, ownerUserId: string, period: Pick<UsagePeriod, "startsAt" | "endsAt">) {
+  const [row] = await db.select({ minutes: sql<number>`coalesce(sum(${billingReceptionistTopUpPurchasesTable.packMinutes}), 0)` })
+    .from(billingReceptionistTopUpPurchasesTable).where(and(
+      eq(billingReceptionistTopUpPurchasesTable.companyId, companyId),
+      eq(billingReceptionistTopUpPurchasesTable.ownerUserId, ownerUserId),
+      eq(billingReceptionistTopUpPurchasesTable.status, "granted"),
+      eq(billingReceptionistTopUpPurchasesTable.periodStartsAt, period.startsAt),
+      eq(billingReceptionistTopUpPurchasesTable.periodEndsAt, period.endsAt),
+    ));
+  return Number(row?.minutes ?? 0);
 }
 
 /**

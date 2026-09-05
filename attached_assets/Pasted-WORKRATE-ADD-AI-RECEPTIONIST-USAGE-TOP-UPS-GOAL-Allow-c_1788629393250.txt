@@ -1,0 +1,299 @@
+WORKRATE — ADD AI RECEPTIONIST USAGE TOP-UPS
+
+GOAL:
+Allow customers to purchase additional AI Receptionist call minutes when they approach or reach their included monthly allowance.
+
+IMPORTANT:
+Do NOT remove or weaken the existing hard-cap usage protection.
+Do NOT allow unlimited provider spend.
+Reuse the existing billing, Stripe, entitlement, usage ledger, subscription-period, and allowance systems.
+
+==================================================
+1. TOP-UP PRODUCTS
+==================================================
+
+Add configurable AI Receptionist minute packs.
+
+Initial pack sizes:
+
+- +100 minutes
+- +250 minutes
+- +500 minutes
+
+Do NOT invent final prices yet.
+
+Each pack must support:
+- minutes included
+- customer price
+- Stripe product/price mapping
+- active/inactive
+- sort order
+- optional expiry policy
+
+If no valid price is configured:
+show "Price not set"
+and do not allow purchase.
+
+==================================================
+2. CUSTOMER EXPERIENCE
+==================================================
+
+In Settings → Plan & Billing, under AI Receptionist usage, show:
+
+Current allowance
+Used
+Remaining
+
+Example:
+
+AI Receptionist
+247 / 300 minutes used
+
+[Buy more minutes]
+
+Clicking should open a simple pack selector.
+
+Example:
+
++100 minutes
+£XX
+[Buy]
+
++250 minutes
+£XX
+[Buy]
+
++500 minutes
+£XX
+[Buy]
+
+==================================================
+3. WARNING STATES
+==================================================
+
+At 75% usage:
+show a soft warning and Buy More Minutes action.
+
+At 90%:
+show stronger warning.
+
+At 100%:
+AI Receptionist remains hard-capped for new calls,
+but clearly show:
+
+"You've reached your included call allowance."
+
+[Buy more minutes]
+
+Do not terminate calls already in progress.
+
+==================================================
+4. ALLOWANCE CALCULATION
+==================================================
+
+Effective monthly allowance must equal:
+
+base plan allowance
++
+active add-on allowance
++
+purchased top-up minutes for the current billing period
+
+Example:
+
+Complete base allowance:
+300 minutes
+
+Customer buys:
++250 minutes
+
+Effective allowance:
+550 minutes
+
+Usage enforcement must use the effective allowance server-side.
+
+==================================================
+5. BILLING PERIOD
+==================================================
+
+Top-ups should attach to the current Stripe billing period.
+
+Default launch policy:
+top-up minutes expire at the end of the current billing period.
+
+Do not roll unused minutes forward unless explicitly enabled later.
+
+Clearly tell the customer before purchase:
+
+"Extra minutes are valid until your current billing period ends on [date]."
+
+==================================================
+6. STRIPE
+==================================================
+
+Use one-time Stripe purchases for minute packs.
+
+Do not modify the recurring subscription amount.
+
+Flow:
+
+customer selects pack
+→ Stripe Checkout
+→ successful payment
+→ verified webhook
+→ top-up entitlement added
+→ effective allowance increases
+
+Do not grant minutes from the browser success redirect alone.
+
+==================================================
+7. WEBHOOK / IDEMPOTENCY
+==================================================
+
+Top-up purchases must be webhook-authoritative.
+
+Prevent duplicate allocation from:
+- webhook retries
+- repeated redirects
+- replayed events
+
+Use Stripe checkout/payment ID as the dedupe source.
+
+One payment must grant minutes exactly once.
+
+==================================================
+8. SERVER-SIDE ENFORCEMENT
+==================================================
+
+All AI Receptionist allowance checks must include purchased top-ups.
+
+Frontend display is informational only.
+
+A user must not be able to spoof:
+- pack size
+- price
+- granted minutes
+- billing period
+- purchase completion
+
+==================================================
+9. ADMIN CONFIGURATION
+==================================================
+
+Extend the protected pricing admin area so WorkRate admin can configure:
+
+- +100 minute pack price
+- +250 minute pack price
+- +500 minute pack price
+- pack availability
+- expiry policy
+
+Do not expose admin pricing controls to trade customers.
+
+==================================================
+10. USAGE DISPLAY
+==================================================
+
+Show a clear breakdown if top-ups exist.
+
+Example:
+
+Included with Complete: 300 mins
+Extra minutes purchased: 250 mins
+Total allowance: 550 mins
+Used: 412 mins
+Remaining: 138 mins
+
+==================================================
+11. ENTITLEMENT RULES
+==================================================
+
+Only businesses entitled to AI Receptionist may buy AI Receptionist top-ups.
+
+Examples:
+
+Core without AI Receptionist add-on:
+cannot buy minute packs
+
+Core + AI Receptionist:
+can buy packs
+
+Complete:
+can buy packs
+
+==================================================
+12. CANCELLATION / PLAN CHANGE
+==================================================
+
+If the customer cancels or changes plan:
+
+- existing purchased top-up minutes remain valid until the current billing period ends
+- do not refund automatically
+- do not carry top-ups into a future subscription period unless explicitly supported later
+
+==================================================
+13. INTERNAL COST TRACKING
+==================================================
+
+Top-up revenue should appear in the internal profitability foundation.
+
+Track:
+
+- recurring subscription revenue
+- top-up purchase revenue
+- verified provider costs
+- gross contribution
+
+Do not expose provider cost to customers.
+
+==================================================
+14. TESTING
+==================================================
+
+Test:
+
+- customer below cap buys +100
+- customer at cap buys +250 and becomes unblocked
+- allowance updates only after Stripe webhook
+- duplicate webhook does not duplicate minutes
+- wrong tenant cannot access another purchase
+- browser cannot spoof pack size
+- top-up expires at billing period end
+- existing active call finishes if cap crossed
+- next call succeeds after top-up purchase
+- Core without Receptionist cannot buy packs
+- Complete can buy packs
+
+==================================================
+15. BEFORE IMPLEMENTING
+==================================================
+
+First inspect:
+
+A. current usage allowance calculation
+B. current Stripe one-time payment support
+C. current billing-period model
+D. existing internal pricing admin
+E. current profitability/revenue tracking
+
+Then implement the smallest clean extension.
+
+==================================================
+16. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. top-up model implemented
+B. effective allowance calculation
+C. Stripe purchase flow
+D. webhook/idempotency behavior
+E. admin pricing controls
+F. customer usage UI
+G. expiry policy
+H. entitlement protections
+I. tests passed
+J. prices still needing my decision
+K. whether ONE publish is required
+
+Do not publish automatically.

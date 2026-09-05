@@ -3,6 +3,8 @@ import { billingAddOnsTable, billingCheckoutAttemptsTable, billingPlansTable, bi
 import { StripeApiClient } from "./stripeClient";
 import { canonicalEventId, checkoutIdempotencyKey, checkoutLineItems, mapStripeSubscriptionStatus, requireCanonicalEventId, verifyStripeSignature } from "./lifecycle";
 import { trialPriceGbp } from "./pricing";
+import { grantReceptionistTopUpFromStripeSession } from "./topups";
+import { isStripeBillingReady, setStripeBillingReady } from "./readiness";
 
 export type PaymentSetupUnavailable = { ok: false; code: "PAYMENT_SETUP_UNAVAILABLE"; message: string };
 export type ProviderResult = PaymentSetupUnavailable | { ok: true; url?: string; status?: string };
@@ -24,7 +26,6 @@ const returnUrl = () => {
 const date = (seconds?: number | null) => seconds ? new Date(seconds * 1000) : null;
 const local = (companyId: number, ownerUserId: string) => db.select().from(companySubscriptionsTable).where(and(eq(companySubscriptionsTable.companyId, companyId), eq(companySubscriptionsTable.ownerUserId, ownerUserId))).limit(1);
 type StripeApi = Pick<StripeApiClient, "get" | "post">;
-let stripeBillingReady = false;
 export interface CheckoutRepository {
   subscription(companyId: number, ownerUserId: string): Promise<any | undefined>;
   establishAttempt(input: { companyId: number; ownerUserId: string; fingerprint: string }): Promise<any>;
@@ -241,6 +242,12 @@ export class StripeBillingProvider implements BillingProvider {
     const event: any = await stripe.get(`events/${encodeURIComponent(signedId)}`);
     requireCanonicalEventId(signedId, event.id);
     const object: any = event.data.object;
+    // One-time top-ups have no subscription to synchronize. Their immutable
+    // purchase record is the source of allocation and is updated exactly once.
+    if (event.type === "checkout.session.completed" && object?.metadata?.billing_kind === "ai_receptionist_top_up") {
+      const status = await grantReceptionistTopUpFromStripeSession(object, stripe);
+      return { ok: true, status };
+    }
     const metadata = object.metadata ?? {};
     let companyId = Number(metadata.companyId);
     let ownerUserId = metadata.ownerUserId as string | undefined;
@@ -264,7 +271,7 @@ export class StripeBillingProvider implements BillingProvider {
 }
 export { UnavailableBillingProvider } from "./unavailable";
 export const billingProvider: BillingProvider = new StripeBillingProvider(
-  undefined, undefined, undefined, undefined, undefined, () => stripeBillingReady,
+  undefined, undefined, undefined, undefined, undefined, isStripeBillingReady,
 );
 
 const webhookEventTypes = [
@@ -279,7 +286,7 @@ const workRateStripeWebhookUrl = "https://work-rate-manager.replit.app/api/strip
 
 /** Validates and maintains the single approved test webhook endpoint. */
 export async function initializeStripeBilling(): Promise<void> {
-  stripeBillingReady = false;
+  setStripeBillingReady(false);
   const stripe = new StripeApiClient();
   await stripe.assertTestAccount();
   const form: Record<string, string> = { url: workRateStripeWebhookUrl };
@@ -291,5 +298,5 @@ export async function initializeStripeBilling(): Promise<void> {
   if (!endpoint) throw new Error("Stripe webhook endpoint is not configured for this environment.");
   if (!process.env.STRIPE_WEBHOOK_SECRET) throw new Error("STRIPE_WEBHOOK_SECRET is required.");
   await stripe.post(`webhook_endpoints/${endpoint.id}`, form);
-  stripeBillingReady = true;
+  setStripeBillingReady(true);
 }

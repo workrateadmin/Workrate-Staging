@@ -20,3 +20,9 @@ Legacy premium access is an explicit company marker set during billing migration
 **Why:** Treating every subscription-less company as legacy grants new unpaid businesses wildcard premium access.
 
 **How to apply:** New companies default to normal billing enforcement; preserve the marker only for accounts that existed before deliberate billing migration.
+
+AI Receptionist top-ups are one-time, webhook-authoritative grants bound to the Stripe billing period captured at Checkout.
+
+**Why:** Granting from a browser redirect, accepting client-supplied minutes, or carrying a purchase into another period can create unpaid or stale allowance.
+
+**How to apply:** Resolve pack size and amount server-side, require shared webhook readiness, verify the canonical paid Checkout session, grant once by session/payment identity, and include only current-period grants in effective allowance.

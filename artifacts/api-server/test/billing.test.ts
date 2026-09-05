@@ -10,6 +10,7 @@ import { catalogAvailability, isBillingAdmin, trialPriceGbp } from "../src/servi
 import { featureAccess } from "../src/services/billing/authorization";
 import { allowanceQuantity } from "../src/services/billing/usage";
 import { assertExpectedStripeTestAccount, WORKRATE_STRIPE_TEST_ACCOUNT_ID } from "../src/services/billing/stripeClient";
+import { createReceptionistTopUpCheckout, verifyTopUpPrice } from "../src/services/billing/topups";
 
 test("Stripe operations fail closed outside the authoritative test account", () => {
   assert.doesNotThrow(() => assertExpectedStripeTestAccount({ key: "sk_test_example", accountId: WORKRATE_STRIPE_TEST_ACCOUNT_ID, livemode: false }));
@@ -29,6 +30,19 @@ test("server-owned trial prices use 50% defaults, overrides, and exact pence rou
 test("unmapped or unpriced add-ons are customer-visible but never purchasable", () => {
   assert.deepEqual(catalogAvailability({ monthlyPriceGbp: null, active: true, comingSoon: false }), { purchasable: false, configurationMessage: "Billing configuration required." });
   assert.deepEqual(catalogAvailability({ monthlyPriceGbp: "10", active: true, comingSoon: false, stripeProductId: "prod", stripeRecurringPriceId: "month", stripeTrialPriceId: "trial", stripeMappingValidatedAt: new Date() }), { purchasable: true, configurationMessage: null });
+});
+test("unpriced receptionist top-up packs fail closed and configured packs use server amount", async () => {
+  const stripe = { get: async () => ({ id: "price_minutes", active: true, currency: "gbp", product: "prod_minutes", recurring: null, unit_amount: 2500, metadata: { billing_kind: "ai_receptionist_top_up" } }) };
+  await assert.rejects(() => verifyTopUpPrice({ active: true, customerPriceGbp: null, currency: "gbp", stripeProductId: "prod_minutes", stripePriceId: "price_minutes", stripeMappingValidatedAt: new Date() }, stripe), /configuration/);
+  assert.equal(await verifyTopUpPrice({ active: true, customerPriceGbp: "25.00", currency: "gbp", stripeProductId: "prod_minutes", stripePriceId: "price_minutes", stripeMappingValidatedAt: new Date() }, stripe), "price_minutes");
+  await assert.rejects(() => verifyTopUpPrice({ active: true, customerPriceGbp: "24.99", currency: "gbp", stripeProductId: "prod_minutes", stripePriceId: "price_minutes", stripeMappingValidatedAt: new Date() }, stripe), /configuration/);
+});
+test("unready Stripe webhook safety gate creates no top-up purchase or Checkout", async () => {
+  let calls = 0;
+  const stripe = { get: async () => { calls++; throw new Error("must not call Stripe"); }, post: async () => { calls++; throw new Error("must not call Stripe"); } };
+  const result = await createReceptionistTopUpCheckout({ companyId: 1, ownerUserId: "owner", packCode: "minutes_100" }, stripe, () => false);
+  assert.deepEqual(result, { ok: false, code: "PAYMENT_SETUP_UNAVAILABLE", message: "Payments are not configured yet. No payment was created." });
+  assert.equal(calls, 0);
 });
 
 test("billing admin allowlist is default deny and exact-match only", () => {
@@ -73,6 +87,7 @@ test("configured add-on and Complete allowances hard-cap only the next costly ac
 });
 
 test("receptionist allowance converts stored provider seconds to whole customer minutes", () => {
+  assert.equal(allowanceQuantity("ai_receptionist", []), 0);
   assert.equal(allowanceQuantity("ai_receptionist", [{ featureCode: "ai_receptionist", quantity: 199, unit: "seconds" }]), 4);
   assert.equal(allowanceQuantity("ai_receptionist", [{ featureCode: "ai_receptionist", quantity: 11_999, unit: "seconds" }]), 200);
   assert.equal(allowanceQuantity("ai_receptionist", [{ featureCode: "ai_receptionist", quantity: 12_000, unit: "seconds" }]), 200);

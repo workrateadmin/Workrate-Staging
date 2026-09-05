@@ -8,9 +8,12 @@ import {
   useRequestBillingPortal,
   useRequestBillingCancellation,
   useSimulateBillingState,
+  useGetReceptionistTopUpPacks,
+  useCreateReceptionistTopUpCheckout,
   getGetBillingOverviewQueryKey,
   getGetBillingCatalogQueryKey,
   getGetBillingUsageQueryKey,
+  getGetReceptionistTopUpPacksQueryKey,
 } from "@workspace/api-client-react";
 import type {
   BillingOverview,
@@ -18,6 +21,8 @@ import type {
   BillingSimulationInputStatus,
   BillingSimulationInputPlanCode,
   BillingSelectionInputPlanCode,
+  ReceptionistTopUpPack,
+  UsageOverview,
 } from "@workspace/api-client-react";
 import { BillingPlanSelector } from "@/components/billing-plan-selector";
 import {
@@ -37,7 +42,8 @@ import { cn } from "@/lib/utils";
 import {
   CreditCard, Check, AlertCircle, Clock, AlertTriangle,
   XCircle, RefreshCw, ChevronRight, BarChart2,
-  ShieldCheck, CalendarDays, Timer,
+  ShieldCheck, CalendarDays, Timer, Phone, PackagePlus,
+  Info, Loader2,
 } from "lucide-react";
 
 const IS_DEV = import.meta.env.DEV;
@@ -147,6 +153,9 @@ export default function BillingPage() {
   });
   const { data: usage, isLoading: usageLoading } = useGetBillingUsage({
     query: { queryKey: getGetBillingUsageQueryKey() },
+  });
+  const { data: topUpPackList, isLoading: packsLoading } = useGetReceptionistTopUpPacks({
+    query: { queryKey: getGetReceptionistTopUpPacksQueryKey() },
   });
 
   // ── Selection state ──────────────────────────────────────────────────────
@@ -430,6 +439,14 @@ export default function BillingPage() {
 
       {/* ── Usage ────────────────────────────────────────────────────────── */}
       <UsageCard usage={usage} overview={overview} catalog={catalog} isLoading={usageLoading} />
+
+      {/* ── AI Receptionist top-up minutes ────────────────────────────────── */}
+      <ReceptionistTopUpCard
+        usage={usage}
+        overview={overview}
+        packs={topUpPackList?.packs ?? []}
+        isLoading={packsLoading || usageLoading || overviewLoading}
+      />
 
       {/* ── Pending selection notice ──────────────────────────────────────── */}
       {(overview?.pendingPlanCode || (overview?.pendingAddOnCodes?.length ?? 0) > 0) && (
@@ -766,6 +783,331 @@ function UsageCard({ usage, overview, catalog, isLoading }: {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ── AI Receptionist top-up card ───────────────────────────────────────────────
+
+function ReceptionistTopUpCard({
+  usage, overview, packs, isLoading,
+}: {
+  usage: UsageOverview | undefined;
+  overview: BillingOverview | undefined;
+  packs: ReceptionistTopUpPack[];
+  isLoading: boolean;
+}) {
+  const { toast } = useToast();
+  const [buyingCode, setBuyingCode] = useState<string | null>(null);
+  const createCheckout = useCreateReceptionistTopUpCheckout();
+
+  // Use the server-computed aiReceptionist breakdown directly.
+  // This field is non-null whenever the account has a receptionist allowance,
+  // and correctly includes includedMinutes (base plan), topUpMinutes (purchased
+  // extras), effectiveMinutes (total), usedMinutes (including zero), remaining,
+  // percentageUsed, and the period boundaries.
+  const ar = usage?.aiReceptionist ?? null;
+
+  const includedMinutes: number | null   = ar !== null ? ar.includedMinutes  : null;
+  const topUpMinutes: number | null      = ar !== null ? ar.topUpMinutes     : null;
+  const effectiveMinutes: number | null  = ar !== null ? ar.effectiveMinutes : null;
+  const usedMinutes: number              = ar !== null ? ar.usedMinutes      : 0;
+  const remainingMinutes: number | null  = ar !== null ? ar.remainingMinutes : null;
+  const periodEnd: string | null         = ar?.periodEndsAt ?? null;
+
+  // percentageUsed may be null when effectiveMinutes is 0 (no allowance to speak of)
+  const percentageUsed: number =
+    ar?.percentageUsed != null
+      ? Math.min(100, Math.round(ar.percentageUsed))
+      : 0;
+
+  const nearLimit = percentageUsed >= 75;
+  const atLimit   = ar !== null && remainingMinutes !== null ? remainingMinutes <= 0 : false;
+
+  const purchasablePacks = packs
+    .filter((p) => p.active)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const handleBuy = (pack: ReceptionistTopUpPack) => {
+    if (!pack.purchasable || pack.customerPriceGbp == null) return;
+    setBuyingCode(pack.code);
+    createCheckout.mutate(
+      { data: { packCode: pack.code } },
+      {
+        onSuccess: (result) => {
+          setBuyingCode(null);
+          if (result?.url) {
+            window.location.assign(result.url);
+          } else {
+            toast({ title: "Checkout did not return a hosted URL", variant: "destructive" });
+          }
+        },
+        onError: () => {
+          setBuyingCode(null);
+          toast({ title: "Unable to start checkout. Please try again.", variant: "destructive" });
+        },
+      }
+    );
+  };
+
+  // Only show this card if the user has an active/trialing sub or legacy access
+  const hasActiveAccess =
+    overview?.legacyAccess ||
+    overview?.status === "active" ||
+    overview?.status === "trialing";
+
+  if (!hasActiveAccess && !isLoading) return null;
+
+  return (
+    <Card className="shadow-sm border-border/60 rounded-2xl overflow-hidden">
+      <div className="px-6 py-5 border-b border-border/60 bg-secondary/30 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+          <Phone className="w-4 h-4 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-base font-bold">AI Receptionist Minutes</h2>
+          <p className="text-xs text-muted-foreground font-medium">
+            Included allowance, usage, and extra minute packs
+          </p>
+        </div>
+      </div>
+      <CardContent className="p-6 space-y-6">
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-4 w-64" />
+            <Skeleton className="h-3 rounded-full" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+        ) : (
+          <>
+            {/* ── Allowance summary grid ───────────────────────────────────── */}
+            {ar !== null ? (
+              <div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                  <AllowanceStat
+                    label="Included (plan)"
+                    value={includedMinutes !== null ? `${includedMinutes.toLocaleString()} min` : "—"}
+                    detail="base allowance"
+                  />
+                  <AllowanceStat
+                    label="Top-up purchased"
+                    value={topUpMinutes !== null ? `${topUpMinutes.toLocaleString()} min` : "—"}
+                    detail="extra minutes"
+                  />
+                  <AllowanceStat
+                    label="Total effective"
+                    value={effectiveMinutes !== null ? `${effectiveMinutes.toLocaleString()} min` : "—"}
+                    detail="this period"
+                    highlight
+                  />
+                  <AllowanceStat
+                    label="Used"
+                    value={`${usedMinutes.toLocaleString()} min`}
+                    detail={`${percentageUsed}% of total`}
+                    warn={nearLimit}
+                    danger={atLimit}
+                  />
+                </div>
+
+                {/* Second row: remaining + period end */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                  <AllowanceStat
+                    label="Remaining"
+                    value={remainingMinutes !== null ? `${Math.max(0, remainingMinutes).toLocaleString()} min` : "—"}
+                    detail={periodEnd ? `until ${fmtDate(periodEnd)}` : "this period"}
+                    warn={nearLimit && !atLimit}
+                    danger={atLimit}
+                  />
+                  <AllowanceStat
+                    label="Period ends"
+                    value={periodEnd ? fmtDate(periodEnd) : "—"}
+                    detail={daysUntil(periodEnd) != null ? `${daysUntil(periodEnd)} days left` : ""}
+                  />
+                </div>
+
+                {/* Progress bar */}
+                <Progress
+                  value={percentageUsed}
+                  className={cn(
+                    "h-2",
+                    atLimit && "[&>div]:bg-destructive",
+                    nearLimit && !atLimit && "[&>div]:bg-amber-500"
+                  )}
+                />
+                <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+                  <span>
+                    {usedMinutes.toLocaleString()} of {effectiveMinutes !== null ? effectiveMinutes.toLocaleString() : "—"} minutes used
+                    {topUpMinutes != null && topUpMinutes > 0 && (
+                      <span className="ml-1 text-muted-foreground">
+                        ({includedMinutes?.toLocaleString()} included + {topUpMinutes.toLocaleString()} top-up)
+                      </span>
+                    )}
+                  </span>
+                  {periodEnd && <span>Period ends {fmtDate(periodEnd)}</span>}
+                </div>
+
+                {/* Warning banners */}
+                {atLimit && (
+                  <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <p className="text-xs font-semibold text-red-800">
+                      Your minutes are exhausted. Buy extra minutes below to restore call handling until your allowance resets{periodEnd ? ` on ${fmtDate(periodEnd)}` : ""}.
+                    </p>
+                  </div>
+                )}
+                {nearLimit && !atLimit && (
+                  <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-xs font-semibold text-amber-800">
+                      You have used {percentageUsed}% of your minutes. Consider adding extra minutes to avoid interruption.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-start gap-3 text-sm text-muted-foreground">
+                <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>AI Receptionist minute data is not available. Activate an AI Receptionist add-on to see your usage here.</span>
+              </div>
+            )}
+
+            {/* ── Top-up pack selector ────────────────────────────────────── */}
+            {purchasablePacks.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <PackagePlus className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-bold">Extra Minute Packs</h3>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+                  Purchased minutes are added on top of your plan allowance and expire at the end of the current billing period. Each purchase is a one-off charge.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {purchasablePacks.map((pack) => {
+                    const priceSet = pack.customerPriceGbp != null;
+                    const canBuy = pack.purchasable && priceSet;
+                    const isBuying = buyingCode === pack.code;
+
+                    return (
+                      <div
+                        key={pack.code}
+                        className={cn(
+                          "rounded-xl border p-4 flex flex-col gap-3 transition-colors",
+                          canBuy
+                            ? "border-border/60 bg-background hover:border-primary/40 hover:bg-primary/[0.02]"
+                            : "border-border/40 bg-secondary/20 opacity-70"
+                        )}
+                        data-testid={`topup-pack-${pack.code}`}
+                      >
+                        {/* Pack header */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-bold leading-tight">{pack.name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {pack.minutes.toLocaleString()} minutes
+                            </p>
+                          </div>
+                          {!pack.active && (
+                            <Badge variant="secondary" className="text-[10px] shrink-0">Inactive</Badge>
+                          )}
+                        </div>
+
+                        {/* Price */}
+                        <div>
+                          {priceSet ? (
+                            <p className="text-xl font-black tabular-nums">
+                              £{Number(pack.customerPriceGbp).toFixed(2)}
+                              <span className="text-xs font-semibold text-muted-foreground ml-1">one-off</span>
+                            </p>
+                          ) : (
+                            <p className="text-sm font-semibold text-muted-foreground">Price not set</p>
+                          )}
+                        </div>
+
+                        {/* Expiry policy */}
+                        <p className="text-[11px] text-muted-foreground">
+                          {pack.expiryPolicy === "period_end"
+                            ? `Expires at period end${periodEnd ? ` (${fmtDate(periodEnd)})` : ""}`
+                            : pack.expiryPolicy}
+                        </p>
+
+                        {/* Configuration message */}
+                        {pack.configurationMessage && !canBuy && (
+                          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 leading-relaxed">
+                            {pack.configurationMessage}
+                          </p>
+                        )}
+
+                        {/* Buy button */}
+                        {canBuy ? (
+                          <Button
+                            size="sm"
+                            className="w-full font-bold gap-2 mt-auto"
+                            onClick={() => handleBuy(pack)}
+                            disabled={isBuying || createCheckout.isPending}
+                            data-testid={`btn-buy-pack-${pack.code}`}
+                          >
+                            {isBuying ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <PackagePlus className="w-3.5 h-3.5" />
+                            )}
+                            {isBuying ? "Connecting…" : "Buy Pack"}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full font-semibold mt-auto"
+                            disabled
+                            data-testid={`btn-unavailable-pack-${pack.code}`}
+                          >
+                            {!priceSet ? "Price not set" : "Not available"}
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* No packs at all */}
+            {!isLoading && purchasablePacks.length === 0 && (
+              <div className="rounded-xl border border-border/40 bg-secondary/20 p-4 text-center">
+                <PackagePlus className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground font-medium">No extra minute packs are available at this time.</p>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Allowance stat tile ───────────────────────────────────────────────────────
+
+function AllowanceStat({
+  label, value, detail, highlight, warn, danger,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  highlight?: boolean;
+  warn?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-border/50 bg-secondary/30 px-3 py-2.5">
+      <p className="text-[11px] text-muted-foreground font-medium mb-1 truncate">{label}</p>
+      <p className={cn(
+        "text-base font-black tabular-nums leading-tight",
+        danger ? "text-red-700" : warn ? "text-amber-700" : highlight ? "text-primary" : "text-foreground"
+      )}>
+        {value}
+      </p>
+      {detail && <p className="text-[10px] text-muted-foreground mt-0.5">{detail}</p>}
+    </div>
   );
 }
 

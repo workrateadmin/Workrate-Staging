@@ -71,6 +71,8 @@ import type {
   IntegrationStatus,
   InternalBillingCatalog,
   InternalBillingCatalogItem,
+  InternalReceptionistTopUpPack,
+  InternalReceptionistTopUpPackUpdate,
   Invoice,
   InvoiceCreate,
   InvoiceMarkPaidBody,
@@ -92,6 +94,9 @@ import type {
   ProposalResponse,
   Quote,
   QuoteUpdate,
+  ReceptionistTopUpCheckout,
+  ReceptionistTopUpCheckoutInput,
+  ReceptionistTopUpPackList,
   RecordProposalView200,
   RecordWidgetHeartbeat202,
   TimelinePage,
@@ -6285,6 +6290,154 @@ export function useGetBillingCatalog<TData = Awaited<ReturnType<typeof getBillin
 
 
 
+export const getGetReceptionistTopUpPacksUrl = () => {
+
+
+
+
+  return `/api/billing/receptionist-top-ups`
+}
+
+/**
+ * @summary List AI Receptionist one-time minute packs
+ */
+export const getReceptionistTopUpPacks = async ( options?: Parameters<typeof customFetch>[1]): Promise<ReceptionistTopUpPackList> => {
+
+  return customFetch<ReceptionistTopUpPackList>(getGetReceptionistTopUpPacksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReceptionistTopUpPacksQueryKey = () => {
+    return [
+    `/api/billing/receptionist-top-ups`
+    ] as const;
+    }
+
+
+export const getGetReceptionistTopUpPacksQueryOptions = <TData = Awaited<ReturnType<typeof getReceptionistTopUpPacks>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReceptionistTopUpPacks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReceptionistTopUpPacksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReceptionistTopUpPacks>>> = ({ signal }) => getReceptionistTopUpPacks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReceptionistTopUpPacks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReceptionistTopUpPacksQueryResult = NonNullable<Awaited<ReturnType<typeof getReceptionistTopUpPacks>>>
+export type GetReceptionistTopUpPacksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List AI Receptionist one-time minute packs
+ */
+
+export function useGetReceptionistTopUpPacks<TData = Awaited<ReturnType<typeof getReceptionistTopUpPacks>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReceptionistTopUpPacks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReceptionistTopUpPacksQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateReceptionistTopUpCheckoutUrl = () => {
+
+
+
+
+  return `/api/billing/receptionist-top-ups/checkout`
+}
+
+/**
+ * @summary Create hosted one-time Checkout for a server-selected pack
+ */
+export const createReceptionistTopUpCheckout = async (receptionistTopUpCheckoutInput: ReceptionistTopUpCheckoutInput, options?: Parameters<typeof customFetch>[1]): Promise<ReceptionistTopUpCheckout> => {
+
+  return customFetch<ReceptionistTopUpCheckout>(getCreateReceptionistTopUpCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(receptionistTopUpCheckoutInput)
+  }
+);}
+
+
+
+
+
+export const getCreateReceptionistTopUpCheckoutMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReceptionistTopUpCheckout>>, TError,{data: BodyType<ReceptionistTopUpCheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createReceptionistTopUpCheckout>>, TError,{data: BodyType<ReceptionistTopUpCheckoutInput>}, TContext> => {
+
+const mutationKey = ['createReceptionistTopUpCheckout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createReceptionistTopUpCheckout>>, {data: BodyType<ReceptionistTopUpCheckoutInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createReceptionistTopUpCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateReceptionistTopUpCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof createReceptionistTopUpCheckout>>>
+    export type CreateReceptionistTopUpCheckoutMutationBody = BodyType<ReceptionistTopUpCheckoutInput>
+    export type CreateReceptionistTopUpCheckoutMutationError = ErrorType<void>
+
+    /**
+ * @summary Create hosted one-time Checkout for a server-selected pack
+ */
+export const useCreateReceptionistTopUpCheckout = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReceptionistTopUpCheckout>>, TError,{data: BodyType<ReceptionistTopUpCheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createReceptionistTopUpCheckout>>,
+        TError,
+        {data: BodyType<ReceptionistTopUpCheckoutInput>},
+        TContext
+      > => {
+      return useMutation(getCreateReceptionistTopUpCheckoutMutationOptions(options));
+    }
+
 export const getGetInternalBillingCatalogUrl = () => {
 
 
@@ -6362,6 +6515,150 @@ export function useGetInternalBillingCatalog<TData = Awaited<ReturnType<typeof g
 
 
 
+
+export const getUpdateInternalReceptionistTopUpPackUrl = (code: string,) => {
+
+
+
+
+  return `/api/internal/billing/receptionist-top-ups/${code}`
+}
+
+/**
+ * Internal only. Customer prices and Stripe one-time mappings remain unavailable until the mapping is explicitly validated.
+ * @summary Update an AI Receptionist top-up pack
+ */
+export const updateInternalReceptionistTopUpPack = async (code: string,
+    internalReceptionistTopUpPackUpdate: InternalReceptionistTopUpPackUpdate, options?: Parameters<typeof customFetch>[1]): Promise<InternalReceptionistTopUpPack> => {
+
+  return customFetch<InternalReceptionistTopUpPack>(getUpdateInternalReceptionistTopUpPackUrl(code),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(internalReceptionistTopUpPackUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateInternalReceptionistTopUpPackMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInternalReceptionistTopUpPack>>, TError,{code: string;data: BodyType<InternalReceptionistTopUpPackUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateInternalReceptionistTopUpPack>>, TError,{code: string;data: BodyType<InternalReceptionistTopUpPackUpdate>}, TContext> => {
+
+const mutationKey = ['updateInternalReceptionistTopUpPack'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateInternalReceptionistTopUpPack>>, {code: string;data: BodyType<InternalReceptionistTopUpPackUpdate>}> = (props) => {
+          const {code,data} = props ?? {};
+
+          return  updateInternalReceptionistTopUpPack(code,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateInternalReceptionistTopUpPackMutationResult = NonNullable<Awaited<ReturnType<typeof updateInternalReceptionistTopUpPack>>>
+    export type UpdateInternalReceptionistTopUpPackMutationBody = BodyType<InternalReceptionistTopUpPackUpdate>
+    export type UpdateInternalReceptionistTopUpPackMutationError = ErrorType<void>
+
+    /**
+ * @summary Update an AI Receptionist top-up pack
+ */
+export const useUpdateInternalReceptionistTopUpPack = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInternalReceptionistTopUpPack>>, TError,{code: string;data: BodyType<InternalReceptionistTopUpPackUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateInternalReceptionistTopUpPack>>,
+        TError,
+        {code: string;data: BodyType<InternalReceptionistTopUpPackUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateInternalReceptionistTopUpPackMutationOptions(options));
+    }
+
+export const getValidateInternalReceptionistTopUpPackMappingUrl = (code: string,) => {
+
+
+
+
+  return `/api/internal/billing/receptionist-top-ups/${code}/validate-mapping`
+}
+
+/**
+ * @summary Verify an AI Receptionist one-time Stripe price mapping
+ */
+export const validateInternalReceptionistTopUpPackMapping = async (code: string, options?: Parameters<typeof customFetch>[1]): Promise<InternalReceptionistTopUpPack> => {
+
+  return customFetch<InternalReceptionistTopUpPack>(getValidateInternalReceptionistTopUpPackMappingUrl(code),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getValidateInternalReceptionistTopUpPackMappingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateInternalReceptionistTopUpPackMapping>>, TError,{code: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof validateInternalReceptionistTopUpPackMapping>>, TError,{code: string}, TContext> => {
+
+const mutationKey = ['validateInternalReceptionistTopUpPackMapping'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof validateInternalReceptionistTopUpPackMapping>>, {code: string}> = (props) => {
+          const {code} = props ?? {};
+
+          return  validateInternalReceptionistTopUpPackMapping(code,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ValidateInternalReceptionistTopUpPackMappingMutationResult = NonNullable<Awaited<ReturnType<typeof validateInternalReceptionistTopUpPackMapping>>>
+
+    export type ValidateInternalReceptionistTopUpPackMappingMutationError = ErrorType<void>
+
+    /**
+ * @summary Verify an AI Receptionist one-time Stripe price mapping
+ */
+export const useValidateInternalReceptionistTopUpPackMapping = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateInternalReceptionistTopUpPackMapping>>, TError,{code: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof validateInternalReceptionistTopUpPackMapping>>,
+        TError,
+        {code: string},
+        TContext
+      > => {
+      return useMutation(getValidateInternalReceptionistTopUpPackMappingMutationOptions(options));
+    }
 
 export const getUpdateInternalBillingCatalogItemUrl = (kind: 'plan' | 'add-on',
     code: string,) => {
