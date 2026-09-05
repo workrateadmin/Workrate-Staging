@@ -20,3 +20,9 @@ Persisted Stripe product, recurring-price, and paid-trial-price IDs are the only
 **Why:** Metadata discovery or unchecked saved IDs can charge a stale Stripe amount that differs from the customer-facing server catalog.
 
 **How to apply:** Fail closed before Checkout or subscription updates, compare Stripe unit amounts with server-computed pence, and restore validation only through the protected validator or verified catalog seed.
+
+WorkRate runtime billing currently uses the Replit Stripe connector rather than `STRIPE_SECRET_KEY`; a configured key may target a different Stripe account even when both are test mode.
+
+**Why:** Verifying only that both credentials are test-mode does not prove they address the same catalog, customers, or webhook endpoints.
+
+**How to apply:** Before catalog or checkout verification, compare the connector and direct-key Stripe account IDs without logging credentials. Treat any mismatch as a pre-publish configuration issue and test the runtime against the connector account it actually uses.
