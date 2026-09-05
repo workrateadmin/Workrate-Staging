@@ -14,7 +14,7 @@ import {
 import { billingProvider } from "../services/billing/provider";
 import { verifyCatalogPrice } from "../services/billing/provider";
 import { StripeApiClient } from "../services/billing/stripeClient";
-import { allowanceQuantity, grantedReceptionistTopUpMinutes, providerCostForTenant, usageForTenant, usagePeriodForTenant } from "../services/billing/usage";
+import { allowanceQuantity, grantedReceptionistTopUpMinutes, providerCostHistoryForTenant, summarizeProviderCosts, usageForTenant, usagePeriodForTenant } from "../services/billing/usage";
 import { tenantEntitlements } from "../services/billing/authorization";
 import { catalogAvailability, trialPriceGbp } from "../services/billing/pricing";
 import { isBillingAdmin } from "../services/billing/pricing";
@@ -118,9 +118,36 @@ router.get("/internal/billing/profitability/:companyId", async (req, res): Promi
   ));
   const topUpRevenueGbp = Number(topUpRevenue?.value ?? 0);
   const revenueGbp = subscriptionRevenueGbp + topUpRevenueGbp;
-  const providerCostGbp = await providerCostForTenant(companyId, subscription.ownerUserId, period);
-  // Costs are direct provider values only; no fabricated estimates are returned.
-  res.json({ companyId, period, subscriptionRevenueGbp, topUpRevenueGbp, totalRevenueGbp: revenueGbp, directProviderCostGbp: providerCostGbp, grossContributionGbp: revenueGbp - providerCostGbp });
+  const [costEvents, durationEvents] = await Promise.all([
+    providerCostHistoryForTenant(companyId, subscription.ownerUserId, period),
+    db.select({
+      providerReference: billingUsageEventsTable.providerReference,
+      quantity: billingUsageEventsTable.quantity,
+      occurredAt: billingUsageEventsTable.occurredAt,
+    }).from(billingUsageEventsTable).where(and(
+      eq(billingUsageEventsTable.companyId, companyId),
+      eq(billingUsageEventsTable.ownerUserId, subscription.ownerUserId),
+      eq(billingUsageEventsTable.usageCategory, "ai_receptionist_seconds"),
+      sql`${billingUsageEventsTable.occurredAt} >= ${period.startsAt} and ${billingUsageEventsTable.occurredAt} < ${period.endsAt}`,
+    )),
+  ]);
+  const durations = new Map(durationEvents.map((event) => [event.providerReference, Number(event.quantity)]));
+  const profitability = summarizeProviderCosts(costEvents, revenueGbp);
+  // This minimal internal history deliberately omits phone, transcript, and raw
+  // Vapi data. Cost events and seconds share the canonical provider call ID.
+  const calls = profitability.verified.map((event) => ({
+    callId: event.providerReference,
+    durationSeconds: durations.get(event.providerReference) ?? 0,
+    providerCostAmount: event.providerCostAmount == null
+      ? event.providerCostGbp == null ? null : Number(event.providerCostGbp)
+      : Number(event.providerCostAmount),
+    providerCostCurrency: event.providerCostAmount == null && event.providerCostGbp != null ? "GBP" : event.providerCostCurrency,
+    date: event.occurredAt,
+  }));
+  res.json({
+    companyId, period, subscriptionRevenueGbp, topUpRevenueGbp, totalRevenueGbp: revenueGbp,
+    ...profitability, calls,
+  });
 });
 router.patch("/internal/billing/:kind/:code", async (req, res): Promise<void> => {
   const userId = requireBillingAdmin(req, res); if (!userId) return;

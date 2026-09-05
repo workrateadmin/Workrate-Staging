@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 const artifactDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const outputDir = path.resolve(artifactDir, "../../lib/db/.vapi-test-dist");
+const outputDir = path.resolve(artifactDir, ".vapi-test-dist");
 const outputFile = path.join(outputDir, "vapi-security.test.mjs");
 
 try {
@@ -15,7 +15,8 @@ try {
     platform: "node",
     format: "esm",
     target: "node24",
-    external: ["pg"],
+    external: ["express", "sharp"],
+    banner: { js: "import { createRequire as __testCreateRequire } from 'node:module'; const require = __testCreateRequire(import.meta.url);" },
     outfile: outputFile,
     logLevel: "info",
   });

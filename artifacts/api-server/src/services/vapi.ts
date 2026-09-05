@@ -36,6 +36,49 @@ export type VapiCallData = {
   providerData: string;
 };
 
+export type VapiCanonicalCost = {
+  amount: number | null;
+  currency: string | null;
+  /** Numeric provider components only; raw provider payloads can contain sensitive fields. */
+  components: Record<string, number>;
+};
+
+export type VapiCanonicalCall = {
+  providerCallId: string;
+  assistantId: string | null;
+  phoneNumberId: string | null;
+  phoneNumber: string | null;
+  status: string | null;
+  endedReason: string | null;
+  startedAt: Date | null;
+  endedAt: Date | null;
+  durationSeconds: number | null;
+  cost: VapiCanonicalCost;
+};
+
+/** Unknown terminal states never consume customer allowance. */
+export function classifyCanonicalVapiCall(call: Pick<VapiCanonicalCall, "status" | "endedReason">): "billable_completed" | "non_billable" {
+  const status = call.status?.toLowerCase() ?? "";
+  const reason = call.endedReason?.toLowerCase() ?? "";
+  if (/(fail|drop|miss|transfer|error|cancel)/.test(status) || /(fail|drop|miss|transfer|error|cancel)/.test(reason)) return "non_billable";
+  return ["ended", "completed"].includes(status) ? "billable_completed" : "non_billable";
+}
+
+/** Canonical calls without a tenant-bound assistant/phone identity fail closed. */
+export function canonicalTenantIdentityMatches(
+  call: Pick<VapiCanonicalCall, "assistantId" | "phoneNumberId" | "phoneNumber">,
+  resolvedIntegrationId: number,
+  canonicalIntegrationId: number | null | undefined,
+): boolean {
+  return Boolean(call.assistantId || call.phoneNumberId || call.phoneNumber)
+    && canonicalIntegrationId === resolvedIntegrationId;
+}
+
+export function canonicalCallLedgerPlan(call: Pick<VapiCanonicalCall, "status" | "endedReason" | "durationSeconds">) {
+  const billable = classifyCanonicalVapiCall(call) === "billable_completed" && (call.durationSeconds ?? 0) > 0;
+  return { recordProviderCost: true, recordCustomerDuration: billable, reservationAction: billable ? "finalize" as const : "release" as const };
+}
+
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -72,6 +115,59 @@ function parseDate(value: unknown): Date | null {
   if (!text) return null;
   const date = new Date(text);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function finiteNumber(value: unknown): number | null {
+  const number = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+/** Keeps only finite numeric component values and benign keys, never a raw Vapi response. */
+export function sanitizeVapiCostComponents(value: unknown): Record<string, number> {
+  const record = asRecord(value);
+  return Object.fromEntries(Object.entries(record)
+    .filter(([key, amount]) => /^[a-zA-Z0-9_.-]{1,80}$/.test(key) && finiteNumber(amount) != null)
+    .map(([key, amount]) => [key, finiteNumber(amount)!]));
+}
+
+/**
+ * Server-only canonical Vapi lookup. Webhook costs are intentionally ignored:
+ * Vapi's GET /call/:id response is the sole source for direct cost records.
+ */
+export async function fetchCanonicalVapiCall(providerCallId: string): Promise<VapiCanonicalCall> {
+  const privateKey = process.env.VAPI_PRIVATE_KEY;
+  if (!privateKey) throw new Error("VAPI_PRIVATE_KEY is required for canonical Vapi call retrieval.");
+  const response = await fetch(`https://api.vapi.ai/call/${encodeURIComponent(providerCallId)}`, {
+    headers: { Authorization: `Bearer ${privateKey}` },
+  });
+  if (!response.ok) throw new Error(`Vapi canonical call retrieval failed (${response.status}).`);
+  const call = asRecord(await response.json());
+  const id = firstString(call.id);
+  if (!id || id !== providerCallId) throw new Error("Vapi canonical call identity did not match the webhook call.");
+  const startedAt = parseDate(call.startedAt);
+  const endedAt = parseDate(call.endedAt);
+  const duration = finiteNumber(call.duration ?? call.durationMs);
+  const durationSeconds = duration == null ? (startedAt && endedAt ? Math.max(0, Math.round((endedAt.getTime() - startedAt.getTime()) / 1000)) : null)
+    : Math.round(duration > 10_000 ? duration / 1000 : duration);
+  const costs = Array.isArray(call.costs) ? call.costs : [];
+  const components = {
+    ...sanitizeVapiCostComponents(call.costBreakdown),
+    ...Object.assign({}, ...costs.map((item, index) => sanitizeVapiCostComponents(
+      Object.fromEntries(Object.entries(asRecord(item)).filter(([key]) => key !== "currency").map(([key, value]) => [`costs.${index}.${key}`, value])),
+    ))),
+  };
+  // Vapi currently omits currency on canonical calls. Do not infer one from account locale or pricing.
+  const currency = firstString(call.currency, asRecord(call.costBreakdown).currency);
+  return {
+    providerCallId: id,
+    assistantId: firstString(call.assistantId, nested(call, "assistant").id),
+    phoneNumberId: firstString(call.phoneNumberId, nested(call, "phoneNumber").id),
+    phoneNumber: firstString(nested(call, "phoneNumber").number, call.phoneNumber),
+    status: firstString(call.status),
+    endedReason: firstString(call.endedReason),
+    startedAt, endedAt, durationSeconds,
+    cost: { amount: finiteNumber(call.cost), currency: currency?.toUpperCase() ?? null, components },
+  };
 }
 
 function normalizeRole(value: unknown): "ai" | "caller" {

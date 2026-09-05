@@ -1929,6 +1929,25 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/InternalBillingCatalog" }
         "403": { description: Administrator access required }
+  /internal/billing/profitability/{companyId}:
+    get:
+      operationId: getInternalBillingProfitability
+      tags: [billing]
+      summary: View verified direct provider costs and minimal Vapi call history
+      description: Internal administrators only. Provider costs are canonical Vapi GET /call/:id values; no provider cost, phone number, transcript, or raw provider response is exposed to customers. Amounts with no authoritative currency are explicitly unavailable and are never represented as GBP.
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema: { type: number, minimum: 1 }
+      responses:
+        "200":
+          description: Internal profitability and verified direct provider-cost history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InternalBillingProfitability" }
+        "403": { description: Administrator access required }
+        "404": { description: No Stripe billing period for this tenant }
   /internal/billing/receptionist-top-ups/{code}:
     patch:
       operationId: updateInternalReceptionistTopUpPack
@@ -2216,6 +2235,44 @@ components:
         plans: { type: array, items: { $ref: "#/components/schemas/InternalBillingCatalogItem" } }
         addOns: { type: array, items: { $ref: "#/components/schemas/InternalBillingCatalogItem" } }
         receptionistTopUpPacks: { type: array, items: { $ref: "#/components/schemas/InternalReceptionistTopUpPack" } }
+    InternalBillingProfitability:
+      type: object
+      required: [companyId, period, subscriptionRevenueGbp, topUpRevenueGbp, totalRevenueGbp, directProviderCosts, costsCompleteForGbpMargin, missingCostState, directProviderCostGbp, grossContributionGbp, calls]
+      properties:
+        companyId: { type: number }
+        period:
+          type: object
+          required: [startsAt, endsAt]
+          properties:
+            startsAt: { type: string, format: date-time }
+            endsAt: { type: string, format: date-time }
+        subscriptionRevenueGbp: { type: number }
+        topUpRevenueGbp: { type: number }
+        totalRevenueGbp: { type: number }
+        directProviderCosts:
+          type: array
+          items:
+            type: object
+            required: [currency, amount, callCount]
+            properties:
+              currency: { type: ["string", "null"], description: "Null means currency was unavailable from Vapi." }
+              amount: { type: ["number", "null"], description: "Null means one or more provider costs in this group were unavailable." }
+              callCount: { type: number }
+        costsCompleteForGbpMargin: { type: boolean }
+        missingCostState: { type: ["string", "null"] }
+        directProviderCostGbp: { type: ["number", "null"] }
+        grossContributionGbp: { type: ["number", "null"], description: "Null unless every direct provider cost is authoritatively GBP and present." }
+        calls:
+          type: array
+          items:
+            type: object
+            required: [callId, durationSeconds, providerCostAmount, providerCostCurrency, date]
+            properties:
+              callId: { type: ["string", "null"] }
+              durationSeconds: { type: number }
+              providerCostAmount: { type: ["number", "null"] }
+              providerCostCurrency: { type: ["string", "null"] }
+              date: { type: string, format: date-time }
     BillingOverview:
       type: object
       required: [legacyAccess, status, planCode, addOnCodes, pendingPlanCode, pendingAddOnCodes, cancelAtPeriodEnd, provider, trialEndsAt, currentPeriodStartsAt, currentPeriodEndsAt, cancelledAt, failedPaymentAt]

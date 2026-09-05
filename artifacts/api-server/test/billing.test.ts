@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHmac, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import express from "express";
+import { createServer, request } from "node:http";
+import billingRouter from "../src/routes/billing";
 import { and, eq } from "drizzle-orm";
-import { billingReceptionistTopUpPacksTable, billingReceptionistTopUpPurchasesTable, companiesTable, companySubscriptionsTable, db } from "@workspace/db";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
+import * as dbSchema from "@workspace/db";
+import { billingReceptionistTopUpPacksTable, billingReceptionistTopUpPurchasesTable, billingUsageEventsTable, billingUsagePeriodsTable, billingUsageReservationsTable, companiesTable, companySubscriptionsTable, db } from "@workspace/db";
 import { resolveEntitlements, canUseMeteredFeature } from "../src/services/billing/entitlements";
 import { UnavailableBillingProvider } from "../src/services/billing/unavailable";
 import { StripeBillingProvider, type BillingCatalogRepository, type CheckoutRepository, type WebhookRepository } from "../src/services/billing/provider";
@@ -10,7 +17,7 @@ import { canonicalEventId, checkoutIdempotencyKey, checkoutLineItems, mapStripeS
 import { processRetryableReceipt } from "../src/services/billing/lifecycle";
 import { catalogAvailability, isBillingAdmin, trialPriceGbp } from "../src/services/billing/pricing";
 import { featureAccess } from "../src/services/billing/authorization";
-import { allowanceQuantity } from "../src/services/billing/usage";
+import { allowanceQuantity, finalizeUsageReservation, isLegacyVapiCostCoveredByCanonical, recordUsage, releaseUsageReservation, reserveUsage, summarizeProviderCosts, upsertVapiProviderCost } from "../src/services/billing/usage";
 import { assertExpectedStripeTestAccount, WORKRATE_STRIPE_TEST_ACCOUNT_ID } from "../src/services/billing/stripeClient";
 import { createReceptionistTopUpCheckout, grantReceptionistTopUpFromStripeSession, verifyTopUpPrice } from "../src/services/billing/topups";
 import { grantedReceptionistTopUpMinutes } from "../src/services/billing/usage";
@@ -156,6 +163,242 @@ test("DB-backed receptionist grants snapshot minutes once and reject canonical s
   } finally {
     if (companyId) await db.delete(companiesTable).where(eq(companiesTable.id, companyId));
     await db.update(billingReceptionistTopUpPacksTable).set(originalPack).where(eq(billingReceptionistTopUpPacksTable.id, pack.id));
+  }
+});
+
+test("DB-backed allowance reservations serialize concurrent provider starts and remain idempotent", async () => {
+  const owner = `billing-reservation-${randomUUID()}`;
+  let companyId: number | undefined;
+  const pools: pg.Pool[] = [];
+  const clients: pg.PoolClient[] = [];
+  try {
+    const [company] = await db.insert(companiesTable).values({ ownerUserId: owner, name: owner }).returning();
+    companyId = company.id;
+    const startsAt = new Date(Date.now() - 60_000);
+    const endsAt = new Date(Date.now() + 86_400_000);
+    const [period] = await db.insert(billingUsagePeriodsTable).values({
+      companyId, ownerUserId: owner, startsAt, endsAt,
+    }).returning();
+    await db.insert(companySubscriptionsTable).values({
+      companyId, ownerUserId: owner, planCode: "complete", addOnCodes: [], status: "active",
+      provider: "stripe", providerSubscriptionId: `sub-${owner}`,
+      currentPeriodStartsAt: startsAt, currentPeriodEndsAt: endsAt,
+    });
+
+    // Each contender owns a dedicated Pool connection.  This exercises the
+    // PostgreSQL advisory lock rather than merely concurrent promises sharing
+    // one client.
+    for (let index = 0; index < 5; index++) pools.push(new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 }));
+    clients.push(...await Promise.all(pools.map((pool) => pool.connect())));
+    const isolated = clients.map((client) => drizzle(client, { schema: dbSchema }) as Pick<typeof db, "transaction">);
+    const reserveMany = (featureCode: string, count: number, prefix: string) => Promise.all(
+      Array.from({ length: count }, (_, index) => reserveUsage({
+        companyId: company.id, ownerUserId: owner, period, featureCode, quantity: 1, limit: 1,
+        dedupeKey: `${prefix}:${index}`,
+      }, isolated[index])),
+    );
+
+    const social = await reserveMany("social_ai_meta", 5, "social");
+    assert.equal(social.filter((result) => result.allowed).length, 1, "five social attempts allow one provider action");
+    const socialWinner = social.find((result) => result.allowed)!;
+    await db.insert(billingUsageEventsTable).values({
+      companyId: company.id, ownerUserId: owner, usagePeriodId: period.id, featureCode: "social_ai_meta",
+      usageCategory: "ai_assisted_messages", quantity: 1, unit: "messages", source: "openai",
+      dedupeKey: socialWinner.reservation!.dedupeKey, idempotencyKey: socialWinner.reservation!.dedupeKey,
+      occurredAt: new Date(),
+    });
+    await finalizeUsageReservation(company.id, owner, socialWinner.reservation!.dedupeKey);
+    assert.equal((await db.select().from(billingUsageEventsTable).where(eq(billingUsageEventsTable.featureCode, "social_ai_meta"))).filter((event) => event.companyId === company.id).length, 1);
+
+    const concept = await reserveMany("concept_visuals", 3, "concept");
+    assert.equal(concept.filter((result) => result.allowed).length, 1, "three concept attempts allow one provider action");
+
+    const receptionist = await reserveMany("ai_receptionist", 5, "call");
+    assert.equal(receptionist.filter((result) => result.allowed).length, 1, "simultaneous call starts allow one call");
+    const acceptedCall = receptionist.find((result) => result.allowed)!.reservation!;
+    // A call that was accepted while one minute remained is allowed to finish,
+    // even when its actual duration rounds above that threshold.
+    await db.insert(billingUsageEventsTable).values({
+      companyId: company.id, ownerUserId: owner, usagePeriodId: period.id, featureCode: "ai_receptionist",
+      usageCategory: "ai_receptionist_seconds", quantity: 120, unit: "seconds", source: "vapi",
+      dedupeKey: acceptedCall.dedupeKey, idempotencyKey: acceptedCall.dedupeKey, occurredAt: new Date(),
+    });
+    await finalizeUsageReservation(company.id, owner, acceptedCall.dedupeKey);
+    assert.equal((await reserveUsage({
+      companyId: company.id, ownerUserId: owner, period, featureCode: "ai_receptionist", quantity: 1, limit: 1, dedupeKey: "call:next",
+    })).allowed, false, "next call is blocked after final usage");
+
+    const failed = await reserveUsage({
+      companyId: company.id, ownerUserId: owner, period, featureCode: "provider_failure", quantity: 1, limit: 1, dedupeKey: "failed",
+    });
+    assert.equal(failed.allowed, true);
+    // Provider failure releases the accepted action first; the next, distinct
+    // action gets the capacity back. This must not depend on update ordering.
+    await releaseUsageReservation(company.id, owner, "failed");
+    assert.equal((await reserveUsage({
+      companyId: company.id, ownerUserId: owner, period, featureCode: "provider_failure", quantity: 1, limit: 1, dedupeKey: "retry",
+    })).allowed, true, "a failed provider release restores exactly one capacity");
+
+    const released = await reserveUsage({
+      companyId: company.id, ownerUserId: owner, period, featureCode: "duplicate_release", quantity: 1, limit: 1, dedupeKey: "released-event",
+    });
+    assert.equal(released.allowed, true);
+    await releaseUsageReservation(company.id, owner, "released-event");
+    await releaseUsageReservation(company.id, owner, "released-event");
+    const releasedRows = await db.select().from(billingUsageReservationsTable).where(and(
+      eq(billingUsageReservationsTable.companyId, company.id),
+      eq(billingUsageReservationsTable.dedupeKey, "released-event"),
+    ));
+    assert.equal(releasedRows.length, 1);
+    assert.equal(releasedRows[0].status, "released", "duplicate release is a no-op");
+
+    const finalized = await reserveUsage({
+      companyId: company.id, ownerUserId: owner, period, featureCode: "duplicate_finalize", quantity: 1, limit: 1, dedupeKey: "finalized-event",
+    });
+    assert.equal(finalized.allowed, true);
+    await finalizeUsageReservation(company.id, owner, "finalized-event");
+    await finalizeUsageReservation(company.id, owner, "finalized-event");
+    const finalizedRows = await db.select().from(billingUsageReservationsTable).where(and(
+      eq(billingUsageReservationsTable.companyId, company.id),
+      eq(billingUsageReservationsTable.dedupeKey, "finalized-event"),
+    ));
+    assert.equal(finalizedRows.length, 1);
+    assert.equal(finalizedRows[0].status, "finalized", "duplicate finalize is a no-op");
+
+    const expired = await reserveUsage({
+      companyId: company.id, ownerUserId: owner, period, featureCode: "lease_expiry", quantity: 1, limit: 1, dedupeKey: "lease:old",
+    });
+    assert.equal(expired.allowed, true);
+    await db.update(billingUsageReservationsTable).set({ expiresAt: new Date(Date.now() - 1_000) }).where(eq(billingUsageReservationsTable.dedupeKey, "lease:old"));
+    const afterExpiry = await reserveUsage({
+      companyId: company.id, ownerUserId: owner, period, featureCode: "lease_expiry", quantity: 1, limit: 1, dedupeKey: "lease:new",
+    });
+    assert.equal(afterExpiry.allowed, true, "expired claim is released under the feature advisory lock");
+    const leaseRows = await db.select().from(billingUsageReservationsTable).where(and(
+      eq(billingUsageReservationsTable.companyId, company.id), eq(billingUsageReservationsTable.featureCode, "lease_expiry"),
+    ));
+    assert.equal(leaseRows.find((row) => row.dedupeKey === "lease:old")?.status, "released");
+    assert.equal(leaseRows.filter((row) => row.status === "reserved").reduce((sum, row) => sum + row.quantity, 0), 1);
+
+    // A provider/webhook retry may race. The ledger unique key, rather than
+    // caller timing, guarantees a single billable usage record.
+    const retriedUsage = await Promise.all(Array.from({ length: 5 }, () => recordUsage({
+      companyId: company.id, ownerUserId: owner, featureCode: "record_retry",
+      usageCategory: "retry_test", quantity: 1, unit: "messages", source: "provider",
+      dedupeKey: "provider-event:once", occurredAt: new Date(),
+    })));
+    assert.equal(retriedUsage.filter((result) => result.event).length, 1);
+    const eventRows = await db.select().from(billingUsageEventsTable).where(and(
+      eq(billingUsageEventsTable.companyId, company.id),
+      eq(billingUsageEventsTable.dedupeKey, "provider-event:once"),
+    ));
+    assert.equal(eventRows.length, 1, "concurrent recordUsage retries create one event");
+  } finally {
+    for (const client of clients) client.release();
+    await Promise.all(pools.map((pool) => pool.end()));
+    if (companyId) await db.delete(companiesTable).where(eq(companiesTable.id, companyId));
+  }
+});
+
+test("canonical Vapi costs repair a pending receipt but never rewrite an amount", async () => {
+  const owner = `vapi-cost-${randomUUID()}`;
+  let companyId: number | undefined;
+  try {
+    const [company] = await db.insert(companiesTable).values({ ownerUserId: owner, name: owner }).returning();
+    companyId = company.id;
+    const startsAt = new Date(Date.now() - 60_000);
+    const endsAt = new Date(Date.now() + 86_400_000);
+    await db.insert(companySubscriptionsTable).values({
+      companyId, ownerUserId: owner, planCode: "complete", addOnCodes: [], status: "active", provider: "stripe",
+      providerSubscriptionId: `sub-${owner}`, currentPeriodStartsAt: startsAt, currentPeriodEndsAt: endsAt,
+    });
+    const base = {
+      companyId, ownerUserId: owner, featureCode: "vapi_provider_cost", usageCategory: "vapi_provider_cost",
+      quantity: 1, unit: "call", source: "vapi_canonical", providerReference: "call-cost",
+      dedupeKey: "vapi_cost:call-cost", occurredAt: new Date(), metadata: { provider: "vapi", authoritative: true },
+    };
+    await upsertVapiProviderCost({ ...base, providerCostAmount: null, providerCostCurrency: null });
+    await upsertVapiProviderCost({ ...base, providerCostAmount: 1.25, providerCostCurrency: null });
+    await upsertVapiProviderCost({ ...base, providerCostAmount: 1.25, providerCostCurrency: "GBP" });
+    await assert.rejects(() => upsertVapiProviderCost({ ...base, providerCostAmount: 1.5, providerCostCurrency: "GBP" }), /immutable/);
+    await upsertVapiProviderCost({ ...base, providerCostAmount: 1.25, providerCostCurrency: "GBP" });
+    const rows = await db.select().from(billingUsageEventsTable).where(and(
+      eq(billingUsageEventsTable.companyId, companyId), eq(billingUsageEventsTable.dedupeKey, "vapi_cost:call-cost"),
+    ));
+    assert.equal(rows.length, 1);
+    assert.equal(Number(rows[0].providerCostAmount), 1.25);
+    assert.equal(rows[0].providerCostCurrency, "GBP");
+  } finally {
+    if (companyId) await db.delete(companiesTable).where(eq(companiesTable.id, companyId));
+  }
+});
+
+test("canonical Vapi receipt excludes a legacy duration cost without excluding other providers", () => {
+  const canonical = new Set<string | null>(["call-1"]);
+  assert.equal(isLegacyVapiCostCoveredByCanonical(
+    { source: "vapi", usageCategory: "ai_receptionist_seconds", providerReference: "call-1" }, canonical,
+  ), true);
+  assert.equal(isLegacyVapiCostCoveredByCanonical(
+    { source: "vapi", usageCategory: "ai_receptionist_seconds", providerReference: "call-2" }, canonical,
+  ), false);
+  assert.equal(isLegacyVapiCostCoveredByCanonical(
+    { source: "openai", usageCategory: "ai_assisted_messages", providerReference: "call-1" }, canonical,
+  ), false);
+});
+
+test("profitability stays incomplete for missing or unknown costs and includes verified GBP", () => {
+  const complete = summarizeProviderCosts([{ providerReference: "openai-1", source: "openai", usageCategory: "ai", providerCostAmount: null, providerCostCurrency: null, providerCostGbp: "2.50" }], 10);
+  assert.equal(complete.grossContributionGbp, 7.5);
+  const incomplete = summarizeProviderCosts([
+    { providerReference: "vapi-1", source: "vapi_canonical", usageCategory: "vapi_provider_cost", providerCostAmount: null, providerCostCurrency: null, providerCostGbp: null },
+    { providerReference: "openai-2", source: "openai", usageCategory: "ai", providerCostAmount: "1", providerCostCurrency: null, providerCostGbp: null },
+  ], 10);
+  assert.equal(incomplete.costsCompleteForGbpMargin, false);
+  assert.equal(incomplete.grossContributionGbp, null);
+});
+
+test("customer billing contract never exposes provider costs while internal profitability does", () => {
+  const spec = readFileSync("../../lib/api-spec/openapi.yaml", "utf8");
+  const customerBilling = spec.slice(spec.indexOf("  /billing/usage:"), spec.indexOf("  /internal/billing/catalog:"));
+  assert.equal(customerBilling.includes("providerCost"), false);
+  const internal = spec.slice(spec.indexOf("  /internal/billing/profitability/{companyId}:"));
+  assert.equal(internal.includes("InternalBillingProfitability"), true);
+});
+
+test("billing Express routes enforce admin profitability and keep customer usage cost-free", async () => {
+  const owner = `billing-http-${randomUUID()}`, admin = `admin-${randomUUID()}`;
+  let companyId: number | undefined;
+  const oldAdmins = process.env.WORKRATE_ADMIN_USER_IDS;
+  const app = express(); app.use(express.json());
+  app.use((req, _res, next) => {
+    const auth = () => ({ userId: req.headers["x-test-user"] as string, tokenType: "session_token", sessionClaims: {}, sessionId: "test-session" });
+    (auth as any)[Symbol.for("@clerk/express.auth")] = true;
+    (req as any).auth = auth; (req as any).log = { warn() {}, error() {}, info() {} }; next();
+  });
+  app.use(billingRouter);
+  const server = createServer(app); await new Promise<void>((resolve) => server.listen(0, resolve));
+  const port = (server.address() as any).port;
+  const get = (path: string, user: string) => new Promise<{ status: number; body: any }>((resolve, reject) => {
+    const req = request({ port, path, headers: { "x-test-user": user } }, (res) => { let data = ""; res.on("data", (c) => data += c); res.on("end", () => resolve({ status: res.statusCode!, body: JSON.parse(data) })); });
+    req.on("error", reject); req.end();
+  });
+  try {
+    const [company] = await db.insert(companiesTable).values({ ownerUserId: owner, name: owner }).returning(); companyId = company.id;
+    const startsAt = new Date(Date.now() - 60_000), endsAt = new Date(Date.now() + 86_400_000);
+    await db.insert(companySubscriptionsTable).values({ companyId, ownerUserId: owner, planCode: "complete", addOnCodes: [], status: "active", provider: "stripe", providerSubscriptionId: `sub-${owner}`, currentPeriodStartsAt: startsAt, currentPeriodEndsAt: endsAt });
+    const [period] = await db.insert(billingUsagePeriodsTable).values({ companyId, ownerUserId: owner, startsAt, endsAt }).returning();
+    await db.insert(billingUsageEventsTable).values({ companyId, ownerUserId: owner, usagePeriodId: period.id, featureCode: "provider", usageCategory: "ai", quantity: 1, unit: "call", source: "openai", providerReference: "openai-http", providerCostGbp: "1.25", occurredAt: new Date(), dedupeKey: "http-cost", idempotencyKey: "http-cost" });
+    process.env.WORKRATE_ADMIN_USER_IDS = admin;
+    assert.equal((await get(`/internal/billing/profitability/${companyId}`, owner)).status, 403);
+    const internal = await get(`/internal/billing/profitability/${companyId}`, admin);
+    assert.equal(internal.status, 200); assert.equal(internal.body.directProviderCosts[0].currency, "GBP");
+    const customer = await get("/billing/usage", owner); assert.equal(customer.status, 200);
+    const keys = JSON.stringify(customer.body);
+    for (const forbidden of ["providerCost", "providerCostAmount", "providerCostCurrency", "costComponents"]) assert.equal(keys.includes(forbidden), false);
+  } finally {
+    if (oldAdmins === undefined) delete process.env.WORKRATE_ADMIN_USER_IDS; else process.env.WORKRATE_ADMIN_USER_IDS = oldAdmins;
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    if (companyId) await db.delete(companiesTable).where(eq(companiesTable.id, companyId));
   }
 });
 

@@ -233,6 +233,56 @@ export interface InternalBillingCatalog {
   receptionistTopUpPacks: InternalReceptionistTopUpPack[];
 }
 
+export type InternalBillingProfitabilityPeriod = {
+  startsAt: string;
+  endsAt: string;
+};
+
+export type InternalBillingProfitabilityDirectProviderCostsItem = {
+  /**
+     * Null means currency was unavailable from Vapi.
+     * @nullable
+     */
+  currency: string | null;
+  /**
+     * Null means one or more provider costs in this group were unavailable.
+     * @nullable
+     */
+  amount: number | null;
+  callCount: number;
+};
+
+export type InternalBillingProfitabilityCallsItem = {
+  /** @nullable */
+  callId: string | null;
+  durationSeconds: number;
+  /** @nullable */
+  providerCostAmount: number | null;
+  /** @nullable */
+  providerCostCurrency: string | null;
+  date: string;
+};
+
+export interface InternalBillingProfitability {
+  companyId: number;
+  period: InternalBillingProfitabilityPeriod;
+  subscriptionRevenueGbp: number;
+  topUpRevenueGbp: number;
+  totalRevenueGbp: number;
+  directProviderCosts: InternalBillingProfitabilityDirectProviderCostsItem[];
+  costsCompleteForGbpMargin: boolean;
+  /** @nullable */
+  missingCostState: string | null;
+  /** @nullable */
+  directProviderCostGbp: number | null;
+  /**
+     * Null unless every direct provider cost is authoritatively GBP and present.
+     * @nullable
+     */
+  grossContributionGbp: number | null;
+  calls: InternalBillingProfitabilityCallsItem[];
+}
+
 export interface BillingOverview {
   legacyAccess: boolean;
   /** @nullable */

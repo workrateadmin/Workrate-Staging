@@ -666,6 +666,32 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       ON CONFLICT ("code") DO NOTHING;
     `,
   },
+  {
+    name: "0021_billing_usage_reservation_leases",
+    sql: `
+      ALTER TABLE "billing_usage_reservations"
+        ADD COLUMN IF NOT EXISTS "expires_at" timestamptz;
+      -- Reservations created before leases are stale by definition; do not let
+      -- an interrupted old worker consume a tenant's allowance indefinitely.
+      UPDATE "billing_usage_reservations" SET "expires_at" = "created_at"
+        WHERE "expires_at" IS NULL;
+      ALTER TABLE "billing_usage_reservations"
+        ALTER COLUMN "expires_at" SET NOT NULL;
+      CREATE INDEX IF NOT EXISTS "billing_usage_reservations_expiry_idx"
+        ON "billing_usage_reservations" ("expires_at")
+        WHERE "status" = 'reserved';
+    `,
+  },
+  {
+    name: "0022_provider_native_cost_ledger",
+    sql: `
+      ALTER TABLE "billing_usage_events" ADD COLUMN IF NOT EXISTS "provider_cost_amount" numeric(16,8);
+      ALTER TABLE "billing_usage_events" ADD COLUMN IF NOT EXISTS "provider_cost_currency" text;
+      CREATE INDEX IF NOT EXISTS "billing_usage_events_provider_cost_history_idx"
+        ON "billing_usage_events" ("company_id","owner_user_id","provider_reference","occurred_at")
+        WHERE "provider_cost_amount" IS NOT NULL OR "usage_category" = 'vapi_provider_cost';
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

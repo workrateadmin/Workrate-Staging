@@ -1,0 +1,335 @@
+WORKRATE — RESTRUCTURE NAVIGATION + SETTINGS INTO CLEAN CATEGORY PAGES
+
+GOAL:
+Remove the cluttered horizontally scrolling top navigation and reorganise WorkRate into:
+
+1. A focused day-to-day workflow top navigation
+2. A Settings landing page with separate category pages
+3. Dedicated setup/configuration pages rather than one giant settings page
+
+IMPORTANT:
+Do NOT rebuild backend logic.
+Do NOT change existing feature behavior.
+Do NOT delete existing routes or configuration.
+Reuse existing pages/components/APIs where practical.
+
+==================================================
+1. TOP NAVIGATION
+==================================================
+
+The top navigation should contain ONLY everyday operational workflow areas:
+
+- Dashboard
+- Enquiries
+- Jobs
+- Schedule
+- Quotes
+- Invoices
+- Finance
+
+Remove from main top navigation:
+
+- AI Receptionist
+- Integrations
+- Plan & Billing
+- Diagnostics
+- other configuration/admin destinations
+
+Settings should remain accessible via profile/settings control or one dedicated Settings entry.
+
+IMPORTANT:
+No horizontal scrolling navigation on normal desktop widths.
+
+If space becomes constrained:
+use responsive collapse/menu behavior rather than a scrollbar.
+
+==================================================
+2. SETTINGS LANDING PAGE
+==================================================
+
+Create/upgrade Settings into a clean category landing page.
+
+Do NOT display every setting directly on this page.
+
+Show category cards:
+
+BUSINESS
+
+COMMUNICATIONS & INTEGRATIONS
+
+BILLING
+
+ACCOUNT & SECURITY
+
+ADVANCED
+
+Each card should:
+- have icon
+- title
+- short description
+- open a dedicated settings page
+
+==================================================
+3. BUSINESS SETTINGS PAGE
+==================================================
+
+Route example:
+
+/settings/business
+
+Include links/sections for:
+
+- Business Details
+- Branding
+- Trade & Services
+- Quote defaults
+- Deposit settings
+- Payment instructions
+- Invoice defaults
+
+Reuse existing settings forms.
+
+Do not duplicate data models.
+
+==================================================
+4. COMMUNICATIONS & INTEGRATIONS PAGE
+==================================================
+
+Route example:
+
+/settings/integrations
+
+This becomes the integrations overview.
+
+Show cards for:
+
+- Website Widget
+- AI Receptionist
+- Instagram
+- Facebook Messenger
+- WhatsApp
+- Email
+- Xero
+- HMRC
+
+Each integration card opens its own dedicated page.
+
+Examples:
+
+/settings/integrations/website-widget
+/settings/integrations/ai-receptionist
+/settings/integrations/instagram
+/settings/integrations/facebook
+/settings/integrations/whatsapp
+/settings/integrations/email
+/settings/integrations/xero
+/settings/integrations/hmrc
+
+Do NOT show all integration forms on one page.
+
+==================================================
+5. BILLING SETTINGS PAGE
+==================================================
+
+Route example:
+
+/settings/billing
+
+Show navigation/cards for:
+
+- Plan & Billing
+- Add-ons
+- Usage & Limits
+- AI Receptionist Top-ups
+- Payment Method
+- Subscription Status
+
+Reuse existing billing functionality.
+
+Do not rebuild Stripe.
+
+==================================================
+6. ACCOUNT & SECURITY PAGE
+==================================================
+
+Route example:
+
+/settings/account
+
+Include or prepare space for:
+
+- account details
+- authentication/security
+- team/users later
+- data export
+- privacy controls
+- account deletion
+
+Reuse existing functionality where present.
+
+==================================================
+7. ADVANCED SETTINGS PAGE
+==================================================
+
+Route example:
+
+/settings/advanced
+
+Move:
+
+- Diagnostics
+- connection/debug information
+- developer/technical information
+- troubleshooting
+
+into Advanced.
+
+Diagnostics must NOT remain in the main top navigation.
+
+Normal users should only see diagnostics when they deliberately enter Advanced.
+
+==================================================
+8. AI RECEPTIONIST DAY-TO-DAY ACCESS
+==================================================
+
+Remove AI Receptionist from the top nav.
+
+Configuration should live at:
+
+Settings
+→ Communications & Integrations
+→ AI Receptionist
+
+Day-to-day call activity should continue to appear through relevant operational surfaces such as:
+- Enquiries
+- Activity/timeline
+- Notifications
+
+Do not treat AI Receptionist as a separate top-level app.
+
+==================================================
+9. BREADCRUMBS / BACK NAVIGATION
+==================================================
+
+Add clear navigation such as:
+
+Settings
+> Communications & Integrations
+> AI Receptionist
+
+Each page should provide:
+Back to Settings
+or
+Back to Integrations
+
+Avoid trapping users deep in configuration pages.
+
+==================================================
+10. MOBILE
+==================================================
+
+On mobile:
+
+- do not use horizontally scrollable main nav
+- use the existing mobile navigation pattern
+- Settings category cards should stack cleanly
+- dedicated pages should remain easy to navigate
+
+==================================================
+11. ROUTE COMPATIBILITY
+==================================================
+
+Before changing routes:
+
+Inspect current links/bookmarks/deep links.
+
+Where old routes exist:
+either preserve them
+or redirect safely to the new destination.
+
+Do not break:
+- existing integrations links
+- billing links
+- diagnostics links
+- AI receptionist links
+
+==================================================
+12. DESIGN
+==================================================
+
+Use the current WorkRate design system.
+
+Keep Settings visually simple:
+
+category card
+→ dedicated page
+→ focused configuration
+
+Avoid:
+- giant accordion pages
+- long pages containing every setting
+- nested cards inside many other cards
+- horizontal settings navigation bars
+
+==================================================
+13. SECURITY
+==================================================
+
+Moving UI/routes must not weaken:
+
+- tenant isolation
+- billing entitlement checks
+- integration secret protection
+- diagnostics authorization
+- admin-only pricing controls
+
+==================================================
+14. TEST
+==================================================
+
+Test:
+
+- desktop top nav has no scrollbar
+- all seven workflow destinations fit cleanly
+- Settings opens category landing page
+- each category opens correctly
+- integrations open dedicated pages
+- billing still works
+- AI receptionist config still works
+- diagnostics accessible only through Advanced
+- old links redirect/work
+- mobile navigation
+- tenant protections unchanged
+
+==================================================
+15. BEFORE IMPLEMENTING
+==================================================
+
+First inspect:
+
+A. current top navigation
+B. Settings routes/pages
+C. integrations routes
+D. billing routes
+E. AI receptionist route
+F. diagnostics route
+G. old links requiring redirect
+
+Then perform the smallest safe navigation/UI refactor.
+
+==================================================
+16. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. final top-navigation items
+B. Settings categories
+C. routes created/reused
+D. old routes redirected/preserved
+E. pages moved out of top navigation
+F. desktop/mobile result
+G. tests passed
+H. whether ONE publish is required
+
+Do not publish automatically.

@@ -123,6 +123,10 @@ export const billingUsageEventsTable = pgTable("billing_usage_events", {
   source: text("source").notNull().default("server"),
   providerReference: text("provider_reference"),
   relatedEntityId: text("related_entity_id"),
+  /** Provider-native amount. It is deliberately not assumed to be GBP. */
+  providerCostAmount: numeric("provider_cost_amount", { precision: 16, scale: 8 }),
+  /** Null means the provider did not authoritatively state a currency. */
+  providerCostCurrency: text("provider_cost_currency"),
   providerCostGbp: numeric("provider_cost_gbp", { precision: 12, scale: 6 }),
   periodStartsAt: timestamp("period_starts_at", { withTimezone: true }),
   periodEndsAt: timestamp("period_ends_at", { withTimezone: true }),
@@ -147,6 +151,8 @@ export const billingUsageReservationsTable = pgTable("billing_usage_reservations
   dedupeKey: text("dedupe_key").notNull(),
   status: text("status").notNull().default("reserved"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Server-set lease; stale claims are released while holding the allowance lock. */
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   finalizedAt: timestamp("finalized_at", { withTimezone: true }),
   releasedAt: timestamp("released_at", { withTimezone: true }),
 }, (table) => [uniqueIndex("billing_usage_reservations_tenant_dedupe_unique").on(table.companyId, table.ownerUserId, table.dedupeKey)]);

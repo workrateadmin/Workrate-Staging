@@ -4,6 +4,9 @@ import { db, aiCallsTable, companiesTable, enquiriesTable, enquiryMessagesTable 
 import { handleEnquiryCompletion } from "./chat";
 import {
   extractVapiCallData,
+  fetchCanonicalVapiCall,
+  canonicalTenantIdentityMatches,
+  canonicalCallLedgerPlan,
   findVapiBusiness,
   isVapiAssistantRequestEvent,
   isVapiEndOfCallEvent,
@@ -13,7 +16,7 @@ import {
 } from "../services/vapi";
 import { extractEmailWithFallback, isValidEmailAddress } from "../services/vapi-email";
 import { reserveMeteredFeature } from "../services/billing/authorization";
-import { finalizeUsageReservation, recordUsage, releaseUsageReservation } from "../services/billing/usage";
+import { finalizeUsageReservation, recordUsage, releaseUsageReservation, upsertVapiProviderCost } from "../services/billing/usage";
 
 const EMAIL_NEEDS_CONFIRMATION_NOTE = "Email needs confirmation — the transcript did not contain one clearly confirmed email address.";
 
@@ -373,22 +376,74 @@ router.post("/webhooks/vapi", async (req: Request, res: Response): Promise<void>
     return;
   }
 
-  const result = await processCompletedCall(call, mapping.business.ownerUserId);
-  if (!result.duplicated && call.callStatus === "completed" && (call.durationSeconds ?? 0) > 0) {
-    const [company] = await db.select({ id: companiesTable.id }).from(companiesTable)
-      .where(eq(companiesTable.ownerUserId, mapping.business.ownerUserId)).limit(1);
+  // Monetary data in a webhook is never accepted. Even a replay is followed by
+  // the canonical lookup so a previous processing failure can be repaired.
+  let canonical;
+  try {
+    canonical = await fetchCanonicalVapiCall(call.providerCallId);
+  } catch (error) {
+    req.log.error({ err: error, providerCallId: call.providerCallId }, "Could not retrieve canonical Vapi call");
+    res.status(502).json({ error: "Unable to verify Vapi call" });
+    return;
+  }
+  const canonicalMapping = await findVapiBusiness(canonical.assistantId, canonical.phoneNumberId, canonical.phoneNumber);
+  if (canonicalMapping.ambiguous || !canonicalTenantIdentityMatches(
+    canonical, mapping.business.integrationId, canonicalMapping.business?.integrationId,
+  )) {
+    req.log.warn({ providerCallId: call.providerCallId }, "Rejected canonical Vapi call belonging to another tenant");
+    res.status(403).json({ error: "Canonical Vapi call does not belong to this tenant" });
+    return;
+  }
+  const ledgerPlan = canonicalCallLedgerPlan(canonical);
+  const canonicalStatus = canonical.status?.toLowerCase() ?? "";
+  const authoritativeCall: VapiCallData = {
+    ...call,
+    assistantId: canonical.assistantId,
+    phoneNumberId: canonical.phoneNumberId,
+    phoneNumber: canonical.phoneNumber,
+    callStartedAt: canonical.startedAt ?? call.callStartedAt,
+    callEndedAt: canonical.endedAt ?? call.callEndedAt,
+    durationSeconds: canonical.durationSeconds,
+    endedReason: canonical.endedReason,
+    callStatus: canonicalStatus.includes("transfer") ? "transferred"
+      : canonicalStatus.includes("miss") ? "missed"
+        : canonicalStatus.includes("drop") || canonicalStatus.includes("fail") ? "dropped" : "completed",
+  };
+  const [company] = await db.select({ id: companiesTable.id }).from(companiesTable)
+    .where(eq(companiesTable.ownerUserId, mapping.business.ownerUserId)).limit(1);
+  const occurredAt = canonical.endedAt ?? canonical.startedAt ?? new Date();
+  // A cost event is intentionally distinct from customer allowance usage:
+  // charged failed/zero-second calls are costs too. The deterministic key makes
+  // canonical re-reads and webhook retries immutable/replay-safe.
+  if (company) await upsertVapiProviderCost({
+    companyId: company.id, ownerUserId: mapping.business.ownerUserId,
+    featureCode: "vapi_provider_cost", usageCategory: "vapi_provider_cost", quantity: 1,
+    unit: "call", source: "vapi_canonical", providerReference: canonical.providerCallId,
+    dedupeKey: `vapi_cost:${canonical.providerCallId}`, occurredAt,
+    providerCostAmount: canonical.cost.amount, providerCostCurrency: canonical.cost.currency,
+    providerCostGbp: canonical.cost.currency === "GBP" && canonical.cost.amount != null ? canonical.cost.amount : undefined,
+    metadata: {
+      provider: "vapi", authoritative: true, costAvailable: canonical.cost.amount !== null,
+      currencyAvailable: canonical.cost.currency !== null, status: canonical.status,
+      costComponents: canonical.cost.components,
+    },
+  });
+  // Capture cost before transcript/enquiry work. A charged failed call must not
+  // disappear merely because non-financial post-call processing later fails.
+  const result = await processCompletedCall(authoritativeCall, mapping.business.ownerUserId);
+  // Ledger usage is separately idempotent from ai_calls. A webhook retry can
+  // repair a first delivery which committed the call row but crashed before this.
+  if (ledgerPlan.recordCustomerDuration) {
     if (company) await recordUsage({
       companyId: company.id, ownerUserId: mapping.business.ownerUserId,
-      featureCode: "ai_receptionist", usageCategory: "ai_receptionist_seconds", quantity: call.durationSeconds!,
-      unit: "seconds", source: "vapi", providerReference: call.providerCallId,
-      dedupeKey: `vapi_call:${call.providerCallId}`,
-      metadata: { provider: "vapi", providerCallId: call.providerCallId, unit: "seconds" },
+      featureCode: "ai_receptionist", usageCategory: "ai_receptionist_seconds", quantity: authoritativeCall.durationSeconds!,
+      unit: "seconds", source: "vapi", providerReference: authoritativeCall.providerCallId,
+      dedupeKey: `vapi_call:${authoritativeCall.providerCallId}`, occurredAt,
+      metadata: { provider: "vapi", providerCallId: authoritativeCall.providerCallId, unit: "seconds", authoritative: true },
     });
-    if (company) await finalizeUsageReservation(company.id, mapping.business.ownerUserId, `vapi_call:${call.providerCallId}`);
-  } else if ((call.durationSeconds ?? 0) <= 0) {
-    const [company] = await db.select({ id: companiesTable.id }).from(companiesTable)
-      .where(eq(companiesTable.ownerUserId, mapping.business.ownerUserId)).limit(1);
-    if (company) await releaseUsageReservation(company.id, mapping.business.ownerUserId, `vapi_call:${call.providerCallId}`);
+    if (company) await finalizeUsageReservation(company.id, mapping.business.ownerUserId, `vapi_call:${authoritativeCall.providerCallId}`);
+  } else {
+    if (company) await releaseUsageReservation(company.id, mapping.business.ownerUserId, `vapi_call:${authoritativeCall.providerCallId}`);
   }
   req.log.info({
     providerCallId: call.providerCallId,

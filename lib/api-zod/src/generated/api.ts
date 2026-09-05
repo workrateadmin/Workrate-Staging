@@ -2788,6 +2788,45 @@ export const GetInternalBillingCatalogResponse = zod.object({
 
 
 /**
+ * Internal administrators only. Provider costs are canonical Vapi GET /call/:id values; no provider cost, phone number, transcript, or raw provider response is exposed to customers. Amounts with no authoritative currency are explicitly unavailable and are never represented as GBP.
+ * @summary View verified direct provider costs and minimal Vapi call history
+ */
+
+
+
+export const GetInternalBillingProfitabilityParams = zod.object({
+  "companyId": zod.coerce.number().min(1)
+})
+
+export const GetInternalBillingProfitabilityResponse = zod.object({
+  "companyId": zod.number(),
+  "period": zod.object({
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date()
+}),
+  "subscriptionRevenueGbp": zod.number(),
+  "topUpRevenueGbp": zod.number(),
+  "totalRevenueGbp": zod.number(),
+  "directProviderCosts": zod.array(zod.object({
+  "currency": zod.string().nullable().describe('Null means currency was unavailable from Vapi.'),
+  "amount": zod.number().nullable().describe('Null means one or more provider costs in this group were unavailable.'),
+  "callCount": zod.number()
+})),
+  "costsCompleteForGbpMargin": zod.boolean(),
+  "missingCostState": zod.string().nullable(),
+  "directProviderCostGbp": zod.number().nullable(),
+  "grossContributionGbp": zod.number().nullable().describe('Null unless every direct provider cost is authoritatively GBP and present.'),
+  "calls": zod.array(zod.object({
+  "callId": zod.string().nullable(),
+  "durationSeconds": zod.number(),
+  "providerCostAmount": zod.number().nullable(),
+  "providerCostCurrency": zod.string().nullable(),
+  "date": zod.coerce.date()
+}))
+})
+
+
+/**
  * Internal only. Customer prices and Stripe one-time mappings remain unavailable until the mapping is explicitly validated.
  * @summary Update an AI Receptionist top-up pack
  */

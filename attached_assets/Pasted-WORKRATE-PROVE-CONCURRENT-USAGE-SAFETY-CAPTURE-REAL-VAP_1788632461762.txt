@@ -1,0 +1,412 @@
+WORKRATE — PROVE CONCURRENT USAGE SAFETY + CAPTURE REAL VAPI PROVIDER COSTS
+
+GOAL:
+Strengthen WorkRate’s usage protection and profitability tracking before the next publish.
+
+This task has TWO tightly scoped goals:
+
+1. Prove that simultaneous AI/provider requests cannot overspend a customer’s usage allowance.
+2. Capture trustworthy Vapi provider cost data so WorkRate can calculate real AI Receptionist cost-to-serve per tenant.
+
+IMPORTANT:
+Do NOT redesign billing.
+Do NOT change plan prices.
+Do NOT change current allowance values.
+Do NOT create live Stripe objects.
+Do NOT publish automatically.
+
+Reuse the existing:
+- tenant authorization
+- entitlement model
+- usage ledger
+- atomic reservation/finalization system
+- Stripe billing-period model
+- Vapi integration
+- internal profitability endpoint
+
+==================================================
+1. CONCURRENCY / ALLOWANCE SAFETY
+==================================================
+
+Current premium-provider flow should remain:
+
+tenant authorization
+→ billing entitlement
+→ atomic allowance reservation
+→ provider action
+→ usage finalization or reservation release
+
+GOAL:
+Prove this remains safe under concurrent requests.
+
+Focus on:
+
+- AI Receptionist
+- Social AI
+- Concept Visuals
+
+==================================================
+2. SIMULTANEOUS REQUEST TESTS
+==================================================
+
+Add real concurrency tests that launch multiple requests at the same time against the same tenant/feature allowance.
+
+Examples:
+
+A. SOCIAL AI
+
+Remaining allowance:
+1 message
+
+Fire:
+5 simultaneous billable AI requests
+
+Expected:
+- exactly 1 reservation succeeds
+- exactly 1 provider action is allowed
+- remaining 4 are rejected before provider spend
+- final usage = 1
+- no negative allowance
+- no overspend
+
+B. CONCEPT VISUALS
+
+Remaining allowance:
+1 generation
+
+Fire:
+3 simultaneous generation requests
+
+Expected:
+- 1 succeeds
+- 2 blocked before provider call
+- final usage = 1
+
+C. AI RECEPTIONIST
+
+Remaining allowance:
+enough for one new call-start reservation only
+
+Fire:
+multiple simultaneous call-start attempts
+
+Expected:
+- reservation logic serializes safely
+- no more provider calls start than allowed
+- an already accepted call may finish even if its final duration crosses the remaining threshold
+- next call is blocked after final usage is recorded
+
+==================================================
+3. DATABASE SAFETY
+==================================================
+
+Review the reservation implementation for:
+
+- transaction isolation
+- row locking / serialized claims
+- unique constraints
+- race conditions
+- reservation expiry
+- retry behavior
+
+Do not rely on read-then-write logic without locking.
+
+If the current mechanism is already correct:
+prove it with tests rather than replacing it.
+
+If a fix is required:
+make the smallest safe correction.
+
+==================================================
+4. FAILED PROVIDER ACTIONS
+==================================================
+
+Verify that provider failures correctly release reserved capacity.
+
+Test:
+
+reserve
+→ provider fails
+→ reservation released
+→ allowance available again
+
+Also verify duplicate/replayed failure handling cannot release capacity twice or corrupt usage.
+
+==================================================
+5. RETRY / IDEMPOTENCY
+==================================================
+
+Test concurrency combined with:
+
+- webhook retries
+- duplicate provider events
+- repeated API requests
+- provider timeout followed by retry
+
+One real billable provider action must produce one finalized usage event.
+
+==================================================
+6. VAPI COST CAPTURE — FIRST INSPECT
+==================================================
+
+Inspect the actual Vapi call/webhook payloads currently persisted by WorkRate.
+
+Determine whether Vapi exposes trustworthy monetary values such as:
+
+- total call cost
+- cost breakdown
+- transcriber cost
+- model cost
+- voice cost
+- Vapi platform cost
+- other provider components
+
+Do NOT guess missing values.
+
+==================================================
+7. TRUSTWORTHY VAPI COST SOURCE
+==================================================
+
+Use only an authoritative Vapi field/API response.
+
+Preferred source:
+the canonical completed-call object retrieved from Vapi after the call finishes.
+
+Do not trust:
+- browser-supplied values
+- estimated cost from duration alone
+- manually calculated provider prices where Vapi provides a canonical cost
+
+If Vapi cost data is not available in the current webhook:
+retrieve the canonical call server-side using the existing Vapi credential after completion.
+
+==================================================
+8. STORE PROVIDER COST
+==================================================
+
+Extend the existing usage/provider-cost ledger only if required.
+
+For completed AI Receptionist calls, store:
+
+- provider = Vapi
+- provider call ID
+- actual call duration
+- total provider cost
+- currency
+- optional component breakdown if authoritative
+- occurred_at
+- tenant/business
+- billing period
+- dedupe key
+
+Do not create a second profitability system.
+
+==================================================
+9. CURRENCY
+==================================================
+
+Preserve the provider’s original currency.
+
+If Vapi reports USD:
+store:
+- original cost amount
+- USD currency
+
+For internal GBP profitability reporting:
+only convert if WorkRate already has a trusted FX mechanism.
+
+If no trusted FX source exists:
+do NOT fabricate a conversion.
+
+Instead expose internally:
+"Provider cost: $X.XX"
+
+and keep GBP subscription revenue separate until FX conversion is properly implemented.
+
+If an existing FX conversion mechanism is available:
+document its source and conversion timestamp.
+
+==================================================
+10. DUPLICATE COST PROTECTION
+==================================================
+
+Vapi webhook retries must NOT duplicate provider cost.
+
+Use provider call ID as the canonical dedupe identity.
+
+One completed Vapi call:
+→ one duration usage record
+→ one provider-cost record
+
+==================================================
+11. INTERNAL PROFITABILITY
+==================================================
+
+Update the existing admin-only profitability foundation so AI Receptionist cost uses REAL Vapi cost where available.
+
+Show internally:
+
+Subscription revenue
+Top-up revenue
+Total customer revenue
+
+Vapi provider cost
+Other verified provider costs
+Total verified direct cost
+
+Gross contribution
+
+If some provider costs remain unavailable:
+show them as unavailable / not captured
+
+Do not treat missing costs as zero in a way that falsely implies a complete margin calculation.
+
+Example wording:
+
+Verified direct provider costs: £X / $Y
+Some AI provider costs are not yet captured.
+
+==================================================
+12. CUSTOMER PRIVACY
+==================================================
+
+Never expose provider cost information to customers.
+
+Customer UI should continue showing only:
+
+- usage allowance
+- used
+- remaining
+- top-ups
+- billing period
+
+No Vapi/OpenAI wholesale pricing.
+
+==================================================
+13. VAPI COST HISTORY
+==================================================
+
+Allow internal/admin reporting to inspect cost per:
+
+- tenant
+- call
+- billing period
+
+Minimum useful data:
+
+Call ID
+Duration
+Provider cost
+Date
+
+Do not build a large analytics product in this task.
+
+==================================================
+14. COST / USAGE CONSISTENCY
+==================================================
+
+Verify that:
+
+- call duration usage and provider cost refer to the same canonical Vapi call
+- webhook retry cannot duplicate either
+- failed/non-completed calls are handled according to whether Vapi actually charged them
+
+If Vapi charged a failed call:
+record the provider cost internally even if customer-facing included-minute usage policy does not consume allowance.
+
+Keep:
+customer usage
+and
+actual provider cost
+
+as separate concepts.
+
+==================================================
+15. SECURITY
+==================================================
+
+Confirm:
+
+- only server accesses Vapi cost data
+- Vapi credentials remain secret
+- cost endpoints are admin-only
+- tenant isolation applies
+- customer cannot submit/alter provider cost
+- direct API requests cannot fake cost records
+- cost records are immutable or tightly controlled once canonicalized
+
+==================================================
+16. TESTS — CONCURRENCY
+==================================================
+
+Add focused tests for:
+
+- 5 simultaneous requests with 1 unit remaining
+- no overspend
+- no negative remaining usage
+- one provider call max
+- reservation release after failure
+- duplicate retry idempotency
+- Vapi simultaneous call starts
+- active call may finish
+- next call blocked
+
+==================================================
+17. TESTS — VAPI COST
+==================================================
+
+Test:
+
+- completed call with authoritative cost
+- cost stored once
+- duplicate webhook stores no duplicate
+- canonical call retrieval if webhook lacks cost
+- cross-tenant call rejected
+- customer cannot query provider cost
+- admin can query cost
+- missing provider cost represented honestly
+- failed call with real provider charge recorded internally if applicable
+
+==================================================
+18. DO NOT OVERBUILD
+==================================================
+
+Do not add:
+
+- new pricing
+- new usage-pack sizes
+- new AI providers
+- automatic price increases
+- live Stripe changes
+- full financial analytics
+- customer-facing cost data
+
+This task is only:
+
+CONCURRENCY SAFETY
++
+REAL VAPI COST CAPTURE
++
+INTERNAL PROFITABILITY ACCURACY
+
+==================================================
+19. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. concurrency mechanism reviewed
+B. any race condition found/fixed
+C. simultaneous-request test results
+D. reservation failure/release result
+E. authoritative Vapi cost source
+F. exact Vapi cost fields captured
+G. currency handling
+H. cost deduplication
+I. profitability endpoint update
+J. tenant/security protections
+K. tests passed
+L. any provider costs still unavailable
+M. whether ONE publish is required
+
+Do not publish automatically.

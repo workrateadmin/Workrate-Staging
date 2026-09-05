@@ -71,6 +71,7 @@ import type {
   IntegrationStatus,
   InternalBillingCatalog,
   InternalBillingCatalogItem,
+  InternalBillingProfitability,
   InternalReceptionistTopUpPack,
   InternalReceptionistTopUpPackUpdate,
   Invoice,
@@ -6504,6 +6505,84 @@ export function useGetInternalBillingCatalog<TData = Awaited<ReturnType<typeof g
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetInternalBillingCatalogQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetInternalBillingProfitabilityUrl = (companyId: number,) => {
+
+
+
+
+  return `/api/internal/billing/profitability/${companyId}`
+}
+
+/**
+ * Internal administrators only. Provider costs are canonical Vapi GET /call/:id values; no provider cost, phone number, transcript, or raw provider response is exposed to customers. Amounts with no authoritative currency are explicitly unavailable and are never represented as GBP.
+ * @summary View verified direct provider costs and minimal Vapi call history
+ */
+export const getInternalBillingProfitability = async (companyId: number, options?: Parameters<typeof customFetch>[1]): Promise<InternalBillingProfitability> => {
+
+  return customFetch<InternalBillingProfitability>(getGetInternalBillingProfitabilityUrl(companyId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInternalBillingProfitabilityQueryKey = (companyId: number,) => {
+    return [
+    `/api/internal/billing/profitability/${companyId}`
+    ] as const;
+    }
+
+
+export const getGetInternalBillingProfitabilityQueryOptions = <TData = Awaited<ReturnType<typeof getInternalBillingProfitability>>, TError = ErrorType<void>>(companyId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInternalBillingProfitability>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInternalBillingProfitabilityQueryKey(companyId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInternalBillingProfitability>>> = ({ signal }) => getInternalBillingProfitability(companyId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: companyId !== null && companyId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInternalBillingProfitability>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInternalBillingProfitabilityQueryResult = NonNullable<Awaited<ReturnType<typeof getInternalBillingProfitability>>>
+export type GetInternalBillingProfitabilityQueryError = ErrorType<void>
+
+
+/**
+ * @summary View verified direct provider costs and minimal Vapi call history
+ */
+
+export function useGetInternalBillingProfitability<TData = Awaited<ReturnType<typeof getInternalBillingProfitability>>, TError = ErrorType<void>>(
+ companyId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInternalBillingProfitability>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInternalBillingProfitabilityQueryOptions(companyId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
