@@ -1,13 +1,13 @@
 ---
-name: WorkRate Stripe connector billing
-description: Security and idempotency constraints specific to Stripe billing through Replit's connector proxy.
+name: WorkRate Stripe billing
+description: Security, account-locking, webhook-readiness, and idempotency constraints for direct Stripe billing.
 ---
 
-Replit's Stripe connector does not expose the Stripe API key or an existing webhook signing secret. Use the connector proxy for Stripe API calls. When registering a webhook endpoint, capture its one-time signing secret, encrypt it at rest, and verify Stripe's raw-body HMAC before processing.
+Use `STRIPE_SECRET_KEY` as WorkRate's sole server-side Stripe credential and `STRIPE_WEBHOOK_SECRET` for raw-body webhook verification. Do not route runtime billing or catalog scripts through the Replit Stripe connector.
 
-**Why:** Secret-key-based Stripe SDK and sync templates fail with this connector type. Canonical event retrieval alone prevents payload tampering but does not prove Stripe delivered the request.
+**Why:** The connector and dashboard-controlled test key can belong to different Stripe accounts, producing mismatched catalogs and webhooks.
 
-**How to apply:** Keep connector access inside the billing provider, rotate endpoints whose signing secret is unavailable, and treat authenticated canonical event retrieval as defense-in-depth after signature verification.
+**How to apply:** Before every Stripe operation, reject non-test keys and verify the exact approved test account plus `livemode:false`. Keep canonical event retrieval as defense-in-depth after signature verification.
 
 Checkout exclusion must be tenant-wide, not scoped only to a selected plan. Persist a server-owned attempt, reuse unresolved hosted sessions across retries and selection changes, and reconcile completed sessions before allowing another.
 
@@ -21,8 +21,8 @@ Persisted Stripe product, recurring-price, and paid-trial-price IDs are the only
 
 **How to apply:** Fail closed before Checkout or subscription updates, compare Stripe unit amounts with server-computed pence, and restore validation only through the protected validator or verified catalog seed.
 
-WorkRate runtime billing currently uses the Replit Stripe connector rather than `STRIPE_SECRET_KEY`; a configured key may target a different Stripe account even when both are test mode.
+All payment and subscription mutations must remain unavailable until startup verifies the approved account, webhook endpoint, required event set, and signing-secret presence.
 
-**Why:** Verifying only that both credentials are test-mode does not prove they address the same catalog, customers, or webhook endpoints.
+**Why:** Allowing Checkout while webhook initialization has failed can charge a customer without reconciling entitlement state.
 
-**How to apply:** Before catalog or checkout verification, compare the connector and direct-key Stripe account IDs without logging credentials. Treat any mismatch as a pre-publish configuration issue and test the runtime against the connector account it actually uses.
+**How to apply:** Reset readiness before initialization and fail Checkout, portal, subscription updates, cancellation, and synchronization closed until initialization succeeds.

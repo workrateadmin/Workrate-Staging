@@ -24,6 +24,7 @@ const returnUrl = () => {
 const date = (seconds?: number | null) => seconds ? new Date(seconds * 1000) : null;
 const local = (companyId: number, ownerUserId: string) => db.select().from(companySubscriptionsTable).where(and(eq(companySubscriptionsTable.companyId, companyId), eq(companySubscriptionsTable.ownerUserId, ownerUserId))).limit(1);
 type StripeApi = Pick<StripeApiClient, "get" | "post">;
+let stripeBillingReady = false;
 export interface CheckoutRepository {
   subscription(companyId: number, ownerUserId: string): Promise<any | undefined>;
   establishAttempt(input: { companyId: number; ownerUserId: string; fingerprint: string }): Promise<any>;
@@ -119,8 +120,10 @@ export class StripeBillingProvider implements BillingProvider {
     private readonly webhookRepo: WebhookRepository = webhookRepository,
     private readonly catalogRepo: BillingCatalogRepository = catalogRepository,
     private readonly webhookSecret: () => string | undefined = () => process.env.STRIPE_WEBHOOK_SECRET,
+    private readonly isReady: () => boolean = () => true,
   ) {}
   async createCheckoutSession(input: { companyId: number; ownerUserId: string; planCode: string; addOnCodes: string[] }): Promise<ProviderResult> {
+    if (!this.isReady()) return unavailable();
     if (!input.planCode) return unavailable();
     try {
       const existing = await this.checkoutRepo.subscription(input.companyId, input.ownerUserId);
@@ -166,6 +169,7 @@ export class StripeBillingProvider implements BillingProvider {
     }
   }
   async createCustomerPortalSession(input: { companyId: number; ownerUserId: string }): Promise<ProviderResult> {
+    if (!this.isReady()) return unavailable();
     try {
       const [subscription] = await local(input.companyId, input.ownerUserId);
       if (!subscription?.providerCustomerId) return unavailable();
@@ -176,6 +180,7 @@ export class StripeBillingProvider implements BillingProvider {
   }
   async getSubscriptionStatus(input: { companyId: number; ownerUserId: string }) { return this.syncSubscription(input); }
   async applySelection(input: { companyId: number; ownerUserId: string; planCode: string; addOnCodes: string[] }): Promise<ProviderResult> {
+    if (!this.isReady()) return unavailable();
     const [localSubscription] = await local(input.companyId, input.ownerUserId);
     if (!localSubscription?.providerSubscriptionId) return unavailable();
     const stripe = this.connectorFactory();
@@ -202,6 +207,7 @@ export class StripeBillingProvider implements BillingProvider {
     return { ok: true, status: mapStripeSubscriptionStatus(updated.status) };
   }
   async cancelSubscription(input: { companyId: number; ownerUserId: string }): Promise<ProviderResult> {
+    if (!this.isReady()) return unavailable();
     const [subscription] = await local(input.companyId, input.ownerUserId);
     if (!subscription?.providerSubscriptionId) return unavailable();
     const stripe = this.connectorFactory();
@@ -210,6 +216,7 @@ export class StripeBillingProvider implements BillingProvider {
     return { ok: true, status: mapStripeSubscriptionStatus(result.status) };
   }
   async syncSubscription(input: { companyId: number; ownerUserId: string }): Promise<ProviderResult> {
+    if (!this.isReady()) return unavailable();
     const [subscription] = await local(input.companyId, input.ownerUserId);
     if (!subscription?.providerSubscriptionId) return unavailable();
     const stripe = this.connectorFactory();
@@ -226,9 +233,6 @@ export class StripeBillingProvider implements BillingProvider {
     // Verify raw bytes cryptographically first. Canonical retrieval below is
     // defense-in-depth and prevents even validly signed submitted fields from
     // becoming the source of subscription truth.
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-    if (!domain) throw new Error("REPLIT_DOMAINS is required for Stripe webhooks.");
-    const url = `https://${domain}/api/stripe/webhook`;
     const secret = this.webhookSecret();
     if (!secret) throw new Error("Stripe webhook signing configuration is unavailable.");
     verifyStripeSignature(input.payload, input.signature, secret);
@@ -259,7 +263,9 @@ export class StripeBillingProvider implements BillingProvider {
   }
 }
 export { UnavailableBillingProvider } from "./unavailable";
-export const billingProvider: BillingProvider = new StripeBillingProvider();
+export const billingProvider: BillingProvider = new StripeBillingProvider(
+  undefined, undefined, undefined, undefined, undefined, () => stripeBillingReady,
+);
 
 const webhookEventTypes = [
   "checkout.session.completed",
@@ -269,22 +275,21 @@ const webhookEventTypes = [
   "invoice.payment_failed",
   "invoice.paid",
 ] as const;
+const workRateStripeWebhookUrl = "https://work-rate-manager.replit.app/api/stripe/webhook";
 
-/** Ensures each runtime environment has its own idempotently registered endpoint. */
+/** Validates and maintains the single approved test webhook endpoint. */
 export async function initializeStripeBilling(): Promise<void> {
-  const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-  if (!domain) throw new Error("REPLIT_DOMAINS is required to register the Stripe webhook.");
-
-  const url = `https://${domain}/api/stripe/webhook`;
+  stripeBillingReady = false;
   const stripe = new StripeApiClient();
   await stripe.assertTestAccount();
-  const form: Record<string, string> = { url };
+  const form: Record<string, string> = { url: workRateStripeWebhookUrl };
   webhookEventTypes.forEach((eventType, index) => {
     form[`enabled_events[${index}]`] = eventType;
   });
   const endpoints = await stripe.get<{ data: Array<{ id: string; url: string }> }>("webhook_endpoints", { limit: 100 });
-  const endpoint = endpoints.data.find((candidate) => candidate.url === url);
+  const endpoint = endpoints.data.find((candidate) => candidate.url === workRateStripeWebhookUrl);
   if (!endpoint) throw new Error("Stripe webhook endpoint is not configured for this environment.");
   if (!process.env.STRIPE_WEBHOOK_SECRET) throw new Error("STRIPE_WEBHOOK_SECRET is required.");
   await stripe.post(`webhook_endpoints/${endpoint.id}`, form);
+  stripeBillingReady = true;
 }

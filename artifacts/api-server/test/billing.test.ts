@@ -69,6 +69,25 @@ test("unavailable provider never creates a payment session", async () => {
   if (!result.ok) assert.equal(result.code, "PAYMENT_SETUP_UNAVAILABLE");
 });
 
+test("Stripe billing fails closed before webhook readiness and never posts Checkout", async () => {
+  let posted = false;
+  const stripe: any = {
+    async get() { throw new Error("must not fetch"); },
+    async post() { posted = true; throw new Error("must not post"); },
+  };
+  const provider = new StripeBillingProvider(
+    () => stripe,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    () => false,
+  );
+  const result = await provider.createCheckoutSession({ companyId: 1, ownerUserId: "user", planCode: "core", addOnCodes: [] });
+  assert.equal(result.ok, false);
+  assert.equal(posted, false);
+});
+
 test("Stripe lifecycle maps trials, payment failure/recovery, and cancellation", () => {
   assert.equal(mapStripeSubscriptionStatus("trialing"), "trialing");
   assert.equal(mapStripeSubscriptionStatus("active"), "active"); // invoice.paid recovery
@@ -228,7 +247,22 @@ test("provider webhook canonical recovery, duplicate receipt, and failed retry",
     async get(path: string) {
       if (path.startsWith("events/")) {
         const id = path.slice("events/".length);
-        return { id, type: id === "evt_paid" ? "invoice.paid" : "invoice.payment_failed", data: { object: { customer: "cus_9", subscription: "sub_9" } } };
+        const type = id === "evt_paid"
+          ? "invoice.paid"
+          : id === "evt_created"
+            ? "customer.subscription.created"
+            : id === "evt_deleted"
+              ? "customer.subscription.deleted"
+              : "invoice.payment_failed";
+        return {
+          id,
+          type,
+          data: {
+            object: type.startsWith("customer.subscription.")
+              ? { id: "sub_9", customer: "cus_9" }
+              : { customer: "cus_9", subscription: "sub_9" },
+          },
+        };
       }
       if (path === "subscriptions/sub_9") return { id: "sub_9", customer: "cus_9", status: currentStatus, metadata: { planCode: "core", addOnCodes: "[]" } };
       throw new Error(`unexpected ${path}`);
@@ -246,6 +280,10 @@ test("provider webhook canonical recovery, duplicate receipt, and failed retry",
     const signature = createHmac("sha256", secret).update(`${timestamp}.`).update(payload).digest("hex");
     return provider.verifyWebhook({ payload, signature: `t=${timestamp},v1=${signature}` });
   };
+  currentStatus = "trialing";
+  await deliver("evt_created");
+  assert.equal(states.at(-1).status, "trialing");
+  currentStatus = "past_due";
   await deliver("evt_failed");
   assert.equal(states.at(-1).status, "past_due");
   assert.ok(states.at(-1).failedPaymentAt);
@@ -256,4 +294,8 @@ test("provider webhook canonical recovery, duplicate receipt, and failed retry",
   await deliver("evt_paid");
   assert.equal(states.at(-1).status, "active");
   assert.equal(states.at(-1).failedPaymentAt, null);
+  currentStatus = "canceled";
+  await deliver("evt_deleted");
+  assert.equal(states.at(-1).status, "cancelled");
+  assert.ok(states.at(-1).cancelledAt);
 });
