@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
+import { billingReceptionistTopUpPacksTable, billingReceptionistTopUpPurchasesTable, companiesTable, companySubscriptionsTable, db } from "@workspace/db";
 import { resolveEntitlements, canUseMeteredFeature } from "../src/services/billing/entitlements";
 import { UnavailableBillingProvider } from "../src/services/billing/unavailable";
 import { StripeBillingProvider, type BillingCatalogRepository, type CheckoutRepository, type WebhookRepository } from "../src/services/billing/provider";
@@ -10,7 +12,8 @@ import { catalogAvailability, isBillingAdmin, trialPriceGbp } from "../src/servi
 import { featureAccess } from "../src/services/billing/authorization";
 import { allowanceQuantity } from "../src/services/billing/usage";
 import { assertExpectedStripeTestAccount, WORKRATE_STRIPE_TEST_ACCOUNT_ID } from "../src/services/billing/stripeClient";
-import { createReceptionistTopUpCheckout, verifyTopUpPrice } from "../src/services/billing/topups";
+import { createReceptionistTopUpCheckout, grantReceptionistTopUpFromStripeSession, verifyTopUpPrice } from "../src/services/billing/topups";
+import { grantedReceptionistTopUpMinutes } from "../src/services/billing/usage";
 
 test("Stripe operations fail closed outside the authoritative test account", () => {
   assert.doesNotThrow(() => assertExpectedStripeTestAccount({ key: "sk_test_example", accountId: WORKRATE_STRIPE_TEST_ACCOUNT_ID, livemode: false }));
@@ -32,10 +35,25 @@ test("unmapped or unpriced add-ons are customer-visible but never purchasable", 
   assert.deepEqual(catalogAvailability({ monthlyPriceGbp: "10", active: true, comingSoon: false, stripeProductId: "prod", stripeRecurringPriceId: "month", stripeTrialPriceId: "trial", stripeMappingValidatedAt: new Date() }), { purchasable: true, configurationMessage: null });
 });
 test("unpriced receptionist top-up packs fail closed and configured packs use server amount", async () => {
-  const stripe = { get: async () => ({ id: "price_minutes", active: true, currency: "gbp", product: "prod_minutes", recurring: null, unit_amount: 2500, metadata: { billing_kind: "ai_receptionist_top_up" } }) };
+  const stripe = { get: async (path: string) => path.startsWith("products/")
+    ? ({ id: "prod_minutes", active: true, metadata: { workrate_pack_code: "minutes_250", billing_kind: "ai_receptionist_top_up" } })
+    : ({ id: "price_minutes", active: true, currency: "gbp", product: "prod_minutes", recurring: null, unit_amount: 2500, metadata: { workrate_pack_code: "minutes_250", billing_kind: "ai_receptionist_top_up" } }) };
   await assert.rejects(() => verifyTopUpPrice({ active: true, customerPriceGbp: null, currency: "gbp", stripeProductId: "prod_minutes", stripePriceId: "price_minutes", stripeMappingValidatedAt: new Date() }, stripe), /configuration/);
-  assert.equal(await verifyTopUpPrice({ active: true, customerPriceGbp: "25.00", currency: "gbp", stripeProductId: "prod_minutes", stripePriceId: "price_minutes", stripeMappingValidatedAt: new Date() }, stripe), "price_minutes");
-  await assert.rejects(() => verifyTopUpPrice({ active: true, customerPriceGbp: "24.99", currency: "gbp", stripeProductId: "prod_minutes", stripePriceId: "price_minutes", stripeMappingValidatedAt: new Date() }, stripe), /configuration/);
+  assert.equal(await verifyTopUpPrice({ code: "minutes_250", active: true, customerPriceGbp: "25.00", currency: "gbp", stripeProductId: "prod_minutes", stripePriceId: "price_minutes", stripeMappingValidatedAt: new Date() }, stripe), "price_minutes");
+  await assert.rejects(() => verifyTopUpPrice({ code: "minutes_250", active: true, customerPriceGbp: "24.99", currency: "gbp", stripeProductId: "prod_minutes", stripePriceId: "price_minutes", stripeMappingValidatedAt: new Date() }, stripe), /configuration/);
+});
+test("receptionist packs use exact server-owned GBP amounts and reject mismatched product metadata", async () => {
+  const expected = { minutes_100: 1200, minutes_250: 2500, minutes_500: 4500 };
+  for (const [code, unit_amount] of Object.entries(expected)) {
+    const stripe = { get: async (path: string) => path.startsWith("products/")
+      ? ({ active: true, metadata: { workrate_pack_code: code, billing_kind: "ai_receptionist_top_up" } })
+      : ({ id: "price", active: true, product: "prod", currency: "gbp", unit_amount, recurring: null, metadata: { workrate_pack_code: code, billing_kind: "ai_receptionist_top_up" } }) };
+    assert.equal(await verifyTopUpPrice({ code, active: true, customerPriceGbp: (unit_amount / 100).toFixed(2), currency: "gbp", stripeProductId: "prod", stripePriceId: "price", stripeMappingValidatedAt: new Date() }, stripe), "price");
+  }
+  const wrongProduct = { get: async (path: string) => path.startsWith("products/")
+    ? ({ active: true, metadata: { workrate_pack_code: "minutes_500", billing_kind: "ai_receptionist_top_up" } })
+    : ({ active: true, product: "prod", currency: "gbp", unit_amount: 1200, recurring: null, metadata: { workrate_pack_code: "minutes_100", billing_kind: "ai_receptionist_top_up" } }) };
+  await assert.rejects(() => verifyTopUpPrice({ code: "minutes_100", active: true, customerPriceGbp: "12.00", currency: "gbp", stripeProductId: "prod", stripePriceId: "price", stripeMappingValidatedAt: new Date() }, wrongProduct), /configuration/);
 });
 test("unready Stripe webhook safety gate creates no top-up purchase or Checkout", async () => {
   let calls = 0;
@@ -56,8 +74,89 @@ test("paid feature authorization preserves legacy, grants selected add-ons/Compl
   assert.equal(featureAccess(resolveEntitlements({ legacyAccess: true, subscription: undefined, plans: [], addOns: [] }), "ai_receptionist"), null);
   assert.equal(featureAccess(resolveEntitlements({ legacyAccess: false, subscription: { status: "trialing", planCode: "core", addOnCodes: ["ai_receptionist"] }, plans: catalog, addOns: addOn }), "ai_receptionist"), null);
   assert.equal(featureAccess(resolveEntitlements({ legacyAccess: false, subscription: { status: "active", planCode: "core", addOnCodes: [] }, plans: catalog, addOns: addOn }), "ai_receptionist")?.error, "PAYMENT_REQUIRED");
+  assert.equal(featureAccess(resolveEntitlements({ legacyAccess: false, subscription: { status: "active", planCode: "complete", addOnCodes: [] }, plans: catalog, addOns: addOn }), "ai_receptionist"), null);
   assert.equal(featureAccess(resolveEntitlements({ legacyAccess: false, subscription: { status: "active", planCode: "complete", addOnCodes: [] }, plans: catalog, addOns: [] }), "advanced_finance_mtd"), null);
   assert.equal(featureAccess(resolveEntitlements({ legacyAccess: false, subscription: { status: "past_due", planCode: "complete", addOnCodes: [] }, plans: catalog, addOns: [] }), "advanced_finance_mtd")?.error, "PAYMENT_REQUIRED");
+});
+
+test("DB-backed receptionist grants snapshot minutes once and reject canonical session mismatches", async () => {
+  const [pack] = await db.select().from(billingReceptionistTopUpPacksTable).where(eq(billingReceptionistTopUpPacksTable.code, "minutes_100")).limit(1);
+  assert.ok(pack, "minutes_100 catalogue fixture must exist");
+  const owner = `billing-topup-${randomUUID()}`;
+  const period = { startsAt: new Date("2030-01-01T00:00:00.000Z"), endsAt: new Date("2030-02-01T00:00:00.000Z") };
+  const oldPeriod = { startsAt: new Date("2029-12-01T00:00:00.000Z"), endsAt: period.startsAt };
+  let companyId: number | undefined;
+  const originalPack = {
+    customerPriceGbp: pack.customerPriceGbp, active: pack.active, stripeProductId: pack.stripeProductId,
+    stripePriceId: pack.stripePriceId, stripeMappingValidatedAt: pack.stripeMappingValidatedAt,
+  };
+  try {
+    await db.update(billingReceptionistTopUpPacksTable).set({
+      customerPriceGbp: "12.00", active: true, stripeProductId: "prod_test_minutes_100",
+      stripePriceId: "price_test_minutes_100", stripeMappingValidatedAt: new Date(),
+    }).where(eq(billingReceptionistTopUpPacksTable.id, pack.id));
+    const [company] = await db.insert(companiesTable).values({ ownerUserId: owner, name: owner }).returning();
+    companyId = company.id;
+    await db.insert(companySubscriptionsTable).values({
+      companyId, ownerUserId: owner, planCode: "core", addOnCodes: ["ai_receptionist"], status: "active",
+      provider: "stripe", providerSubscriptionId: "sub_topup_test", currentPeriodStartsAt: period.startsAt, currentPeriodEndsAt: period.endsAt,
+    });
+    const createPurchase = async (sessionId: string, periodFixture = period) => {
+      const [purchase] = await db.insert(billingReceptionistTopUpPurchasesTable).values({
+        companyId: company.id, ownerUserId: owner, packCode: "minutes_100", packMinutes: 100,
+        customerPriceGbp: "12.00", currency: "gbp", expiryPolicy: "period_end",
+        periodStartsAt: periodFixture.startsAt, periodEndsAt: periodFixture.endsAt, stripeCheckoutSessionId: sessionId,
+      }).returning();
+      return purchase;
+    };
+    const good = await createPurchase("cs_topup_good");
+    const fakeStripe = (overrides: Record<string, unknown> = {}) => ({
+      get: async (path: string) => {
+        if (path.endsWith("/line_items")) return { data: [{
+          quantity: 1, price: { id: "price_test_minutes_100", product: "prod_test_minutes_100" }, ...(overrides.lineItem as object ?? {}),
+        }] };
+        if (path.startsWith("subscriptions/")) return overrides.subscription ?? {
+          id: "sub_topup_test", status: "active",
+          current_period_start: Math.floor(period.startsAt.getTime() / 1000),
+          current_period_end: Math.floor(period.endsAt.getTime() / 1000),
+        };
+        return {
+          id: "cs_topup_good", mode: "payment", payment_status: "paid", payment_intent: "pi_topup_good",
+          currency: "gbp", amount_total: 1200,
+          metadata: { billing_kind: "ai_receptionist_top_up", purchaseId: String(good.id), companyId: String(company.id), ownerUserId: owner, packCode: "minutes_100" },
+          ...overrides,
+        };
+      },
+    });
+    assert.equal(await grantReceptionistTopUpFromStripeSession({ id: "cs_topup_good", mode: "payment", payment_status: "paid", metadata: { billing_kind: "ai_receptionist_top_up", purchaseId: String(good.id) } }, fakeStripe() as any), "granted");
+    assert.equal(await grantedReceptionistTopUpMinutes(company.id, owner, period), 100);
+    assert.equal(await grantReceptionistTopUpFromStripeSession({ id: "cs_topup_good", mode: "payment", payment_status: "paid", metadata: { billing_kind: "ai_receptionist_top_up", purchaseId: String(good.id) } }, fakeStripe() as any), "duplicate");
+    assert.equal(await grantedReceptionistTopUpMinutes(company.id, owner, period), 100, "duplicate grant adds zero minutes");
+
+    const wrongAmount = await createPurchase("cs_topup_amount");
+    await assert.rejects(() => grantReceptionistTopUpFromStripeSession({ id: "cs_topup_amount", mode: "payment", payment_status: "paid", metadata: { billing_kind: "ai_receptionist_top_up", purchaseId: String(wrongAmount.id) } }, fakeStripe({ id: "cs_topup_amount", payment_intent: "pi_topup_amount", amount_total: 1199, metadata: { billing_kind: "ai_receptionist_top_up", purchaseId: String(wrongAmount.id), companyId: String(company.id), ownerUserId: owner, packCode: "minutes_100" } }) as any), /amount mismatch/);
+    const wrongPrice = await createPurchase("cs_topup_price");
+    await assert.rejects(() => grantReceptionistTopUpFromStripeSession({ id: "cs_topup_price", mode: "payment", payment_status: "paid", metadata: { billing_kind: "ai_receptionist_top_up", purchaseId: String(wrongPrice.id) } }, fakeStripe({ id: "cs_topup_price", payment_intent: "pi_topup_price", metadata: { billing_kind: "ai_receptionist_top_up", purchaseId: String(wrongPrice.id), companyId: String(company.id), ownerUserId: owner, packCode: "minutes_100" }, lineItem: { price: { id: "price_other", product: "prod_other" } } }) as any), /price mapping mismatch/);
+    const wrongTenant = await createPurchase("cs_topup_tenant");
+    await assert.rejects(() => grantReceptionistTopUpFromStripeSession({ id: "cs_topup_tenant", mode: "payment", payment_status: "paid", metadata: { billing_kind: "ai_receptionist_top_up", purchaseId: String(wrongTenant.id) } }, fakeStripe({ id: "cs_topup_tenant", payment_intent: "pi_topup_tenant", metadata: { billing_kind: "ai_receptionist_top_up", purchaseId: String(wrongTenant.id), companyId: String(company.id), ownerUserId: "other-owner", packCode: "minutes_100" } }) as any), /identity mismatch/);
+    const renewed = await createPurchase("cs_topup_renewed");
+    await assert.rejects(() => grantReceptionistTopUpFromStripeSession({ id: "cs_topup_renewed", mode: "payment", payment_status: "paid", metadata: { billing_kind: "ai_receptionist_top_up", purchaseId: String(renewed.id) } }, fakeStripe({
+      id: "cs_topup_renewed", payment_intent: "pi_topup_renewed",
+      metadata: { billing_kind: "ai_receptionist_top_up", purchaseId: String(renewed.id), companyId: String(company.id), ownerUserId: owner, packCode: "minutes_100" },
+      subscription: { id: "sub_topup_test", status: "active", current_period_start: Math.floor(period.endsAt.getTime() / 1000), current_period_end: Math.floor(new Date("2030-03-01T00:00:00.000Z").getTime() / 1000) },
+    }) as any), /period no longer matches/);
+    assert.equal(await grantedReceptionistTopUpMinutes(company.id, owner, period), 100, "renewed Stripe period cannot grant an old Checkout");
+
+    await db.insert(billingReceptionistTopUpPurchasesTable).values({
+      companyId: company.id, ownerUserId: owner, packCode: "minutes_100", packMinutes: 100, customerPriceGbp: "12.00",
+      currency: "gbp", expiryPolicy: "period_end", periodStartsAt: oldPeriod.startsAt, periodEndsAt: oldPeriod.endsAt,
+      stripeCheckoutSessionId: "cs_topup_old", stripePaymentIntentId: "pi_topup_old", status: "granted", grantedAt: new Date(),
+    });
+    assert.equal(await grantedReceptionistTopUpMinutes(company.id, owner, period), 100, "old-period grants are excluded");
+  } finally {
+    if (companyId) await db.delete(companiesTable).where(eq(companiesTable.id, companyId));
+    await db.update(billingReceptionistTopUpPacksTable).set(originalPack).where(eq(billingReceptionistTopUpPacksTable.id, pack.id));
+  }
 });
 
 test("legacy companies retain access until they explicitly enter billing", () => {

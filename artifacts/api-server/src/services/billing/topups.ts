@@ -23,9 +23,14 @@ export async function verifyTopUpPrice(pack: any, stripe: StripeApi, requireVali
   if (!pack.active || pack.customerPriceGbp == null || pack.currency !== "gbp" || !pack.stripeProductId || !pack.stripePriceId || (requireValidated && !pack.stripeMappingValidatedAt)) {
     throw new Error("Top-up billing configuration required.");
   }
-  const price: any = await stripe.get(`prices/${pack.stripePriceId}`);
+  const [product, price]: any[] = await Promise.all([
+    stripe.get(`products/${pack.stripeProductId}`),
+    stripe.get(`prices/${pack.stripePriceId}`),
+  ]);
   const expected = Math.round(Number(pack.customerPriceGbp) * 100);
-  if (!price?.active || price.product !== pack.stripeProductId || price.currency !== "gbp" || price.recurring || price.unit_amount !== expected || price.metadata?.billing_kind !== "ai_receptionist_top_up") {
+  if (!product?.active || product.metadata?.workrate_pack_code !== pack.code || product.metadata?.billing_kind !== "ai_receptionist_top_up"
+    || !price?.active || price.product !== pack.stripeProductId || price.currency !== "gbp" || price.recurring || price.unit_amount !== expected
+    || price.metadata?.workrate_pack_code !== pack.code || price.metadata?.billing_kind !== "ai_receptionist_top_up") {
     throw new Error("Top-up billing configuration required.");
   }
   return price.id as string;
@@ -90,6 +95,7 @@ export async function grantReceptionistTopUpFromStripeSession(session: any, stri
   // Fetching the session ourselves prevents signed event payload fields becoming purchase truth.
   const canonical: any = await stripe.get(`checkout/sessions/${encodeURIComponent(session.id)}`);
   if (canonical.id !== session.id || canonical.mode !== "payment" || canonical.payment_status !== "paid") throw new Error("Canonical Checkout payment verification failed.");
+  const lineItems: any = await stripe.get(`checkout/sessions/${encodeURIComponent(session.id)}/line_items`, { limit: 10 });
   const paymentIntent = typeof canonical.payment_intent === "string" ? canonical.payment_intent : canonical.payment_intent?.id;
   if (!paymentIntent) throw new Error("Paid Checkout session has no payment identity.");
   return db.transaction(async (tx: any) => {
@@ -101,8 +107,30 @@ export async function grantReceptionistTopUpFromStripeSession(session: any, stri
       throw new Error("Top-up Checkout metadata identity mismatch.");
     }
     if (canonical.currency !== purchase.currency || Number(canonical.amount_total) !== Math.round(Number(purchase.customer_price_gbp) * 100)) throw new Error("Top-up Checkout amount mismatch.");
+    const [pack] = await tx.select().from(billingReceptionistTopUpPacksTable).where(eq(billingReceptionistTopUpPacksTable.code, purchase.pack_code)).limit(1);
+    const item = lineItems?.data?.[0];
+    const itemPriceId = typeof item?.price === "string" ? item.price : item?.price?.id;
+    const itemProductId = typeof item?.price?.product === "string" ? item.price.product : item?.price?.product?.id;
+    if (lineItems?.data?.length !== 1 || item?.quantity !== 1 || !pack || !pack.active || !pack.stripePriceId || !pack.stripeProductId
+      || itemPriceId !== pack.stripePriceId || itemProductId !== pack.stripeProductId) {
+      throw new Error("Top-up Checkout price mapping mismatch.");
+    }
     const current: any = await tx.select().from(companySubscriptionsTable).where(and(eq(companySubscriptionsTable.companyId, purchase.company_id), eq(companySubscriptionsTable.ownerUserId, purchase.owner_user_id))).limit(1);
-    if (!current[0] || new Date(current[0].currentPeriodStartsAt).getTime() !== new Date(purchase.period_starts_at).getTime() || new Date(current[0].currentPeriodEndsAt).getTime() !== new Date(purchase.period_ends_at).getTime()) throw new Error("Top-up billing period no longer matches.");
+    if (!current[0] || current[0].provider !== "stripe" || !current[0].providerSubscriptionId) {
+      throw new Error("An active Stripe billing period is required to grant a top-up.");
+    }
+    // Webhooks can arrive before local subscription synchronization. Stripe's
+    // current subscription period, not the possibly stale local projection, is
+    // authoritative for deciding whether this Checkout can still add allowance.
+    const stripeSubscription: any = await stripe.get(`subscriptions/${encodeURIComponent(current[0].providerSubscriptionId)}`);
+    const stripeStartsAt = stripeSubscription?.current_period_start ? new Date(stripeSubscription.current_period_start * 1000) : null;
+    const stripeEndsAt = stripeSubscription?.current_period_end ? new Date(stripeSubscription.current_period_end * 1000) : null;
+    if (stripeSubscription?.id !== current[0].providerSubscriptionId || !["active", "trialing"].includes(stripeSubscription?.status)
+      || !stripeStartsAt || !stripeEndsAt
+      || stripeStartsAt.getTime() !== new Date(purchase.period_starts_at).getTime()
+      || stripeEndsAt.getTime() !== new Date(purchase.period_ends_at).getTime()) {
+      throw new Error("Top-up billing period no longer matches.");
+    }
     const updated: any = await tx.execute(sql`
       UPDATE billing_receptionist_top_up_purchases SET status='granted', granted_at=now(), stripe_payment_intent_id=${paymentIntent}, updated_at=now()
       WHERE id=${purchaseId} AND status='pending' AND stripe_payment_intent_id IS NULL

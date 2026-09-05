@@ -1,0 +1,209 @@
+WORKRATE — SET AI RECEPTIONIST TOP-UP PRICES + CREATE STRIPE TEST PRODUCTS
+
+GOAL:
+Activate the AI Receptionist minute-pack top-ups by setting final prices and creating/validating the corresponding Stripe TEST-MODE one-time products/prices.
+
+IMPORTANT:
+Do NOT change the existing top-up architecture.
+Do NOT change recurring subscription prices.
+Do NOT create live Stripe objects.
+Do NOT publish automatically.
+
+==================================================
+1. FINAL TOP-UP PRICES
+==================================================
+
+Set:
+
++100 minutes
+£12 one-time
+
++250 minutes
+£25 one-time
+
++500 minutes
+£45 one-time
+
+These are NOT recurring charges.
+
+They apply only to the current billing period and expire at period_end under the existing policy.
+
+==================================================
+2. STRIPE TEST-MODE OBJECTS
+==================================================
+
+Using the authoritative WorkRate TEST Stripe account:
+
+Create or reuse one Stripe Product / one-time Price mapping for each pack:
+
+AI Receptionist +100 minutes
+£12 GBP one-time
+
+AI Receptionist +250 minutes
+£25 GBP one-time
+
+AI Receptionist +500 minutes
+£45 GBP one-time
+
+Do not create duplicates if equivalent WorkRate-tagged objects already exist.
+
+Validate:
+
+- product identity
+- amount
+- GBP currency
+- one-time price
+- test mode
+- metadata / WorkRate pack code
+- active state
+
+==================================================
+3. ADMIN CATALOG
+==================================================
+
+Update the protected WorkRate product-pricing configuration so each pack has:
+
+- customer price
+- Stripe Product ID
+- Stripe Price ID
+- mapping validation status
+- validated_at timestamp
+- active state
+
+After mapping:
+
+all three packs should be purchasable.
+
+==================================================
+4. CUSTOMER UI
+==================================================
+
+Plan & Billing should now show:
+
++100 minutes
+£12
+[Buy]
+
++250 minutes
+£25
+[Buy]
+
++500 minutes
+£45
+[Buy]
+
+Also show existing wording that additional minutes:
+
+- are added to the current allowance
+- remain valid until the current billing period end
+- do not roll over
+
+==================================================
+5. EFFECTIVE ALLOWANCE
+==================================================
+
+Preserve current server-side calculation:
+
+base included minutes
++
+granted current-period top-up minutes
+=
+effective allowance
+
+Do not change hard-cap or atomic reservation behavior.
+
+==================================================
+6. WEBHOOK-AUTHORITATIVE GRANT
+==================================================
+
+Do not grant minutes from:
+
+- checkout creation
+- browser redirect
+- frontend state
+
+Grant only after the existing verified Stripe webhook flow confirms:
+
+- signed event
+- canonical Checkout Session
+- mode=payment
+- payment_status=paid
+- correct tenant
+- correct pack
+- exact expected amount
+- GBP currency
+- matching Product / Price
+- current Stripe billing period
+- unique payment identity
+
+==================================================
+7. SECURITY
+==================================================
+
+Confirm:
+
+- browser can submit only pack code, not price/minutes
+- server resolves amount and minute quantity
+- tenant isolation
+- duplicate webhook cannot grant twice
+- no live-mode operation
+- no customer can buy receptionist minutes without AI Receptionist entitlement
+- Stripe price IDs cannot be spoofed from client
+
+==================================================
+8. PROFITABILITY
+==================================================
+
+Preserve top-up revenue reporting.
+
+Admin-only profitability view should continue to include:
+
+- recurring subscription revenue
+- top-up revenue
+- total revenue
+- direct verified provider cost
+- gross contribution
+
+Do not expose provider costs to customers.
+
+==================================================
+9. TESTING
+==================================================
+
+Test:
+
+- +100 pack checkout shows £12
+- +250 pack checkout shows £25
+- +500 pack checkout shows £45
+- Stripe objects are test-mode only
+- mappings validate
+- no duplicate products/prices after rerun
+- successful webhook grants correct minutes
+- duplicate webhook grants zero extra minutes
+- wrong amount rejected
+- wrong Price/Product rejected
+- wrong tenant rejected
+- Core without Receptionist cannot buy
+- Core + Receptionist can buy
+- Complete can buy
+- purchased minutes extend current-period hard cap
+- old-period top-ups do not apply
+
+==================================================
+10. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. prices configured
+B. Stripe Products created/reused
+C. Stripe Prices created/reused
+D. mapping validation result
+E. customer UI result
+F. webhook grant test
+G. entitlement/security tests
+H. idempotency result
+I. whether any Stripe/manual configuration is still required
+J. whether ONE publish is required
+
+Do not publish automatically.

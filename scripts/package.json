@@ -6,6 +6,7 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "seed:stripe-billing": "tsx ./src/seed-stripe-billing-catalog.ts",
+    "seed:stripe-receptionist-top-ups": "tsx ./src/seed-stripe-receptionist-top-ups.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
