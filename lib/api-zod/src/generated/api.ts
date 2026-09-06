@@ -2196,6 +2196,11 @@ export const StartHmrcSandboxConnectionResponse = zod.object({
 /**
  * @summary Retrieve read-only HMRC sandbox business details and obligations
  */
+export const syncHmrcSandboxDataBodyAttestationMin = 40;
+export const syncHmrcSandboxDataBodyAttestationMax = 16384;
+
+
+
 export const SyncHmrcSandboxDataBody = zod.object({
   "browserContext": zod.object({
   "browserUserAgent": zod.string(),
@@ -2213,7 +2218,8 @@ export const SyncHmrcSandboxDataBody = zod.object({
 }),
   "clientPublicPort": zod.number().optional(),
   "multiFactor": zod.string().optional()
-})
+}),
+  "attestation": zod.string().min(syncHmrcSandboxDataBodyAttestationMin).max(syncHmrcSandboxDataBodyAttestationMax)
 })
 
 export const SyncHmrcSandboxDataResponse = zod.object({
@@ -3343,11 +3349,32 @@ export const SubmitHmrcSandboxPreparationParams = zod.object({
 })
 
 export const submitHmrcSandboxPreparationBodyIdempotencyKeyRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const submitHmrcSandboxPreparationBodyAttestationMin = 40;
+export const submitHmrcSandboxPreparationBodyAttestationMax = 16384;
+
 
 
 export const SubmitHmrcSandboxPreparationBody = zod.object({
   "declaration": zod.literal(true),
-  "idempotencyKey": zod.string().regex(submitHmrcSandboxPreparationBodyIdempotencyKeyRegExp)
+  "idempotencyKey": zod.string().regex(submitHmrcSandboxPreparationBodyIdempotencyKeyRegExp),
+  "browserContext": zod.object({
+  "browserUserAgent": zod.string(),
+  "deviceId": zod.string(),
+  "timezone": zod.string().describe('Browser local UTC offset in HMRC format, for example UTC+01:00'),
+  "screens": zod.array(zod.object({
+  "width": zod.number(),
+  "height": zod.number(),
+  "colourDepth": zod.number(),
+  "scalingFactor": zod.number()
+})),
+  "windowSize": zod.object({
+  "width": zod.number(),
+  "height": zod.number()
+}),
+  "clientPublicPort": zod.number().optional(),
+  "multiFactor": zod.string().optional()
+}),
+  "attestation": zod.string().min(submitHmrcSandboxPreparationBodyAttestationMin).max(submitHmrcSandboxPreparationBodyAttestationMax)
 })
 
 export const SubmitHmrcSandboxPreparationResponse = zod.object({
@@ -3367,7 +3394,69 @@ export const SubmitHmrcSandboxPreparationResponse = zod.object({
 /**
  * @summary Validate sandbox fraud headers through the controlled gateway
  */
+export const validateHmrcSandboxFraudHeadersBodyAttestationMin = 40;
+export const validateHmrcSandboxFraudHeadersBodyAttestationMax = 16384;
+
+
+
+export const ValidateHmrcSandboxFraudHeadersBody = zod.object({
+  "browserContext": zod.object({
+  "browserUserAgent": zod.string(),
+  "deviceId": zod.string(),
+  "timezone": zod.string().describe('Browser local UTC offset in HMRC format, for example UTC+01:00'),
+  "screens": zod.array(zod.object({
+  "width": zod.number(),
+  "height": zod.number(),
+  "colourDepth": zod.number(),
+  "scalingFactor": zod.number()
+})),
+  "windowSize": zod.object({
+  "width": zod.number(),
+  "height": zod.number()
+}),
+  "clientPublicPort": zod.number().optional(),
+  "multiFactor": zod.string().optional()
+}),
+  "attestation": zod.string().min(validateHmrcSandboxFraudHeadersBodyAttestationMin).max(validateHmrcSandboxFraudHeadersBodyAttestationMax)
+})
+
 export const ValidateHmrcSandboxFraudHeadersResponse = zod.object({
-  "status": zod.enum(['validated', 'unavailable']),
-  "message": zod.string().nullable()
+  "status": zod.enum(['pass', 'warning', 'fail', 'unavailable']),
+  "message": zod.string().nullable(),
+  "checkedAt": zod.coerce.date().nullable(),
+  "issues": zod.array(zod.object({
+  "header": zod.string(),
+  "message": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create a short-lived tenant and session-bound browser attestation grant
+ */
+export const createHmrcGatewayAttestationGrantResponseGatewayUrlRegExp = new RegExp('^https://.+');
+
+
+export const CreateHmrcGatewayAttestationGrantResponse = zod.object({
+  "gatewayUrl": zod.string().regex(createHmrcGatewayAttestationGrantResponseGatewayUrlRegExp),
+  "grant": zod.string(),
+  "expiresAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get safe HMRC sandbox gateway and fraud validation diagnostics
+ */
+export const GetHmrcSandboxGatewayStatusResponse = zod.object({
+  "gateway": zod.enum(['connected', 'unavailable']),
+  "environment": zod.enum(['sandbox']),
+  "publicIp": zod.string().nullish(),
+  "version": zod.string().nullish(),
+  "buildId": zod.string().nullish(),
+  "fraudPrevention": zod.enum(['pass', 'warning', 'fail', 'unavailable']),
+  "hmrcConnectivity": zod.enum(['connected', 'unavailable', 'unknown']),
+  "dynamicSubmission": zod.enum(['available', 'unavailable']),
+  "lastValidationAt": zod.coerce.date().nullable(),
+  "missingHeaders": zod.array(zod.string()),
+  "message": zod.string().nullish()
 })

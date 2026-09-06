@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, enquiriesTable, companiesTable } from "@workspace/db";
-import { eq, desc, isNull } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
+import { isBillingAdmin } from "../services/billing/pricing";
 
 const router: IRouter = Router();
 
@@ -21,14 +22,16 @@ const requireAuth = (req: any, res: any, next: any) => {
  */
 router.get("/diagnostics", requireAuth, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
+  if (!isBillingAdmin(userId)) {
+    res.status(403).json({ error: "Administrator access is required." });
+    return;
+  }
 
   // ── Environment classification ─────────────────────────────────────────────
   const nodeEnv = process.env.NODE_ENV ?? "unknown";
 
   const clerkKey = process.env.CLERK_PUBLISHABLE_KEY ?? "";
   const clerkEnv = clerkKey.startsWith("pk_live_") ? "production" : "development";
-  // Show only the first segment of the key (never the full key)
-  const clerkKeyPrefix = clerkKey.slice(0, 14) + "…";
 
   const dbUrl = process.env.DATABASE_URL ?? "";
   const dbEnv =
@@ -37,25 +40,15 @@ router.get("/diagnostics", requireAuth, async (req, res): Promise<void> => {
       : "production";
 
   // ── Company row ────────────────────────────────────────────────────────────
-  let company: { id: number; name: string; widgetToken: string | null } | null = null;
+  let company: { id: number; name: string } | null = null;
 
   const [ownedCompany] = await db
-    .select({ id: companiesTable.id, name: companiesTable.name, widgetToken: companiesTable.widgetToken })
+    .select({ id: companiesTable.id, name: companiesTable.name })
     .from(companiesTable)
     .where(eq(companiesTable.ownerUserId, userId!))
     .limit(1);
 
-  if (ownedCompany) {
-    company = ownedCompany;
-  } else {
-    // Single-tenant fallback: unowned company (first-login scenario)
-    const [unowned] = await db
-      .select({ id: companiesTable.id, name: companiesTable.name, widgetToken: companiesTable.widgetToken })
-      .from(companiesTable)
-      .where(isNull(companiesTable.ownerUserId))
-      .limit(1);
-    company = unowned ?? null;
-  }
+  company = ownedCompany ?? null;
 
   // ── Latest enquiry ─────────────────────────────────────────────────────────
   const [latestEnquiry] = await db
@@ -69,12 +62,9 @@ router.get("/diagnostics", requireAuth, async (req, res): Promise<void> => {
     environment: nodeEnv,
     apiOrigin: `${req.protocol}://${req.get("host")}`,
     clerkEnvironment: clerkEnv,
-    clerkPublishableKeyPrefix: clerkKeyPrefix,
     dbEnvironment: dbEnv,
-    userId,
     companyId: company?.id ?? null,
     companyName: company?.name ?? null,
-    widgetToken: company?.widgetToken ?? null,
     latestEnquiryAt: latestEnquiry?.createdAt ?? null,
   });
 });

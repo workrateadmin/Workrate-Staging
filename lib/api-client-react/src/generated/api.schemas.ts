@@ -9,14 +9,136 @@ export type HmrcFraudValidationStatusStatus = typeof HmrcFraudValidationStatusSt
 
 
 export const HmrcFraudValidationStatusStatus = {
-  validated: 'validated',
+  pass: 'pass',
+  warning: 'warning',
+  fail: 'fail',
   unavailable: 'unavailable',
 } as const;
+
+export interface HmrcFraudIssue {
+  header: string;
+  message: string;
+}
 
 export interface HmrcFraudValidationStatus {
   status: HmrcFraudValidationStatusStatus;
   /** @nullable */
   message: string | null;
+  /** @nullable */
+  checkedAt: string | null;
+  issues: HmrcFraudIssue[];
+}
+
+export type HmrcBrowserContextScreensItem = {
+  width: number;
+  height: number;
+  colourDepth: number;
+  scalingFactor: number;
+};
+
+export type HmrcBrowserContextWindowSize = {
+  width: number;
+  height: number;
+};
+
+export interface HmrcBrowserContext {
+  browserUserAgent: string;
+  deviceId: string;
+  /** Browser local UTC offset in HMRC format, for example UTC+01:00 */
+  timezone: string;
+  screens: HmrcBrowserContextScreensItem[];
+  windowSize: HmrcBrowserContextWindowSize;
+  clientPublicPort?: number;
+  multiFactor?: string;
+}
+
+export interface HmrcGatewayActionInput {
+  browserContext: HmrcBrowserContext;
+  /**
+     * @minLength 40
+     * @maxLength 16384
+     */
+  attestation: string;
+}
+
+export interface HmrcSandboxSubmissionInput {
+  declaration: true;
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  idempotencyKey: string;
+  browserContext: HmrcBrowserContext;
+  /**
+     * @minLength 40
+     * @maxLength 16384
+     */
+  attestation: string;
+}
+
+export interface HmrcAttestationGrant {
+  /** @pattern ^https://.+ */
+  gatewayUrl: string;
+  grant: string;
+  expiresAt: string;
+}
+
+export type HmrcGatewayStatusGateway = typeof HmrcGatewayStatusGateway[keyof typeof HmrcGatewayStatusGateway];
+
+
+export const HmrcGatewayStatusGateway = {
+  connected: 'connected',
+  unavailable: 'unavailable',
+} as const;
+
+export type HmrcGatewayStatusEnvironment = typeof HmrcGatewayStatusEnvironment[keyof typeof HmrcGatewayStatusEnvironment];
+
+
+export const HmrcGatewayStatusEnvironment = {
+  sandbox: 'sandbox',
+} as const;
+
+export type HmrcGatewayStatusFraudPrevention = typeof HmrcGatewayStatusFraudPrevention[keyof typeof HmrcGatewayStatusFraudPrevention];
+
+
+export const HmrcGatewayStatusFraudPrevention = {
+  pass: 'pass',
+  warning: 'warning',
+  fail: 'fail',
+  unavailable: 'unavailable',
+} as const;
+
+export type HmrcGatewayStatusHmrcConnectivity = typeof HmrcGatewayStatusHmrcConnectivity[keyof typeof HmrcGatewayStatusHmrcConnectivity];
+
+
+export const HmrcGatewayStatusHmrcConnectivity = {
+  connected: 'connected',
+  unavailable: 'unavailable',
+  unknown: 'unknown',
+} as const;
+
+export type HmrcGatewayStatusDynamicSubmission = typeof HmrcGatewayStatusDynamicSubmission[keyof typeof HmrcGatewayStatusDynamicSubmission];
+
+
+export const HmrcGatewayStatusDynamicSubmission = {
+  available: 'available',
+  unavailable: 'unavailable',
+} as const;
+
+export interface HmrcGatewayStatus {
+  gateway: HmrcGatewayStatusGateway;
+  environment: HmrcGatewayStatusEnvironment;
+  /** @nullable */
+  publicIp?: string | null;
+  /** @nullable */
+  version?: string | null;
+  /** @nullable */
+  buildId?: string | null;
+  fraudPrevention: HmrcGatewayStatusFraudPrevention;
+  hmrcConnectivity: HmrcGatewayStatusHmrcConnectivity;
+  dynamicSubmission: HmrcGatewayStatusDynamicSubmission;
+  /** @nullable */
+  lastValidationAt: string | null;
+  missingHeaders: string[];
+  /** @nullable */
+  message?: string | null;
 }
 
 export interface HmrcPreparationWarnings {
@@ -577,29 +699,6 @@ export interface ApiError {
   error: string;
 }
 
-export type HmrcBrowserContextScreensItem = {
-  width: number;
-  height: number;
-  colourDepth: number;
-  scalingFactor: number;
-};
-
-export type HmrcBrowserContextWindowSize = {
-  width: number;
-  height: number;
-};
-
-export interface HmrcBrowserContext {
-  browserUserAgent: string;
-  deviceId: string;
-  /** Browser local UTC offset in HMRC format, for example UTC+01:00 */
-  timezone: string;
-  screens: HmrcBrowserContextScreensItem[];
-  windowSize: HmrcBrowserContextWindowSize;
-  clientPublicPort?: number;
-  multiFactor?: string;
-}
-
 export interface HmrcConnectionInput {
   /** Sandbox NINO required by HMRC read-only MTD endpoints; encrypted server-side. */
   taxpayerId: string;
@@ -609,6 +708,11 @@ export interface HmrcConnectionInput {
 
 export interface HmrcSyncInput {
   browserContext: HmrcBrowserContext;
+  /**
+     * @minLength 40
+     * @maxLength 16384
+     */
+  attestation: string;
 }
 
 export interface HmrcAuthorizationStart {
@@ -1806,10 +1910,4 @@ export type CreateHmrcQuarterlyPreparationBody = {
   obligationKey: string;
   periodStart: string;
   periodEnd: string;
-};
-
-export type SubmitHmrcSandboxPreparationBody = {
-  declaration: true;
-  /** @pattern ^[0-9a-fA-F-]{36}$ */
-  idempotencyKey: string;
 };

@@ -1,0 +1,740 @@
+WORKRATE — DEPLOYABLE HMRC SANDBOX GATEWAY + FRAUD-PREVENTION VALIDATION PATH
+
+GOAL:
+
+Complete the missing HMRC infrastructure layer so WorkRate can move from:
+
+MTD preparation only
+
+to:
+
+WorkRate
+→ controlled HMRC gateway
+→ HMRC sandbox
+→ fraud-prevention validation
+→ real dynamic sandbox quarterly submission
+→ HMRC acceptance/reference stored in WorkRate
+
+IMPORTANT:
+
+The MAIN WorkRate application stays on Replit.
+
+Do NOT migrate WorkRate away from Replit.
+
+This task is ONLY for the narrow HMRC gateway/infrastructure required to provide truthful fraud-prevention network evidence.
+
+Do NOT fabricate:
+- client IPs
+- source ports
+- forwarded chains
+- public IPs
+- MFA evidence
+- vendor IDs
+- HMRC responses
+
+Do NOT make production HMRC requests.
+
+Do NOT publish WorkRate automatically.
+
+Do NOT enable customer-facing claims that live HMRC filing works yet.
+
+==================================================
+1. AUDIT EXISTING HMRC GATEWAY CONTRACT
+==================================================
+
+First inspect the HMRC gateway client contract already added during the MTD work.
+
+Confirm:
+
+- current WorkRate → gateway request shape
+- HMAC authentication approach
+- tenant/preparation identifiers
+- idempotency information
+- HMRC token handling
+- sandbox-only checks
+- response validation
+- timeout behavior
+- logging exclusions
+- current environment variables expected
+
+Reuse the existing contract where safe.
+
+Do NOT create a competing second gateway architecture.
+
+==================================================
+2. DEFINE THE SMALLEST GATEWAY
+==================================================
+
+Build the gateway as a very small standalone service.
+
+Its only responsibility is:
+
+1. receive an authenticated request from WorkRate
+2. validate that request came from WorkRate
+3. receive/derive truthful fraud-prevention network evidence
+4. call HMRC sandbox
+5. return the HMRC result safely to WorkRate
+
+It is NOT:
+
+- another WorkRate backend
+- another tenant database
+- another finance system
+- customer-facing
+- a general proxy
+- a public API
+
+Keep it minimal.
+
+==================================================
+3. GATEWAY DEPLOYMENT TARGET
+==================================================
+
+The gateway must run on infrastructure where WorkRate controls:
+
+- a stable public IP
+- the TLS endpoint
+- inbound request handling
+- outbound HMRC requests
+- request logs
+- proxy/network configuration
+
+Preferred deployment characteristics:
+
+- small Linux VM/container
+- static/reserved public IPv4
+- HTTPS
+- UK/EU region where practical
+- inexpensive
+- easy to monitor
+- easy to redeploy
+
+Do NOT hardcode the implementation to one provider if avoidable.
+
+Provide deployment instructions/config for one sensible low-cost target.
+
+Before choosing the target, report:
+
+A. proposed provider
+B. estimated monthly cost
+C. static-IP capability
+D. TLS approach
+E. why it satisfies the network-control requirement better than Replit
+
+==================================================
+4. SANDBOX ONLY
+==================================================
+
+Gateway v1 must be HMRC SANDBOX ONLY.
+
+Allowed HMRC host:
+
+https://test-api.service.hmrc.gov.uk
+
+Reject:
+
+- production HMRC hosts
+- arbitrary URLs
+- caller-supplied target hosts
+- open proxy behavior
+
+The HMRC target route must be server-controlled.
+
+==================================================
+5. WORKRATE → GATEWAY AUTHENTICATION
+==================================================
+
+Use the existing HMAC server-to-server model unless the audit finds a security flaw.
+
+Requirements:
+
+- strong shared secret
+- timestamp
+- nonce/request ID
+- request signature
+- replay protection
+- constant-time signature comparison
+- narrow clock tolerance
+- idempotency support
+- HTTPS only
+
+Reject:
+
+- missing signature
+- invalid signature
+- stale timestamp
+- reused nonce where inappropriate
+- malformed request
+
+Never return authentication secrets to the browser.
+
+==================================================
+6. TOKEN HANDLING
+==================================================
+
+HMRC access/refresh tokens must remain server-side.
+
+Determine the safest existing flow:
+
+OPTION A:
+WorkRate sends the current encrypted/server-resolved access token to the trusted gateway over the authenticated channel.
+
+OR
+
+OPTION B:
+Gateway receives a short-lived WorkRate authorization reference and WorkRate resolves token usage another safe way.
+
+Use the smallest secure approach compatible with existing architecture.
+
+Never:
+
+- expose HMRC token to browser
+- persist tokens unnecessarily on the gateway
+- log access tokens
+- log refresh tokens
+
+Prefer request-scoped token use.
+
+==================================================
+7. CLIENT NETWORK EVIDENCE
+==================================================
+
+This is the critical part.
+
+Implement a truthful mechanism for the gateway to obtain required client/network evidence.
+
+Current blocker includes:
+
+- originating public client IP / verified forwarding chain
+- browser public source port where required
+- Gov-Vendor-Forwarded
+- Gov-Vendor-Public-IP
+
+Do NOT copy untrusted browser-supplied IP values into HMRC headers.
+
+If HMRC requires the gateway to directly observe the browser connection:
+
+build the smallest short-lived browser attestation mechanism.
+
+Possible flow:
+
+Browser
+→ gateway attestation endpoint
+→ gateway directly observes remote IP/source connection details
+→ gateway issues short-lived signed attestation token
+→ browser sends attestation token to WorkRate
+→ WorkRate includes opaque attestation in HMRC preparation/submission request
+→ gateway validates its own attestation
+→ gateway uses the network evidence it previously observed
+
+The attestation must:
+
+- be short-lived
+- contain or reference only necessary evidence
+- be signed by the gateway
+- be bound to a WorkRate user/business/session where practical
+- be single-use or replay-resistant where required
+- never trust browser claims about IP/port
+
+If source port cannot be reliably preserved/used in the required flow, state that clearly and prepare the evidence needed for an HMRC omission request rather than fabricating it.
+
+==================================================
+8. FRAUD-PREVENTION HEADER BUILDER
+==================================================
+
+Create one canonical HMRC fraud-header builder at the gateway boundary.
+
+Use only values that are:
+
+- directly observed
+- cryptographically attested
+- provided by WorkRate from trustworthy browser telemetry already collected
+- explicitly approved for omission by HMRC
+
+Potential existing WorkRate evidence includes:
+
+- Gov-Client-Connection-Method
+- JS user agent
+- device UUID
+- timezone
+- screen/window size
+- WorkRate software/version
+
+Gateway-controlled evidence includes where applicable:
+
+- Gov-Vendor-Public-IP
+- Gov-Vendor-Forwarded
+- observed connection details
+
+Never substitute fake placeholders in production code.
+
+==================================================
+9. HMRC FRAUD-PREVENTION TEST API
+==================================================
+
+Implement a sandbox diagnostic path that calls HMRC's Test Fraud Prevention Headers API.
+
+Requirements:
+
+- accessible only to authenticated WorkRate admin/developer diagnostics
+- server-side only
+- sandbox only
+- sends the exact fraud headers that a real MTD request would use
+- captures HMRC warnings/errors safely
+- stores no unnecessary sensitive information
+
+Expose a safe diagnostics result such as:
+
+PASS
+WARNING
+FAIL
+UNAVAILABLE
+
+and individual header issues without exposing secrets.
+
+==================================================
+10. WORKRATE DIAGNOSTICS UI
+==================================================
+
+Under:
+
+Settings
+→ Advanced
+→ Diagnostics
+→ HMRC / MTD
+
+show:
+
+- Gateway: Connected / Unavailable
+- Gateway public IP
+- Environment: Sandbox
+- Fraud Prevention Headers: Pass / Warning / Fail
+- Last validation timestamp
+- missing/invalid header names
+- HMRC sandbox connectivity
+- dynamic sandbox submission capability
+
+Do NOT show:
+
+- tokens
+- secrets
+- full taxpayer IDs
+- raw Authorization headers
+- HMAC secret
+- sensitive payloads
+
+==================================================
+11. GATEWAY HEALTH CHECK
+==================================================
+
+Add a narrow health endpoint.
+
+Example safe response:
+
+- service healthy
+- gateway version
+- environment=sandbox
+- HMRC host identity
+- public outbound IP if safely known
+- build ID
+
+Do not expose configuration secrets.
+
+WorkRate should be able to display gateway status.
+
+==================================================
+12. STATIC PUBLIC IP
+==================================================
+
+Ensure the gateway uses a stable/reserved public IP.
+
+Document:
+
+- assigned IP
+- where it is configured
+- how WorkRate stores the non-secret identity if needed
+- how HMRC fraud headers derive the vendor public IP
+
+Do not rely on an ephemeral public IP for the final validation path.
+
+==================================================
+13. TLS
+==================================================
+
+Gateway must use HTTPS.
+
+Use a proper TLS certificate.
+
+Preferred:
+
+gateway.work-rate.uk
+
+or
+
+hmrc-gateway.work-rate.uk
+
+If DNS is not yet available, provide the deployment using the provider hostname first, but design it so custom DNS can be added cleanly.
+
+Document exactly which DNS record will eventually be needed.
+
+==================================================
+14. FIREWALL / ACCESS CONTROL
+==================================================
+
+The gateway should expose only required HTTPS endpoints.
+
+Lock down everything else.
+
+Requirements:
+
+- no SSH password auth
+- key-based admin access if SSH required
+- firewall
+- only required ports
+- rate limiting
+- request body limits
+- no directory listing
+- no debug endpoints in public deployment
+
+Where practical, additionally restrict WorkRate server-to-server routes to known WorkRate-origin authentication.
+
+Do not rely solely on IP allowlisting because Replit egress may not be static.
+
+==================================================
+15. LOGGING
+==================================================
+
+Safe logs may include:
+
+- request ID
+- timestamp
+- endpoint
+- HTTP status
+- latency
+- gateway version
+- HMRC response status
+- safe HMRC correlation/reference IDs
+
+Never log:
+
+- HMRC access tokens
+- refresh tokens
+- NINO
+- taxpayer payload
+- full Authorization header
+- HMAC secret
+- browser raw telemetry beyond what is operationally necessary
+
+==================================================
+16. RATE LIMITING / ABUSE PREVENTION
+==================================================
+
+Add:
+
+- WorkRate request rate limiting
+- attestation endpoint rate limiting
+- request size limits
+- signature validation before expensive operations where possible
+
+The gateway must not become an open relay.
+
+==================================================
+17. ERROR MODEL
+==================================================
+
+Return normalized errors to WorkRate:
+
+GATEWAY_UNAVAILABLE
+INVALID_SIGNATURE
+ATTESTATION_REQUIRED
+ATTESTATION_EXPIRED
+FRAUD_HEADERS_INVALID
+HMRC_AUTH_FAILED
+HMRC_VALIDATION_FAILED
+HMRC_TIMEOUT
+HMRC_REJECTED
+HMRC_UNAVAILABLE
+
+Do not convert failures into a fake success.
+
+==================================================
+18. WORKRATE INTEGRATION
+==================================================
+
+Wire the deployed gateway into the existing MTD workflow.
+
+Use environment variables such as:
+
+HMRC_GATEWAY_URL
+HMRC_GATEWAY_HMAC_SECRET
+
+and any additional narrowly required configuration.
+
+Do not hardcode credentials.
+
+WorkRate must continue to fail closed if:
+
+- URL missing
+- secret missing
+- gateway unavailable
+- fraud-header validation fails
+- browser attestation missing where required
+
+==================================================
+19. DYNAMIC HMRC SANDBOX TEST USER
+==================================================
+
+Prepare support for HMRC dynamic/stateful sandbox users.
+
+Do not hardcode one fake permanent tax profile into production code.
+
+Provide a developer/test workflow to:
+
+1. create/use dynamic sandbox taxpayer
+2. connect through HMRC sandbox OAuth
+3. retrieve Business Details
+4. retrieve Obligations
+5. create WorkRate finance data inside an obligation
+6. prepare quarterly update
+7. validate fraud headers
+8. human declaration
+9. submit through gateway
+10. capture genuine HMRC sandbox reference
+
+==================================================
+20. REAL SANDBOX SUBMISSION
+==================================================
+
+Once the gateway and header validation are passing:
+
+perform ONE controlled dynamic HMRC sandbox quarterly submission.
+
+Requirements:
+
+- sandbox only
+- dynamic/stateful HMRC test user
+- real obligation
+- WorkRate prepared figures
+- user/test declaration
+- idempotency
+- gateway
+- fraud prevention headers
+- genuine HMRC response
+
+Success criteria:
+
+HMRC genuinely accepts the request and returns its expected success/reference response.
+
+WorkRate then records:
+
+submitted
+HMRC reference
+timestamp
+period
+payload hash
+attempt ID
+
+Do not manually mark the database as submitted.
+
+==================================================
+21. RETRY / IDEMPOTENCY
+==================================================
+
+Verify:
+
+- same WorkRate submission retry cannot create accidental duplicate submission
+- network timeout produces safe unknown/retry state
+- HMRC rejection remains rejected
+- successful HMRC reference cannot be overwritten by a later failed retry
+- same idempotency key is safely handled
+
+==================================================
+22. SECURITY TESTS
+==================================================
+
+Add focused tests for:
+
+- invalid HMAC
+- replayed HMAC request
+- expired timestamp
+- fake browser attestation
+- expired attestation
+- modified attestation
+- wrong tenant/session binding
+- arbitrary HMRC URL injection
+- production HMRC host request
+- token logging
+- cross-tenant preparation
+- duplicate submission
+- HMRC timeout
+- malformed HMRC response
+
+==================================================
+23. DEPLOYMENT AS CODE
+==================================================
+
+Where practical, include deployable configuration in the repository.
+
+For example:
+
+/services/hmrc-gateway
+
+with:
+
+- gateway source
+- package config
+- Dockerfile if appropriate
+- environment example WITHOUT secrets
+- system/service definition where appropriate
+- firewall/deployment notes
+- health check
+- README deployment guide
+
+Keep it separate from the main WorkRate runtime.
+
+==================================================
+24. BACKUP / RECOVERY
+==================================================
+
+The gateway should ideally remain stateless or near-stateless.
+
+Do not create a second financial database unless absolutely necessary.
+
+Attestation/replay state may use minimal short-lived storage if required.
+
+If the gateway is rebuilt, WorkRate financial records and HMRC preparation records must remain intact.
+
+==================================================
+25. MONITORING
+==================================================
+
+Add minimal monitoring capability for:
+
+- gateway up/down
+- HMRC latency
+- HMRC errors
+- attestation failures
+- signature failures
+- deployment version
+
+Do not expose customer tax data in monitoring.
+
+==================================================
+26. COST CONTROL
+==================================================
+
+Keep this infrastructure intentionally cheap.
+
+Expected scale at launch is small.
+
+Do not design Kubernetes, multi-region infrastructure, or unnecessary managed services.
+
+Target:
+
+approximately £5–£15/month initially if practical.
+
+Document expected monthly cost.
+
+==================================================
+27. ENVIRONMENT SEPARATION
+==================================================
+
+This gateway is currently:
+
+SANDBOX ONLY.
+
+When WorkRate's formal dev/staging/production environment separation is active:
+
+development/staging
+→ HMRC sandbox gateway
+
+production
+→ future production HMRC gateway/configuration ONLY after HMRC approval
+
+Do not reuse one environment carelessly.
+
+==================================================
+28. HMRC PRODUCTION PREPARATION
+==================================================
+
+Do NOT enable production HMRC yet.
+
+Once sandbox submission passes, prepare a checklist for production access including:
+
+- sandbox evidence
+- fraud-header validation result
+- gateway architecture
+- public IP/network evidence
+- privacy/security controls
+- software details
+- application credentials
+- any HMRC approval/omission requests
+
+But stop before making any unauthorized production request.
+
+==================================================
+29. MANUAL ACTIONS
+==================================================
+
+If anything requires me to do something outside Replit, give me ONE STEP AT A TIME.
+
+For example:
+
+- create cloud account
+- choose VM
+- add card
+- create server
+- reserve IP
+- add DNS record
+- enter Replit secret
+- enter gateway secret
+
+Do NOT dump twenty manual steps on me at once.
+
+Pause and tell me the exact next manual action required.
+
+==================================================
+30. BEFORE IMPLEMENTATION REPORT
+==================================================
+
+Before building/deploying, report:
+
+A. existing gateway contract found
+B. remaining fraud-header requirements
+C. whether browser attestation is necessary
+D. exact proposed gateway architecture
+E. proposed provider
+F. estimated monthly cost
+G. static public IP approach
+H. TLS/DNS approach
+I. secrets required
+J. any HMRC omission likely still required
+K. first manual action needed from me
+
+Then proceed with all repo-side implementation that does not require my manual external action.
+
+==================================================
+31. COMPLETION REPORT
+==================================================
+
+When finished, report:
+
+A. gateway code status
+B. deployment status
+C. public IP status
+D. TLS status
+E. WorkRate authentication status
+F. browser attestation status
+G. fraud-header builder status
+H. HMRC Fraud Prevention Headers Test API result
+I. Business Details through gateway result
+J. Obligations through gateway result
+K. dynamic sandbox quarterly submission result
+L. genuine HMRC reference if obtained
+M. security tests passed
+N. remaining external/manual blocker
+O. estimated monthly infrastructure cost
+P. exact next step toward HMRC production access
+Q. whether WorkRate needs one publish
+
+Do not publish automatically.

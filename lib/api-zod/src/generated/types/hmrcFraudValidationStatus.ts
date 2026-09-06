@@ -5,10 +5,14 @@
  * WorkRate API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { HmrcFraudIssue } from './hmrcFraudIssue';
 import type { HmrcFraudValidationStatusStatus } from './hmrcFraudValidationStatusStatus';
 
 export interface HmrcFraudValidationStatus {
   status: HmrcFraudValidationStatusStatus;
   /** @nullable */
   message: string | null;
+  /** @nullable */
+  checkedAt: Date | null;
+  issues: HmrcFraudIssue[];
 }

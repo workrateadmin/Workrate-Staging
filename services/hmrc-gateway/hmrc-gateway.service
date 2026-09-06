@@ -1,0 +1,14 @@
+[Unit]
+Description=WorkRate HMRC sandbox gateway
+After=network-online.target
+[Service]
+User=workrate
+WorkingDirectory=/opt/workrate/hmrc-gateway
+EnvironmentFile=/etc/workrate/hmrc-gateway.env
+ExecStart=/usr/bin/node dist/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+[Install]
+WantedBy=multi-user.target

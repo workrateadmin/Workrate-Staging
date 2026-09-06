@@ -6,8 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type SubmitHmrcSandboxPreparationBody = {
-  declaration: true;
-  /** @pattern ^[0-9a-fA-F-]{36}$ */
-  idempotencyKey: string;
-};
+export interface HmrcFraudIssue {
+  header: string;
+  message: string;
+}

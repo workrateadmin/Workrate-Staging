@@ -101,20 +101,41 @@ evidence is ready.
 
 ## Controlled sandbox gateway contract
 
-Quarterly submission remains unavailable by default. When the controlled edge is
-provisioned, the application requires both `HMRC_SANDBOX_GATEWAY_URL` (an HTTPS
-URL) and `HMRC_SANDBOX_GATEWAY_HMAC_SECRET`. The server sends only a
-server-to-server, HMAC-SHA256 authenticated request with an idempotency key;
-neither the browser nor logs receive HMRC tokens, taxpayer identifiers, browser
-evidence, or the submission payload. The gateway must be sandbox-only and must
-respond with JSON `{ "confirmed": true, "reference": "..." }` only after HMRC
-has accepted the submission. Any non-2xx response, malformed response, missing
-reference, timeout, or absent configuration is persisted as a safe
-`retry_required` failure and never shown as submitted.
+Quarterly submission remains unavailable by default. The standalone service in
+`services/hmrc-gateway` is deployed outside Replit behind Caddy. Caddy observes
+the browser's public source IP and source port and passes them to Node over
+loopback-only headers; Node rejects those headers from any non-loopback peer.
+The browser receives a short-lived tenant/user/session-bound grant from WorkRate,
+sends its telemetry directly to the gateway, and keeps the returned opaque
+attestation in memory only.
 
-The fraud-header validator endpoint currently returns explicit `unavailable`
-until this same gateway can provide request-specific controlled-edge evidence.
-It never claims a validation took place based on OAuth or configuration alone.
+WorkRate requires `HMRC_SANDBOX_GATEWAY_URL` (a clean HTTPS origin) and
+`HMRC_SANDBOX_GATEWAY_HMAC_SECRET`. Every server request includes a timestamp,
+UUID request ID, method, path, and exact-body HMAC. The gateway uses
+constant-time comparison, a narrow skew window, and replay caches. HMRC access
+tokens are request-scoped and remain server-side. Logs exclude bodies, tokens,
+taxpayer identifiers, attestations, browser telemetry, and raw fraud headers.
+
+The gateway pins every outbound request to HMRC's sandbox origin. Reads accept
+only the internal operations `business-details` and `obligations`. Fraud
+validation uses HMRC's official Test Fraud Prevention Headers API and an
+application-restricted sandbox token obtained for that request. A validation is
+reported as pass, warning, fail, or unavailable; only pass permits submission.
+
+HMRC's official Self Employment Business API 5.0 specification documents the
+cumulative update as `PUT
+/individuals/business/self-employment/{nino}/{businessId}/cumulative/{taxYear}`
+with `Accept: application/vnd.hmrc.5.0+json`; success is HTTP 204 with an
+`X-CorrelationId`. The deployed gateway's path, method, and media type remain
+administrator-configured because they must match the API version enabled for
+WorkRate's HMRC application. No guessed default is shipped.
+
+The gateway responds with `{ "confirmed": true, "reference": "..." }` only
+after HMRC accepts the sandbox request and returns a valid correlation
+reference. A non-2xx response, malformed response, missing reference, timeout,
+or absent configuration is persisted as `retry_required` and never displayed as
+submitted. A previously successful preparation/reference is never overwritten
+by a later failed retry.
 
 Use the HMRC fraud-prevention Test API and sandbox test users before any
 end-to-end trial. `Gov-Test-Scenario` is not set by WorkRate's normal routes;
@@ -127,3 +148,4 @@ Official guidance:
 - [Fraud prevention](https://developer.service.hmrc.gov.uk/guides/fraud-prevention/)
 - [Business Details MTD v2](https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/business-details-api/2.0)
 - [Obligations MTD v3](https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/obligations-api/3.0)
+- [Self Employment Business MTD v5](https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/self-employment-business-api/5.0)

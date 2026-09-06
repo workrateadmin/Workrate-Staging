@@ -68,11 +68,15 @@ import type {
   GetFinanceSummaryParams,
   GetJobTimelineParams,
   HealthStatus,
+  HmrcAttestationGrant,
   HmrcAuthorizationStart,
   HmrcConnectionInput,
   HmrcConnectionStatus,
   HmrcFraudValidationStatus,
+  HmrcGatewayActionInput,
+  HmrcGatewayStatus,
   HmrcQuarterlyPreparation,
+  HmrcSandboxSubmissionInput,
   HmrcSubmissionAttempt,
   HmrcSyncInput,
   IntegrationStatus,
@@ -118,7 +122,6 @@ import type {
   ReceptionistTopUpPackList,
   RecordProposalView200,
   RecordWidgetHeartbeat202,
-  SubmitHmrcSandboxPreparationBody,
   TimelinePage,
   UpdateInternalBillingCatalogItemBody,
   UploadEnquiryAttachmentBody,
@@ -8794,14 +8797,14 @@ export const getSubmitHmrcSandboxPreparationUrl = (id: number,) => {
  * @summary Submit a human-reviewed Income Tax MTD preparation through the configured sandbox gateway
  */
 export const submitHmrcSandboxPreparation = async (id: number,
-    submitHmrcSandboxPreparationBody: SubmitHmrcSandboxPreparationBody, options?: Parameters<typeof customFetch>[1]): Promise<HmrcSubmissionAttempt> => {
+    hmrcSandboxSubmissionInput: HmrcSandboxSubmissionInput, options?: Parameters<typeof customFetch>[1]): Promise<HmrcSubmissionAttempt> => {
 
   return customFetch<HmrcSubmissionAttempt>(getSubmitHmrcSandboxPreparationUrl(id),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(submitHmrcSandboxPreparationBody)
+    body: JSON.stringify(hmrcSandboxSubmissionInput)
   }
 );}
 
@@ -8810,8 +8813,8 @@ export const submitHmrcSandboxPreparation = async (id: number,
 
 
 export const getSubmitHmrcSandboxPreparationMutationOptions = <TError = ErrorType<HmrcSubmissionAttempt>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>, TError,{id: number;data: BodyType<SubmitHmrcSandboxPreparationBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>, TError,{id: number;data: BodyType<SubmitHmrcSandboxPreparationBody>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>, TError,{id: number;data: BodyType<HmrcSandboxSubmissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>, TError,{id: number;data: BodyType<HmrcSandboxSubmissionInput>}, TContext> => {
 
 const mutationKey = ['submitHmrcSandboxPreparation'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -8823,7 +8826,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>, {id: number;data: BodyType<SubmitHmrcSandboxPreparationBody>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>, {id: number;data: BodyType<HmrcSandboxSubmissionInput>}> = (props) => {
           const {id,data} = props ?? {};
 
           return  submitHmrcSandboxPreparation(id,data,requestOptions)
@@ -8837,18 +8840,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type SubmitHmrcSandboxPreparationMutationResult = NonNullable<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>>
-    export type SubmitHmrcSandboxPreparationMutationBody = BodyType<SubmitHmrcSandboxPreparationBody>
+    export type SubmitHmrcSandboxPreparationMutationBody = BodyType<HmrcSandboxSubmissionInput>
     export type SubmitHmrcSandboxPreparationMutationError = ErrorType<HmrcSubmissionAttempt>
 
     /**
  * @summary Submit a human-reviewed Income Tax MTD preparation through the configured sandbox gateway
  */
 export const useSubmitHmrcSandboxPreparation = <TError = ErrorType<HmrcSubmissionAttempt>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>, TError,{id: number;data: BodyType<SubmitHmrcSandboxPreparationBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>, TError,{id: number;data: BodyType<HmrcSandboxSubmissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>,
         TError,
-        {id: number;data: BodyType<SubmitHmrcSandboxPreparationBody>},
+        {id: number;data: BodyType<HmrcSandboxSubmissionInput>},
         TContext
       > => {
       return useMutation(getSubmitHmrcSandboxPreparationMutationOptions(options));
@@ -8865,9 +8868,80 @@ export const getValidateHmrcSandboxFraudHeadersUrl = () => {
 /**
  * @summary Validate sandbox fraud headers through the controlled gateway
  */
-export const validateHmrcSandboxFraudHeaders = async ( options?: Parameters<typeof customFetch>[1]): Promise<HmrcFraudValidationStatus> => {
+export const validateHmrcSandboxFraudHeaders = async (hmrcGatewayActionInput: HmrcGatewayActionInput, options?: Parameters<typeof customFetch>[1]): Promise<HmrcFraudValidationStatus> => {
 
   return customFetch<HmrcFraudValidationStatus>(getValidateHmrcSandboxFraudHeadersUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(hmrcGatewayActionInput)
+  }
+);}
+
+
+
+
+
+export const getValidateHmrcSandboxFraudHeadersMutationOptions = <TError = ErrorType<HmrcFraudValidationStatus>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>, TError,{data: BodyType<HmrcGatewayActionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>, TError,{data: BodyType<HmrcGatewayActionInput>}, TContext> => {
+
+const mutationKey = ['validateHmrcSandboxFraudHeaders'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>, {data: BodyType<HmrcGatewayActionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  validateHmrcSandboxFraudHeaders(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ValidateHmrcSandboxFraudHeadersMutationResult = NonNullable<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>>
+    export type ValidateHmrcSandboxFraudHeadersMutationBody = BodyType<HmrcGatewayActionInput>
+    export type ValidateHmrcSandboxFraudHeadersMutationError = ErrorType<HmrcFraudValidationStatus>
+
+    /**
+ * @summary Validate sandbox fraud headers through the controlled gateway
+ */
+export const useValidateHmrcSandboxFraudHeaders = <TError = ErrorType<HmrcFraudValidationStatus>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>, TError,{data: BodyType<HmrcGatewayActionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>,
+        TError,
+        {data: BodyType<HmrcGatewayActionInput>},
+        TContext
+      > => {
+      return useMutation(getValidateHmrcSandboxFraudHeadersMutationOptions(options));
+    }
+
+export const getCreateHmrcGatewayAttestationGrantUrl = () => {
+
+
+
+
+  return `/api/finance/hmrc/attestation-grant`
+}
+
+/**
+ * @summary Create a short-lived tenant and session-bound browser attestation grant
+ */
+export const createHmrcGatewayAttestationGrant = async ( options?: Parameters<typeof customFetch>[1]): Promise<HmrcAttestationGrant> => {
+
+  return customFetch<HmrcAttestationGrant>(getCreateHmrcGatewayAttestationGrantUrl(),
   {
     ...options,
     method: 'POST'
@@ -8880,11 +8954,11 @@ export const validateHmrcSandboxFraudHeaders = async ( options?: Parameters<type
 
 
 
-export const getValidateHmrcSandboxFraudHeadersMutationOptions = <TError = ErrorType<HmrcFraudValidationStatus>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>, TError,void, TContext> => {
+export const getCreateHmrcGatewayAttestationGrantMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createHmrcGatewayAttestationGrant>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createHmrcGatewayAttestationGrant>>, TError,void, TContext> => {
 
-const mutationKey = ['validateHmrcSandboxFraudHeaders'];
+const mutationKey = ['createHmrcGatewayAttestationGrant'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -8894,10 +8968,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createHmrcGatewayAttestationGrant>>, void> = () => {
 
 
-          return  validateHmrcSandboxFraudHeaders(requestOptions)
+          return  createHmrcGatewayAttestationGrant(requestOptions)
         }
 
 
@@ -8907,20 +8981,91 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type ValidateHmrcSandboxFraudHeadersMutationResult = NonNullable<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>>
+    export type CreateHmrcGatewayAttestationGrantMutationResult = NonNullable<Awaited<ReturnType<typeof createHmrcGatewayAttestationGrant>>>
 
-    export type ValidateHmrcSandboxFraudHeadersMutationError = ErrorType<HmrcFraudValidationStatus>
+    export type CreateHmrcGatewayAttestationGrantMutationError = ErrorType<void>
 
     /**
- * @summary Validate sandbox fraud headers through the controlled gateway
+ * @summary Create a short-lived tenant and session-bound browser attestation grant
  */
-export const useValidateHmrcSandboxFraudHeaders = <TError = ErrorType<HmrcFraudValidationStatus>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useCreateHmrcGatewayAttestationGrant = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createHmrcGatewayAttestationGrant>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>,
+        Awaited<ReturnType<typeof createHmrcGatewayAttestationGrant>>,
         TError,
         void,
         TContext
       > => {
-      return useMutation(getValidateHmrcSandboxFraudHeadersMutationOptions(options));
+      return useMutation(getCreateHmrcGatewayAttestationGrantMutationOptions(options));
     }
+
+export const getGetHmrcSandboxGatewayStatusUrl = () => {
+
+
+
+
+  return `/api/finance/hmrc/gateway-status`
+}
+
+/**
+ * @summary Get safe HMRC sandbox gateway and fraud validation diagnostics
+ */
+export const getHmrcSandboxGatewayStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<HmrcGatewayStatus> => {
+
+  return customFetch<HmrcGatewayStatus>(getGetHmrcSandboxGatewayStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHmrcSandboxGatewayStatusQueryKey = () => {
+    return [
+    `/api/finance/hmrc/gateway-status`
+    ] as const;
+    }
+
+
+export const getGetHmrcSandboxGatewayStatusQueryOptions = <TData = Awaited<ReturnType<typeof getHmrcSandboxGatewayStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHmrcSandboxGatewayStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHmrcSandboxGatewayStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHmrcSandboxGatewayStatus>>> = ({ signal }) => getHmrcSandboxGatewayStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHmrcSandboxGatewayStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHmrcSandboxGatewayStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getHmrcSandboxGatewayStatus>>>
+export type GetHmrcSandboxGatewayStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get safe HMRC sandbox gateway and fraud validation diagnostics
+ */
+
+export function useGetHmrcSandboxGatewayStatus<TData = Awaited<ReturnType<typeof getHmrcSandboxGatewayStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHmrcSandboxGatewayStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHmrcSandboxGatewayStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

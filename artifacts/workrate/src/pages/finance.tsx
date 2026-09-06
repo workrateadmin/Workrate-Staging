@@ -8,8 +8,9 @@ import {
   getListHmrcSandboxSubmissionAttemptsQueryKey,
   useSubmitHmrcSandboxPreparation,
   useValidateHmrcSandboxFraudHeaders,
+  useCreateHmrcGatewayAttestationGrant,
 } from "@workspace/api-client-react";
-import type { HmrcQuarterlyPreparation, HmrcSubmissionAttempt, HmrcFraudValidationStatus } from "@workspace/api-client-react";
+import type { HmrcQuarterlyPreparation, HmrcSubmissionAttempt, HmrcFraudValidationStatus, HmrcAttestationGrant } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@workspace/memphis-bold/components/ui/card";
 import { Button } from "@workspace/memphis-bold/components/ui/button";
@@ -132,21 +133,16 @@ const emptyIncomeForm = {
   notes: "",
 };
 
-const hmrcDeviceStorageKey = "workrate.hmrc.device-id";
+const hmrcDeviceId = crypto.randomUUID();
 
 function hmrcBrowserContext() {
-  let deviceId = window.localStorage.getItem(hmrcDeviceStorageKey);
-  if (!deviceId) {
-    deviceId = crypto.randomUUID();
-    window.localStorage.setItem(hmrcDeviceStorageKey, deviceId);
-  }
   const offsetMinutes = -new Date().getTimezoneOffset();
   const sign = offsetMinutes >= 0 ? "+" : "-";
   const absoluteMinutes = Math.abs(offsetMinutes);
   const timezone = `UTC${sign}${String(Math.floor(absoluteMinutes / 60)).padStart(2, "0")}:${String(absoluteMinutes % 60).padStart(2, "0")}`;
   return {
     browserUserAgent: navigator.userAgent,
-    deviceId,
+    deviceId: hmrcDeviceId,
     timezone,
     screens: [{
       width: window.screen.width,
@@ -159,6 +155,25 @@ function hmrcBrowserContext() {
       height: window.innerHeight,
     },
   };
+}
+
+async function acquireHmrcGatewayAttestation(createGrant: () => Promise<HmrcAttestationGrant>) {
+  const grant = await createGrant();
+  const gateway = new URL(grant.gatewayUrl);
+  if (gateway.protocol !== "https:" || gateway.username || gateway.password || gateway.search || gateway.hash) {
+    throw new Error("The HMRC sandbox gateway URL is not a valid HTTPS origin.");
+  }
+  const browserContext = hmrcBrowserContext();
+  const response = await fetch(new URL("/v1/attest", gateway), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ grant: grant.grant, browserContext }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || typeof body.attestation !== "string" || body.attestation.length < 40) {
+    throw new Error(body?.message ?? body?.error ?? `Gateway attestation failed (${response.status}).`);
+  }
+  return { attestation: body.attestation as string, browserContext };
 }
 
 function obligationStatusVariant(status?: string): "default" | "secondary" | "outline" {
@@ -249,6 +264,7 @@ export default function FinancePage() {
   const [exporting, setExporting] = useState(false);
 
   const { data: jobs = [] } = useListJobs();
+  const createHmrcGrant = useCreateHmrcGatewayAttestationGrant();
 
   // ── Request helper ─────────────────────────────────────────────────────
 
@@ -625,9 +641,10 @@ export default function FinancePage() {
   async function syncHmrcSandbox() {
     setHmrcSubmitting(true);
     try {
+      const evidence = await acquireHmrcGatewayAttestation(() => createHmrcGrant.mutateAsync());
       const nextStatus = await request("/finance/hmrc/sync", {
         method: "POST",
-        body: JSON.stringify({ browserContext: hmrcBrowserContext() }),
+        body: JSON.stringify(evidence),
       });
       setHmrcStatus(nextStatus);
       toast({
@@ -1737,6 +1754,7 @@ function MtdTaxWorkflow({
   const createPreparation = useCreateHmrcQuarterlyPreparation();
   const submitPreparation = useSubmitHmrcSandboxPreparation();
   const validateFraud = useValidateHmrcSandboxFraudHeaders();
+  const createGrant = useCreateHmrcGatewayAttestationGrant();
 
   // ── Local UI state
   const [selectedObligKey, setSelectedObligKey] = useState<string>("");
@@ -1773,15 +1791,23 @@ function MtdTaxWorkflow({
     setFraudChecking(true);
     setFraudStatus(null);
     try {
-      const result = await validateFraud.mutateAsync();
+      const { attestation, browserContext } = await acquireHmrcGatewayAttestation(() => createGrant.mutateAsync());
+      const result = await validateFraud.mutateAsync({
+        data: { browserContext, attestation },
+      });
       setFraudStatus(result);
     } catch (err: any) {
-      // Server returns error body typed as HmrcFraudValidationStatus for unavailable
+      // Server returns error body typed as HmrcFraudValidationStatus for unavailable/fail
       const body = err?.response?.data ?? err?.data ?? null;
-      if (body?.status === "unavailable") {
+      if (body?.status && ["unavailable", "fail", "warning"].includes(body.status)) {
         setFraudStatus(body as HmrcFraudValidationStatus);
       } else {
-        setFraudStatus({ status: "unavailable", message: err?.message ?? "Fraud header check could not be completed." });
+        setFraudStatus({
+          status: "unavailable",
+          message: err?.message ?? "Fraud header check could not be completed.",
+          checkedAt: new Date().toISOString(),
+          issues: [],
+        });
       }
     } finally {
       setFraudChecking(false);
@@ -1811,12 +1837,14 @@ function MtdTaxWorkflow({
   }
 
   async function handleSubmit() {
-    if (!selectedPrepId || !declaration) return;
+    if (!selectedPrepId || !declaration || fraudStatus?.status !== "pass") return;
     const idempotencyKey = crypto.randomUUID();
     try {
+      // Re-acquire a fresh attestation for submission (grants are single-use)
+      const { attestation, browserContext } = await acquireHmrcGatewayAttestation(() => createGrant.mutateAsync());
       const attempt = await submitPreparation.mutateAsync({
         id: selectedPrepId,
-        data: { declaration: true, idempotencyKey },
+        data: { declaration: true, idempotencyKey, browserContext, attestation },
       });
       await queryClient.invalidateQueries({ queryKey: getListHmrcQuarterlyPreparationsQueryKey() });
       await queryClient.invalidateQueries({ queryKey: getListHmrcSandboxSubmissionAttemptsQueryKey() });
@@ -2530,7 +2558,7 @@ function MtdTaxWorkflow({
                 </div>
               )}
 
-              {/* Fraud header validation */}
+              {/* Fraud header validation — must be "pass" to enable submission */}
               <div className="rounded-xl border border-border/60 p-4 space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
@@ -2541,34 +2569,68 @@ function MtdTaxWorkflow({
                     size="sm"
                     variant="outline"
                     className="rounded-lg gap-1.5"
-                    disabled={fraudChecking}
+                    disabled={fraudChecking || createGrant.isPending}
                     onClick={() => void handleCheckFraud()}
                     data-testid="button-validate-fraud"
                   >
-                    {fraudChecking ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
-                    {fraudStatus ? "Re-check" : "Check now"}
+                    {(fraudChecking || createGrant.isPending)
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                      : <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
+                    {fraudChecking || createGrant.isPending ? "Checking…" : fraudStatus ? "Re-check" : "Check now"}
                   </Button>
                 </div>
-                {fraudStatus && (
-                  <div className={`rounded-lg px-3 py-2 text-sm ${fraudStatus.status === "validated" ? "border border-primary/20 bg-primary/5" : "border border-amber-200 bg-amber-50/60 dark:border-amber-800/40 dark:bg-amber-950/20"}`}>
+                {!fraudStatus && !fraudChecking && !createGrant.isPending && (
+                  <p className="text-xs text-muted-foreground">
+                    A gateway grant is acquired and the attestation call is made directly from your browser.
+                    Submission is only enabled on a Pass result.
+                  </p>
+                )}
+                {(fraudChecking || createGrant.isPending) && (
+                  <div className="rounded-lg px-3 py-2 text-sm border border-border/60 bg-secondary/30 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" aria-hidden="true" />
+                    <p className="text-muted-foreground font-medium">Acquiring grant and calling gateway…</p>
+                  </div>
+                )}
+                {fraudStatus && !fraudChecking && !createGrant.isPending && (
+                  <div className={`rounded-lg px-3 py-2 text-sm space-y-1.5 ${
+                    fraudStatus.status === "pass"
+                      ? "border border-primary/20 bg-primary/5"
+                      : fraudStatus.status === "warning"
+                      ? "border border-amber-200 bg-amber-50/60 dark:border-amber-800/40 dark:bg-amber-950/20"
+                      : "border border-destructive/30 bg-destructive/5"
+                  }`}>
                     <div className="flex items-center gap-2">
-                      {fraudStatus.status === "validated"
+                      {fraudStatus.status === "pass"
                         ? <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
-                        : <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />}
+                        : fraudStatus.status === "warning"
+                        ? <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
+                        : <XCircle className="w-4 h-4 text-destructive shrink-0" aria-hidden="true" />}
                       <p className="font-bold">
-                        {fraudStatus.status === "validated" ? "Gateway validated" : "Gateway unavailable"}
+                        {fraudStatus.status === "pass" && "Fraud headers: Pass — submission enabled"}
+                        {fraudStatus.status === "warning" && "Fraud headers: Warning — submission blocked"}
+                        {fraudStatus.status === "fail" && "Fraud headers: Fail — submission blocked"}
+                        {fraudStatus.status === "unavailable" && "Gateway unavailable — submission blocked"}
                       </p>
                     </div>
                     {fraudStatus.message && (
-                      <p className="text-xs text-muted-foreground mt-1">{fraudStatus.message}</p>
+                      <p className="text-xs text-muted-foreground">{fraudStatus.message}</p>
+                    )}
+                    {fraudStatus.checkedAt && (
+                      <p className="text-xs text-muted-foreground">
+                        Checked at {new Date(fraudStatus.checkedAt).toLocaleTimeString("en-GB")}
+                      </p>
+                    )}
+                    {fraudStatus.issues.length > 0 && (
+                      <div className="mt-1 space-y-1">
+                        {fraudStatus.issues.map((issue, i) => (
+                          <div key={i} className="text-xs">
+                            <span className="font-bold font-mono">{issue.header}</span>
+                            <span className="text-muted-foreground ml-2">{issue.message}</span>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
-                )}
-                {!fraudStatus && (
-                  <p className="text-xs text-muted-foreground">
-                    Check that the sandbox gateway can validate fraud headers before submitting.
-                    Submission is blocked if the gateway is unavailable.
-                  </p>
                 )}
               </div>
 
@@ -2613,8 +2675,8 @@ function MtdTaxWorkflow({
               disabled={
                 !declaration ||
                 submitPreparation.isPending ||
-                fraudStatus?.status === "unavailable" ||
-                !fraudStatus
+                createGrant.isPending ||
+                fraudStatus?.status !== "pass"
               }
               onClick={() => void handleSubmit()}
               data-testid="button-confirm-submit"

@@ -18,7 +18,6 @@ import {
 import {
   createAuthorizationUrl,
   createCodeChallenge,
-  createFraudPreventionHeaders,
   createOpaqueValue,
   decryptHmrcValue,
   encryptHmrcValue,
@@ -27,18 +26,24 @@ import {
   getHmrcSandboxConfig,
   getHmrcSandboxConfigStatus,
   grantedScope,
-  hmrcGet,
   refreshAccessToken,
   sha256,
   type HmrcBrowserContext,
   type HmrcSandboxConfig,
   type StoredFraudContext,
 } from "../lib/hmrc";
-import { canonicalObligationKey, prepareQuarterlyFigures } from "../lib/hmrc-quarterly-preparation";
-import { validateFraudHeadersViaGateway } from "../lib/hmrc-gateway";
+import { canonicalObligationKey, prepareQuarterlyFigures, submissionStatusFromGateway } from "../lib/hmrc-quarterly-preparation";
+import {
+  createHmrcGatewayAttestationGrant,
+  getHmrcGatewayStatus,
+  readHmrcSandboxViaGateway,
+  submitViaHmrcSandboxGateway,
+  validateFraudHeadersViaGateway,
+} from "../lib/hmrc-gateway";
 import { claimHmrcOauthState } from "../lib/hmrc-oauth-state";
 import { hmrcClientIp, requireHmrcSameOrigin } from "../lib/hmrc-security";
 import { requireBillingFeature } from "../services/billing/authorization";
+import { isBillingAdmin } from "../services/billing/pricing";
 
 const router: IRouter = Router();
 const HMRC_STATE_TTL_MS = 10 * 60 * 1000;
@@ -70,6 +75,7 @@ const connectSchema = z.object({
 
 const syncSchema = z.object({
   browserContext: browserContextSchema,
+  attestation: z.string().min(40).max(16_384),
 });
 const preparationSchema = z.object({
   obligationKey: z.string().min(1).max(300),
@@ -79,6 +85,12 @@ const preparationSchema = z.object({
 const submitSchema = z.object({
   declaration: z.literal(true, { error: "A human declaration is required before sandbox submission." }),
   idempotencyKey: z.string().uuid(),
+  browserContext: browserContextSchema,
+  attestation: z.string().min(40).max(16_384),
+});
+const gatewayActionSchema = z.object({
+  browserContext: browserContextSchema,
+  attestation: z.string().min(40).max(16_384),
 });
 
 type HmrcBusinesses = {
@@ -150,6 +162,13 @@ function safeReturnPath(value: unknown): string {
     return value;
   }
   return "/finance";
+}
+
+function hmrcTaxYearFor(date: string): string {
+  const year = Number(date.slice(0, 4));
+  const startsThisYear = date >= `${year}-04-06`;
+  const start = startsThisYear ? year : year - 1;
+  return `${start}-${String(start + 1).slice(-2)}`;
 }
 
 function callbackRedirect(config: HmrcSandboxConfig, returnPath: string, result: string): string {
@@ -312,7 +331,7 @@ async function accessTokenFor(
 async function synchronise(
   connection: typeof hmrcConnectionsTable.$inferSelect,
   config: HmrcSandboxConfig,
-  context: StoredFraudContext,
+  input: { userId: string; companyId: number; sessionId: string; browserContext: HmrcBrowserContext; attestation: string },
 ): Promise<typeof hmrcConnectionsTable.$inferSelect> {
   const token = await accessTokenFor(connection, config);
   const taxpayerId = decryptHmrcValue(
@@ -320,25 +339,13 @@ async function synchronise(
     config,
     `connection:${token.connection.companyId}:taxpayer-id`,
   );
-  const fraudHeaders = createFraudPreventionHeaders(config, {
-    ...context,
-    userId: token.connection.ownerUserId,
-  });
   const [businesses, obligations] = await Promise.all([
-    hmrcGet<HmrcBusinesses>(
-      config,
-      `/individuals/business/details/${encodeURIComponent(taxpayerId)}/list`,
-      "application/vnd.hmrc.2.0+json",
-      token.accessToken,
-      fraudHeaders,
-    ),
-    hmrcGet<HmrcObligations>(
-      config,
-      `/obligations/details/${encodeURIComponent(taxpayerId)}/income-and-expenditure`,
-      "application/vnd.hmrc.3.0+json",
-      token.accessToken,
-      fraudHeaders,
-    ),
+    readHmrcSandboxViaGateway<HmrcBusinesses>({
+      ...input, operation: "business-details", accessToken: token.accessToken, taxpayerId,
+    }),
+    readHmrcSandboxViaGateway<HmrcObligations>({
+      ...input, operation: "obligations", accessToken: token.accessToken, taxpayerId,
+    }),
   ]);
   const [updated] = await db.update(hmrcConnectionsTable).set({
     status: "connected",
@@ -365,7 +372,8 @@ async function synchronise(
 }
 
 router.get("/finance/hmrc/status", requireAuth, requireBillingFeature("advanced_finance_mtd"), async (req, res): Promise<void> => {
-  const { userId } = getAuth(req);
+  const auth = getAuth(req);
+  const { userId } = auth;
   const company = await businessFor(userId!);
   if (!company) {
     res.status(404).json({ error: "Business profile not found" });
@@ -380,7 +388,8 @@ router.post("/finance/hmrc/connect", requireAuth, requireBillingFeature("advance
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid HMRC connection request." });
     return;
   }
-  const { userId } = getAuth(req);
+  const auth = getAuth(req);
+  const { userId } = auth;
   const company = await businessFor(userId!);
   if (!company) {
     res.status(404).json({ error: "Business profile not found" });
@@ -524,7 +533,8 @@ router.post("/finance/hmrc/sync", requireAuth, requireBillingFeature("advanced_f
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid HMRC sync request." });
     return;
   }
-  const { userId } = getAuth(req);
+  const auth = getAuth(req);
+  const { userId } = auth;
   const company = await businessFor(userId!);
   if (!company) {
     res.status(404).json({ error: "Business profile not found" });
@@ -536,8 +546,12 @@ router.post("/finance/hmrc/sync", requireAuth, requireBillingFeature("advanced_f
     return;
   }
   try {
+    if (!auth.sessionId) { res.status(401).json({ error: "An active authenticated session is required." }); return; }
     const config = getHmrcSandboxConfig();
-    const synced = await synchronise(connection, config, storedFraudContext(req, parsed.data.browserContext));
+    const synced = await synchronise(connection, config, {
+      userId: userId!, companyId: company.id, sessionId: auth.sessionId,
+      browserContext: parsed.data.browserContext, attestation: parsed.data.attestation,
+    });
     res.json(connectionStatus(synced));
   } catch (error) {
     const message = safeError(error);
@@ -607,6 +621,23 @@ router.get("/finance/hmrc/submissions", requireAuth, requireBillingFeature("adva
   res.json(submissions);
 });
 
+router.post("/finance/hmrc/attestation-grant", requireAuth, requireBillingFeature("advanced_finance_mtd"), requireHmrcSameOrigin, async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const company = await businessFor(auth.userId!);
+  if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  if (!auth.sessionId) { res.status(401).json({ error: "An active authenticated session is required." }); return; }
+  try {
+    res.json(createHmrcGatewayAttestationGrant({ userId: auth.userId!, companyId: company.id, sessionId: auth.sessionId }));
+  } catch (error) {
+    res.status(503).json({ error: error instanceof Error ? error.message : "HMRC sandbox gateway is unavailable." });
+  }
+});
+
+router.get("/finance/hmrc/gateway-status", requireAuth, requireBillingFeature("advanced_finance_mtd"), async (req, res): Promise<void> => {
+  if (!isBillingAdmin(getAuth(req).userId)) { res.status(403).json({ error: "Administrator access is required." }); return; }
+  res.json(await getHmrcGatewayStatus());
+});
+
 router.post("/finance/hmrc/preparations/:id/submit", requireAuth, requireBillingFeature("advanced_finance_mtd"), requireHmrcSameOrigin, async (req, res): Promise<void> => {
   const parsed = submitSchema.safeParse(req.body);
   const preparationId = Number(req.params.id);
@@ -624,21 +655,74 @@ router.post("/finance/hmrc/preparations/:id/submit", requireAuth, requireBilling
   }
   const figures = preparation.figures as { readyForSubmission?: boolean };
   if (!figures.readyForSubmission) { res.status(422).json({ error: "Unreviewed, unsupported, uncategorised, or potentially duplicate expenses must be resolved before submission." }); return; }
-  // A gateway is deliberately not inferred from Replit headers. No outbound
-  // request is possible until controlled edge evidence/configuration exists.
+  const auth = getAuth(req);
+  if (!auth.sessionId) { res.status(401).json({ error: "An active authenticated session is required." }); return; }
+  const hmrcConfig = getHmrcSandboxConfig();
+  const token = await accessTokenFor(connection, hmrcConfig);
+  const taxpayerId = decryptHmrcValue(
+    token.connection.encryptedTaxpayerId!,
+    hmrcConfig,
+    `connection:${token.connection.companyId}:taxpayer-id`,
+  );
+  const quarterlyPayload = {
+    periodDates: {
+      periodStartDate: preparation.periodStart,
+      periodEndDate: preparation.periodEnd,
+    },
+    periodIncome: {
+      turnover: (preparation.figures as any).incomeTotal,
+      other: 0,
+    },
+    periodExpenses: {
+      consolidatedExpenses: (preparation.figures as any).expenseTotal,
+    },
+  };
+  const gatewayResult = await submitViaHmrcSandboxGateway({
+    userId: userId!, companyId: company.id, sessionId: auth.sessionId,
+    idempotencyKey: parsed.data.idempotencyKey, payloadHash: preparation.payloadHash,
+    accessToken: token.accessToken, taxpayerId, businessId: preparation.businessId,
+    taxYear: hmrcTaxYearFor(preparation.periodEnd), periodStart: preparation.periodStart,
+    periodEnd: preparation.periodEnd, quarterlyPayload,
+    attestation: parsed.data.attestation, browserContext: parsed.data.browserContext,
+  });
+  const outcome = submissionStatusFromGateway(gatewayResult);
   const [attempt] = await db.insert(hmrcSubmissionAttemptsTable).values({
     companyId: company.id, ownerUserId: userId!, preparationId: preparation.id,
     idempotencyKey: parsed.data.idempotencyKey, payloadHash: preparation.payloadHash,
-    status: "retry_required", safeError: "HMRC sandbox gateway is unavailable until controlled edge evidence is configured.", completedAt: new Date(),
+    status: outcome.status, hmrcReference: outcome.reference, safeResponse: outcome.safeResponse,
+    safeError: outcome.safeError, completedAt: new Date(),
   }).returning();
+  await db.update(hmrcQuarterlyPreparationsTable).set({
+    declarationText: "I confirm these figures are complete and correct for this HMRC sandbox quarterly update.",
+    reviewedByUserId: userId!, reviewedAt: new Date(),
+    ...(outcome.status === "submitted" ? { status: "submitted" } : {}),
+  }).where(and(
+    eq(hmrcQuarterlyPreparationsTable.id, preparation.id),
+    eq(hmrcQuarterlyPreparationsTable.companyId, company.id),
+    eq(hmrcQuarterlyPreparationsTable.ownerUserId, userId!),
+  ));
   await writeAudit({ companyId: company.id, ownerUserId: userId!, entityId: preparation.id, action: "human_declaration_recorded", afterData: { preparationId: preparation.id } });
-  await writeAudit({ companyId: company.id, ownerUserId: userId!, entityId: attempt.id, action: "sandbox_submission_blocked", afterData: { preparationId: preparation.id, status: attempt.status } });
-  res.status(503).json({ ...attempt, error: attempt.safeError });
+  await writeAudit({ companyId: company.id, ownerUserId: userId!, entityId: attempt.id, action: outcome.status === "submitted" ? "sandbox_submission_confirmed" : "sandbox_submission_not_confirmed", afterData: { preparationId: preparation.id, status: attempt.status, reference: attempt.hmrcReference } });
+  res.status(outcome.status === "submitted" ? 200 : 503).json({ ...attempt, ...(attempt.safeError ? { error: attempt.safeError } : {}) });
 });
 
-router.post("/finance/hmrc/fraud-header-validation", requireAuth, requireBillingFeature("advanced_finance_mtd"), requireHmrcSameOrigin, async (_req, res): Promise<void> => {
-  const result = await validateFraudHeadersViaGateway();
-  res.status(result.confirmed ? 200 : 503).json({ status: result.confirmed ? "validated" : "unavailable", message: result.safeError ?? null });
+router.post("/finance/hmrc/fraud-header-validation", requireAuth, requireBillingFeature("advanced_finance_mtd"), requireHmrcSameOrigin, async (req, res): Promise<void> => {
+  const parsed = gatewayActionSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid gateway validation request." }); return; }
+  const auth = getAuth(req);
+  const company = await businessFor(auth.userId!);
+  if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  if (!auth.sessionId) { res.status(401).json({ error: "An active authenticated session is required." }); return; }
+  const result = await validateFraudHeadersViaGateway({
+    userId: auth.userId!, companyId: company.id, sessionId: auth.sessionId,
+    attestation: parsed.data.attestation, browserContext: parsed.data.browserContext,
+  });
+  res.status(result.confirmed ? 200 : 503).json({
+    status: result.status ?? "unavailable",
+    message: result.safeError ?? null,
+    checkedAt: result.checkedAt ?? null,
+    issues: result.issues ?? [],
+  });
 });
 
 router.delete("/finance/hmrc", requireAuth, requireBillingFeature("advanced_finance_mtd"), requireHmrcSameOrigin, async (req, res): Promise<void> => {

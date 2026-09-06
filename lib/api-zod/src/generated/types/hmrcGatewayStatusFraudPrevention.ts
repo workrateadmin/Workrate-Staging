@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type HmrcFraudValidationStatusStatus = typeof HmrcFraudValidationStatusStatus[keyof typeof HmrcFraudValidationStatusStatus];
+export type HmrcGatewayStatusFraudPrevention = typeof HmrcGatewayStatusFraudPrevention[keyof typeof HmrcGatewayStatusFraudPrevention];
 
 
-export const HmrcFraudValidationStatusStatus = {
+export const HmrcGatewayStatusFraudPrevention = {
   pass: 'pass',
   warning: 'warning',
   fail: 'fail',

@@ -7,7 +7,7 @@
  */
 import type { HmrcBrowserContext } from './hmrcBrowserContext';
 
-export interface HmrcSyncInput {
+export interface HmrcGatewayActionInput {
   browserContext: HmrcBrowserContext;
   /**
      * @minLength 40

@@ -2223,12 +2223,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              required: [declaration, idempotencyKey]
-              properties:
-                declaration: { type: boolean, enum: [true] }
-                idempotencyKey: { type: string, pattern: '^[0-9a-fA-F-]{36}$' }
+            schema: { $ref: "#/components/schemas/HmrcSandboxSubmissionInput" }
       responses:
         "200": { description: Idempotent prior attempt, content: { application/json: { schema: { $ref: "#/components/schemas/HmrcSubmissionAttempt" } } } }
         "503": { description: Gateway unavailable or evidence incomplete; no HMRC success claimed, content: { application/json: { schema: { $ref: "#/components/schemas/HmrcSubmissionAttempt" } } } }
@@ -2238,9 +2233,31 @@ paths:
       tags: [finance]
       summary: Validate sandbox fraud headers through the controlled gateway
       security: [{ ClerkAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HmrcGatewayActionInput" }
       responses:
         "200": { description: Gateway validation confirmed, content: { application/json: { schema: { $ref: "#/components/schemas/HmrcFraudValidationStatus" } } } }
         "503": { description: Validation unavailable; validation was not claimed, content: { application/json: { schema: { $ref: "#/components/schemas/HmrcFraudValidationStatus" } } } }
+  /finance/hmrc/attestation-grant:
+    post:
+      operationId: createHmrcGatewayAttestationGrant
+      tags: [finance]
+      summary: Create a short-lived tenant and session-bound browser attestation grant
+      security: [{ ClerkAuth: [] }]
+      responses:
+        "200": { description: Opaque grant for the configured sandbox gateway, content: { application/json: { schema: { $ref: "#/components/schemas/HmrcAttestationGrant" } } } }
+        "503": { description: Gateway is not configured }
+  /finance/hmrc/gateway-status:
+    get:
+      operationId: getHmrcSandboxGatewayStatus
+      tags: [finance]
+      summary: Get safe HMRC sandbox gateway and fraud validation diagnostics
+      security: [{ ClerkAuth: [] }]
+      responses:
+        "200": { description: Safe gateway diagnostics, content: { application/json: { schema: { $ref: "#/components/schemas/HmrcGatewayStatus" } } } }
 
 components:
   parameters:
@@ -2292,9 +2309,55 @@ components:
   schemas:
     HmrcFraudValidationStatus:
       type: object
-      required: [status, message]
+      required: [status, message, checkedAt, issues]
       properties:
-        status: { type: string, enum: [validated, unavailable] }
+        status: { type: string, enum: [pass, warning, fail, unavailable] }
+        message: { type: [string, "null"] }
+        checkedAt: { type: [string, "null"], format: date-time }
+        issues:
+          type: array
+          items: { $ref: "#/components/schemas/HmrcFraudIssue" }
+    HmrcFraudIssue:
+      type: object
+      required: [header, message]
+      properties:
+        header: { type: string }
+        message: { type: string }
+    HmrcGatewayActionInput:
+      type: object
+      required: [browserContext, attestation]
+      properties:
+        browserContext: { $ref: "#/components/schemas/HmrcBrowserContext" }
+        attestation: { type: string, minLength: 40, maxLength: 16384 }
+    HmrcSandboxSubmissionInput:
+      type: object
+      required: [declaration, idempotencyKey, browserContext, attestation]
+      properties:
+        declaration: { type: boolean, enum: [true] }
+        idempotencyKey: { type: string, pattern: '^[0-9a-fA-F-]{36}$' }
+        browserContext: { $ref: "#/components/schemas/HmrcBrowserContext" }
+        attestation: { type: string, minLength: 40, maxLength: 16384 }
+    HmrcAttestationGrant:
+      type: object
+      required: [gatewayUrl, grant, expiresAt]
+      properties:
+        gatewayUrl: { type: string, pattern: '^https://.+' }
+        grant: { type: string }
+        expiresAt: { type: string, format: date-time }
+    HmrcGatewayStatus:
+      type: object
+      required: [gateway, environment, fraudPrevention, hmrcConnectivity, dynamicSubmission, lastValidationAt, missingHeaders]
+      properties:
+        gateway: { type: string, enum: [connected, unavailable] }
+        environment: { type: string, enum: [sandbox] }
+        publicIp: { type: [string, "null"] }
+        version: { type: [string, "null"] }
+        buildId: { type: [string, "null"] }
+        fraudPrevention: { type: string, enum: [pass, warning, fail, unavailable] }
+        hmrcConnectivity: { type: string, enum: [connected, unavailable, unknown] }
+        dynamicSubmission: { type: string, enum: [available, unavailable] }
+        lastValidationAt: { type: [string, "null"], format: date-time }
+        missingHeaders: { type: array, items: { type: string } }
         message: { type: [string, "null"] }
     HmrcPreparationWarnings:
       type: object
@@ -2703,7 +2766,11 @@ components:
       properties:
         browserContext:
           $ref: "#/components/schemas/HmrcBrowserContext"
-      required: [browserContext]
+        attestation:
+          type: string
+          minLength: 40
+          maxLength: 16384
+      required: [browserContext, attestation]
 
     HmrcAuthorizationStart:
       type: object

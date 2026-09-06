@@ -62,3 +62,20 @@ endpoint.
 
 **How to apply:** Keep both form fields server-side and URL-encoded; never log
 the request body or credential values.
+
+The controlled edge uses Caddy's directly observed remote IP and source port,
+passed to Node only over a loopback connection. Browser claims and forwarded
+headers from non-loopback peers are never evidence. Browser attestations bind
+tenant, user, Clerk session, exact telemetry, and observed network values and
+must remain short-lived and one-use per operation.
+
+**Why:** Replit cannot truthfully observe the browser-to-gateway public hop, and
+HMRC's validator must prove whether the observed ephemeral source port is
+acceptable rather than relying on an assumption.
+
+**How to apply:** Keep WorkRate on Replit and deploy the narrow sandbox-only
+gateway separately. Use exact-body HMAC requests with timestamp, UUID replay
+protection, method and path. Never persist grants, attestations, or browser
+telemetry. HMRC's v5 cumulative endpoint is documented, but configure its path,
+method, and media type only after confirming the API version enabled for the
+WorkRate HMRC application.

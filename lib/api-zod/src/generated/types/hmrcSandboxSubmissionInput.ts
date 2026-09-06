@@ -7,7 +7,10 @@
  */
 import type { HmrcBrowserContext } from './hmrcBrowserContext';
 
-export interface HmrcSyncInput {
+export interface HmrcSandboxSubmissionInput {
+  declaration: true;
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  idempotencyKey: string;
   browserContext: HmrcBrowserContext;
   /**
      * @minLength 40
