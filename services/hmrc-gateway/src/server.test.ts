@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
 import test from "node:test";
-import { createGateway, type GatewayDeps } from "./server.js";
+import { createGateway, observedNetworkEvidence, type GatewayDeps } from "./server.js";
 
 const secret = "workrate-gateway-test-secret", attestSecret = "attestation-test-secret";
 const baseEnv = {
@@ -98,6 +98,54 @@ test("issues a tenant/session-bound attestation and rejects grant replay", async
   assert.equal((await request()).status, 409);
 }));
 
+test("accepts production-shaped proxy evidence and rejects missing or malformed evidence safely", async () => withServer(async base => {
+  const valid = await attest(base);
+  assert.equal(valid.status, 201);
+
+  const now = Date.now();
+  const grant = token({
+    version: 1, userId: "user-1", companyId: 1, sessionId: "session-1",
+    nonce: randomUUID(), issuedAt: now, expiresAt: now + 60_000,
+  });
+  const missing = await fetch(`${base}/v1/attest`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "https://app.example.test" },
+    body: JSON.stringify({ grant, browserContext: browser }),
+  });
+  assert.equal(missing.status, 400);
+  assert.equal((await jsonBody<{ code: string }>(missing)).code, "network_evidence_unavailable");
+
+  const malformed = await fetch(`${base}/v1/attest`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin: "https://app.example.test",
+      "x-gateway-observed-ip": "{remote_host}",
+      "x-gateway-observed-port": "{remote_port}",
+    },
+    body: JSON.stringify({
+      grant: token({
+        version: 1, userId: "user-1", companyId: 1, sessionId: "session-1",
+        nonce: randomUUID(), issuedAt: now, expiresAt: now + 60_000,
+      }),
+      browserContext: browser,
+    }),
+  });
+  assert.equal(malformed.status, 400);
+  assert.equal((await jsonBody<{ code: string }>(malformed)).code, "network_evidence_unavailable");
+}));
+
+test("ignores spoofed observed-network headers from a non-loopback peer", () => {
+  assert.equal(observedNetworkEvidence("203.0.113.77", {
+    "x-gateway-observed-ip": "198.51.100.7",
+    "x-gateway-observed-port": "51423",
+  }), null);
+  assert.deepEqual(observedNetworkEvidence("127.0.0.1", {
+    "x-gateway-observed-ip": "198.51.100.7",
+    "x-gateway-observed-port": "51423",
+  }), { ip: "198.51.100.7", port: 51423 });
+});
+
 test("rejects fake, expired, cross-tenant, and changed-browser evidence", async () => withServer(async base => {
   assert.equal((await fetch(`${base}/v1/attest`, { method: "POST", headers: { "content-type": "application/json", "x-gateway-observed-ip": "198.51.100.7" }, body: JSON.stringify({ grant: "fake.token.value", browserContext: browser }) })).status, 401);
   assert.equal((await attest(base, { issuedAt: 1, expiresAt: 2 })).status, 401);
@@ -163,17 +211,19 @@ test("pins read operations and quarterly submission to configured sandbox target
   }, { fetch: fakeFetch as typeof fetch });
 });
 
-test("fails closed without source port or approved omissions", async () => withServer(async base => {
+test("fails attestation closed without source port or approved omissions", async () => withServer(async base => {
   const now = Date.now();
   const grant = token({ version: 1, userId: "user-1", companyId: 1, sessionId: "session-1", nonce: randomUUID(), issuedAt: now, expiresAt: now + 60_000 });
   const response = await fetch(`${base}/v1/attest`, { method: "POST", headers: { "content-type": "application/json", "x-gateway-observed-ip": "198.51.100.7" }, body: JSON.stringify({ grant, browserContext: browser }) });
-  const { attestation } = await jsonBody<{ attestation: string }>(response);
-  const result = await signedPost(base, "/v1/hmrc/sandbox/validate-fraud", { userId: "user-1", companyId: 1, sessionId: "session-1", browserContext: browser }, attestation);
-  assert.equal(result.status, 422);
+  assert.equal(response.status, 400);
+  assert.equal((await jsonBody<{ code: string }>(response)).code, "network_evidence_unavailable");
 }, { env: { ...baseEnv, HMRC_FRAUD_APPROVED_OMISSIONS: "" } }));
 
 test("enforces CORS, body limits, and redacted logs", async () => withServer(async (base, logs) => {
   assert.equal((await fetch(`${base}/v1/attest`, { method: "OPTIONS", headers: { origin: "https://evil.example" } })).status, 403);
+  const malformed = await fetch(`${base}/v1/attest`, { method: "POST", headers: { "content-type": "application/json" }, body: "{" });
+  assert.equal(malformed.status, 400);
+  assert.equal((await jsonBody<{ code: string }>(malformed)).code, "invalid_body");
   assert.equal((await fetch(`${base}/v1/attest`, { method: "POST", headers: { "content-type": "application/json" }, body: "x".repeat(70_000) })).status, 413);
   const serialised = JSON.stringify(logs);
   assert.equal(serialised.includes("accessToken"), false);

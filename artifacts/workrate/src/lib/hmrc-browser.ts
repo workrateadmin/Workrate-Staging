@@ -2,6 +2,23 @@ import type { HmrcAttestationGrant } from "@workspace/api-client-react";
 
 const hmrcDeviceId = crypto.randomUUID();
 
+const SAFE_ATTESTATION_ERRORS: Record<string, string> = {
+  invalid_body: "ATTESTATION_SCHEMA_INVALID",
+  invalid_grant: "ATTESTATION_GRANT_INVALID_OR_EXPIRED",
+  replayed_grant: "ATTESTATION_GRANT_REPLAYED",
+  origin_forbidden: "ATTESTATION_ORIGIN_NOT_ALLOWED",
+  network_evidence_unavailable: "ATTESTATION_NETWORK_EVIDENCE_UNAVAILABLE",
+  rate_limited: "ATTESTATION_RATE_LIMITED",
+};
+
+function safeAttestationError(code: unknown, status: number): Error {
+  const normalized = typeof code === "string" ? SAFE_ATTESTATION_ERRORS[code] : undefined;
+  if (normalized === "ATTESTATION_NETWORK_EVIDENCE_UNAVAILABLE") {
+    return new Error(`${normalized}: the gateway could not verify Caddy-observed browser connection evidence.`);
+  }
+  return new Error(`${normalized ?? "ATTESTATION_UNAVAILABLE"}: gateway attestation failed (${status}).`);
+}
+
 export function hmrcBrowserContext() {
   const offsetMinutes = -new Date().getTimezoneOffset();
   const sign = offsetMinutes >= 0 ? "+" : "-";
@@ -48,7 +65,7 @@ export async function acquireHmrcGatewayAttestation(
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || typeof body.attestation !== "string" || body.attestation.length < 40) {
-    throw new Error(body?.message ?? body?.error ?? `Gateway attestation failed (${response.status}).`);
+    throw safeAttestationError(body?.code, response.status);
   }
 
   return { attestation: body.attestation as string, browserContext };

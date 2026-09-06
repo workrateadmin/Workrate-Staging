@@ -9,7 +9,7 @@ Standalone, provider-neutral Node service for **HMRC sandbox only**. It has no d
 3. Copy `env.example` to `/etc/workrate/hmrc-gateway.env`, set every required value using the secret manager, and set `GATEWAY_PUBLIC_IP` to the Reserved IP. Never put secrets in this repository.
 4. Set the quarterly path, method, and Accept value only after confirming the API version enabled for the WorkRate HMRC application. HMRC's official Self Employment Business API 5.0 specification currently documents `PUT /individuals/business/self-employment/{nino}/{businessId}/cumulative/{taxYear}`, `Accept: application/vnd.hmrc.5.0+json`, a JSON cumulative-period body, and success as HTTP 204 with `X-CorrelationId`. The service rejects absolute, traversal, non-relative, or unsupported method values.
 5. Obtain documented HMRC approval before listing any omission in `HMRC_FRAUD_APPROVED_OMISSIONS`; it fails closed for missing client port, MFA, and vendor licence IDs.
-6. Install Caddy with this `Caddyfile`, then run `sudo ./deploy-ufw.sh`. Caddy alone is permitted to reach loopback port 8081; it supplies observed network evidence.
+6. Install Caddy with this `Caddyfile`, run `sudo caddy validate --config /etc/caddy/Caddyfile`, reload Caddy, then run `sudo ./deploy-ufw.sh`. The config uses Caddy v2's canonical `{http.request.remote.host}` and `{http.request.remote.port}` placeholders. Caddy alone may reach loopback port 8081, and the gateway trusts the observed-evidence headers only from that loopback peer.
 7. Check `GET /healthz` through the HTTPS hostname. Monitor HTTP 5xx, 429, latency, token failures, and sandbox validation FAIL/WARNING counts from the safe JSON logs. Logs intentionally exclude bodies, IDs, tokens, and fraud headers.
 
 ## Replace an existing Droplet copy
@@ -42,6 +42,15 @@ curl --fail --silent --show-error https://hmrc-gateway.work-rate.uk/healthz
 ```
 
 After the health check succeeds, remove the directory named in `$backup`. If install, build, startup, or health verification fails, move the failed directory aside, restore the directory named in `$backup` to `/opt/workrate/hmrc-gateway`, and restart the service. Do not copy a populated `env.example` or place secrets inside the archive; the service reads `/etc/workrate/hmrc-gateway.env`.
+
+If the archive changes `Caddyfile`, deploy and validate it separately before the browser test:
+
+```sh
+sudo cp /opt/workrate/hmrc-gateway/Caddyfile /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+sudo systemctl is-active caddy
+```
 
 ## Sandbox workflow
 

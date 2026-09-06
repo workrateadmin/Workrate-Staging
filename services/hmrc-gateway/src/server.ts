@@ -1,5 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from "node:http";
+import { isIP } from "node:net";
 
 const HMRC_ORIGIN = "https://test-api.service.hmrc.gov.uk";
 const BODY_LIMIT = 64 * 1024;
@@ -44,8 +45,22 @@ function decode(value: unknown, secret: string): Json | null {
 }
 function requiredEnv(env: NodeJS.ProcessEnv, name: string) { const value = env[name]?.trim(); if (!value) throw new Error(`missing ${name}`); return value; }
 function loopback(ip: string | undefined) { return ip === "::1" || ip === "127.0.0.1" || ip === "::ffff:127.0.0.1"; }
-function validIp(ip: unknown): ip is string { return string(ip, 64) && (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(ip) || /^[0-9a-f:]+$/i.test(ip)); }
 function omissionAllowed(env: NodeJS.ProcessEnv, name: string) { return (env.HMRC_FRAUD_APPROVED_OMISSIONS ?? "").split(",").map(x => x.trim()).includes(name); }
+export function observedNetworkEvidence(
+  remoteAddress: string | undefined,
+  headers: IncomingHttpHeaders,
+  allowMissingPort = false,
+): { ip: string; port?: number } | null {
+  if (!loopback(remoteAddress)) return null;
+  const observedIp = headers["x-gateway-observed-ip"];
+  if (typeof observedIp !== "string" || isIP(observedIp) === 0) return null;
+  const observedPort = headers["x-gateway-observed-port"];
+  if (observedPort === undefined && allowMissingPort) return { ip: observedIp };
+  if (typeof observedPort !== "string" || !/^\d{1,5}$/.test(observedPort)) return null;
+  const port = Number(observedPort);
+  if (port < 1 || port > 65_535) return null;
+  return { ip: observedIp, port };
+}
 function browser(value: unknown): Json | null {
   if (!object(value) || !string(value.browserUserAgent, 1024) || !uuid(value.deviceId) || !string(value.timezone, 16) || !Array.isArray(value.screens) || value.screens.length < 1 || !object(value.windowSize)) return null;
   return value;
@@ -100,9 +115,13 @@ async function app(req: IncomingMessage, res: ServerResponse, deps: GatewayDeps 
     const grant = decode(body.value.grant, requiredEnv(env, "WORKRATE_GATEWAY_HMAC_SECRET")); const b = browser(body.value.browserContext);
     if (!grant || grant.version !== 1 || !string(grant.userId) || !Number.isInteger(grant.companyId) || !string(grant.sessionId) || !string(grant.nonce, 128) || typeof grant.issuedAt !== "number" || typeof grant.expiresAt !== "number" || grant.issuedAt > now + SKEW_MS || grant.expiresAt < now || grant.expiresAt - grant.issuedAt > 10 * 60_000 || !b) return finish(401, { code: "invalid_grant" });
     if (replay.has(`grant:${grant.nonce}`, now)) return finish(409, { code: "replayed_grant" }); replay.add(`grant:${grant.nonce}`, grant.expiresAt);
-    const trusted = loopback(req.socket.remoteAddress); const observedIp = trusted ? req.headers["x-gateway-observed-ip"] : undefined, ip = typeof observedIp === "string" ? observedIp : undefined, portRaw = trusted ? req.headers["x-gateway-observed-port"] : undefined, port = typeof portRaw === "string" && /^\d{1,5}$/.test(portRaw) ? Number(portRaw) : undefined;
-    if (!validIp(ip) || (port !== undefined && (port < 1 || port > 65535))) return finish(400, { code: "network_evidence_unavailable" });
-    const att: Attestation = { userId: grant.userId as string, companyId: grant.companyId as number, sessionId: grant.sessionId as string, browserContext: b, ip, ...(port ? { port } : {}), issuedAt: now, expiresAt: now + ATTEST_TTL_MS, jti: randomUUID() };
+    const network = observedNetworkEvidence(
+      req.socket.remoteAddress,
+      req.headers,
+      omissionAllowed(env, "client-public-port"),
+    );
+    if (!network) return finish(400, { code: "network_evidence_unavailable" });
+    const att: Attestation = { userId: grant.userId as string, companyId: grant.companyId as number, sessionId: grant.sessionId as string, browserContext: b, ...network, issuedAt: now, expiresAt: now + ATTEST_TTL_MS, jti: randomUUID() };
     return finish(201, { attestation: token(att, requiredEnv(env, "GATEWAY_ATTESTATION_SECRET")), expiresAt: att.expiresAt });
   }
   const timestamp = req.headers["x-workrate-timestamp"], rid = req.headers["x-workrate-request-id"], signature = req.headers["x-workrate-signature"];

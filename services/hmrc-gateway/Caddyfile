@@ -1,6 +1,6 @@
 hmrc-gateway.work-rate.uk {
   reverse_proxy 127.0.0.1:8081 {
-    header_up X-Gateway-Observed-IP {remote_host}
-    header_up X-Gateway-Observed-Port {remote_port}
+    header_up X-Gateway-Observed-IP {http.request.remote.host}
+    header_up X-Gateway-Observed-Port {http.request.remote.port}
   }
 }
