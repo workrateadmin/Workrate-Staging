@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "EcF6Sji14FSUbcoKKYi8j"
+uri = "file://deliverables/workrate-hmrc-gateway.tar.gz"
+type = "unspecified"
+title = "WorkRate HMRC Gateway — standalone package"
+description = "Verified pnpm 12.3.4 standalone deployment archive. SHA-256: d7b5bc7a6422096741a78bee9e1cab22cb03b34d25c8bbcefdd3586e97a0e89c"
+logical_id = "0e14f30f-e885-4a4d-81cb-d5cf439eb3d3"
+content_hash = "sha256:d7b5bc7a6422096741a78bee9e1cab22cb03b34d25c8bbcefdd3586e97a0e89c"
+size = 11882
+mtime_ms = 1788708128280
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:38a3dfb4-3859-4ed5-837e-20715c304142/0e14f30f-e885-4a4d-81cb-d5cf439eb3d3/5a94d4e9-da4f-400f-aa54-818e387c1815"
+storage_version_token = "1788708135855133"
+content_type = "application/octet-stream"

@@ -1,0 +1,92 @@
+WORKRATE — FIX HMRC GATEWAY STANDALONE DEPLOYMENT PACKAGE
+
+The HMRC gateway was copied to the DigitalOcean Droplet and the deployment exposed a packaging issue.
+
+Current server state:
+- Ubuntu 24.04 LTS
+- Node v20.20.2
+- pnpm 12.3.4
+- gateway located at /opt/workrate/hmrc-gateway
+
+Deployment failures:
+
+1.
+pnpm install --frozen-lockfile
+
+fails with:
+
+ERR_PNPM_NO_LOCKFILE
+
+because no pnpm-lock.yaml exists inside the standalone gateway package.
+
+2.
+pnpm build
+
+fails with:
+
+ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC
+
+because dependencies such as @types/node use workspace catalog references and the gateway no longer has the monorepo catalog context.
+
+GOAL:
+Make /services/hmrc-gateway a genuinely standalone deployable package that can be copied to a fresh Linux VM and built independently of the WorkRate monorepo.
+
+REQUIREMENTS:
+
+1. Remove all workspace-only/catalog dependency references from the gateway package.
+
+2. Replace catalog/workspace dependency versions with explicit compatible package versions.
+
+3. Generate and include a gateway-local pnpm-lock.yaml.
+
+4. Ensure package.json is standalone and does not depend on:
+- root workspace configuration
+- root pnpm-workspace.yaml
+- root catalog definitions
+- root tsconfig paths
+- sibling packages unless explicitly bundled/copied
+
+5. Ensure TypeScript build resolves entirely inside /services/hmrc-gateway.
+
+6. Preserve the existing gateway architecture and security behavior.
+Do NOT rewrite the gateway unnecessarily.
+
+7. Verify on a clean temp directory that ONLY the contents of /services/hmrc-gateway are sufficient to run:
+
+pnpm install --frozen-lockfile
+pnpm build
+
+8. Verify the built gateway starts successfully with safe dummy environment values and fails closed where expected.
+
+9. If the gateway currently imports shared WorkRate code, either:
+- remove that dependency by copying only the minimal required internal types/helpers into the gateway package
+OR
+- bundle it so deployment still requires only the standalone gateway directory.
+
+Do not make the DigitalOcean server depend on the entire WorkRate repository.
+
+10. Keep:
+- sandbox-only HMRC behavior
+- HMAC authentication
+- replay protection
+- attestation
+- redacted logs
+- fail-closed fraud headers
+- fixed HMRC sandbox routes
+- no production HMRC path
+
+11. Update README deployment instructions so they exactly match the now-working standalone package.
+
+12. No publish.
+No production HMRC request.
+
+COMPLETION REPORT:
+A. root cause
+B. files changed
+C. explicit dependency versions
+D. local lockfile status
+E. clean-directory install result
+F. clean-directory build result
+G. standalone startup result
+H. whether a new tar.gz should be copied to the Droplet
+I. exact replacement command/process on the Droplet
