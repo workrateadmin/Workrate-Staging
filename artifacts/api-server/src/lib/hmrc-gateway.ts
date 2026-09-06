@@ -81,7 +81,9 @@ export function createHmrcGatewayAttestationGrant(identity: GatewayIdentity) {
 
 export async function getHmrcGatewayStatus(): Promise<{
   gateway: "connected" | "unavailable";
+  gatewayUrl: string | null;
   environment: "sandbox";
+  ready: boolean;
   publicIp: string | null;
   version: string | null;
   buildId: string | null;
@@ -93,7 +95,7 @@ export async function getHmrcGatewayStatus(): Promise<{
   message: string | null;
 }> {
   const unavailable = (message: string) => ({
-    gateway: "unavailable" as const, environment: "sandbox" as const, publicIp: null, version: null, buildId: null,
+    gateway: "unavailable" as const, gatewayUrl: null, environment: "sandbox" as const, ready: false, publicIp: null, version: null, buildId: null,
     fraudPrevention: "unavailable" as const, hmrcConnectivity: "unknown" as const,
     dynamicSubmission: "unavailable" as const, lastValidationAt: null, missingHeaders: [], message,
   });
@@ -107,7 +109,7 @@ export async function getHmrcGatewayStatus(): Promise<{
     if (!response.ok || raw?.status !== "ok" || raw.environment !== "sandbox") return unavailable("HMRC sandbox gateway health check failed.");
     const fraud = ["pass", "warning", "fail"].includes(String(raw.fraudPrevention)) ? raw.fraudPrevention as "pass" | "warning" | "fail" : "unavailable";
     return {
-      gateway: "connected", environment: "sandbox",
+      gateway: "connected", gatewayUrl: gateway.url.origin, environment: "sandbox", ready: raw.ready === true,
       publicIp: typeof raw.publicIp === "string" ? raw.publicIp.slice(0, 80) : null,
       version: typeof raw.version === "string" ? raw.version.slice(0, 80) : null,
       buildId: typeof raw.buildId === "string" ? raw.buildId.slice(0, 120) : null,

@@ -2346,10 +2346,12 @@ components:
         expiresAt: { type: string, format: date-time }
     HmrcGatewayStatus:
       type: object
-      required: [gateway, environment, fraudPrevention, hmrcConnectivity, dynamicSubmission, lastValidationAt, missingHeaders]
+      required: [gateway, gatewayUrl, environment, ready, fraudPrevention, hmrcConnectivity, dynamicSubmission, lastValidationAt, missingHeaders]
       properties:
         gateway: { type: string, enum: [connected, unavailable] }
+        gatewayUrl: { type: [string, "null"] }
         environment: { type: string, enum: [sandbox] }
+        ready: { type: boolean }
         publicIp: { type: [string, "null"] }
         version: { type: [string, "null"] }
         buildId: { type: [string, "null"] }

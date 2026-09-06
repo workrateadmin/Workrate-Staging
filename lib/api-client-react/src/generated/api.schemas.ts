@@ -124,7 +124,10 @@ export const HmrcGatewayStatusDynamicSubmission = {
 
 export interface HmrcGatewayStatus {
   gateway: HmrcGatewayStatusGateway;
+  /** @nullable */
+  gatewayUrl: string | null;
   environment: HmrcGatewayStatusEnvironment;
+  ready: boolean;
   /** @nullable */
   publicIp?: string | null;
   /** @nullable */

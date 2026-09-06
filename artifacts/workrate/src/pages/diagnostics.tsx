@@ -183,6 +183,17 @@ function HmrcGatewaySection() {
               </div>
             </div>
 
+            {/* Gateway URL */}
+            <div className="flex items-center justify-between px-6 py-3.5 gap-4 hover:bg-secondary/20 transition-colors">
+              <div className="flex items-center gap-2.5 text-xs text-muted-foreground font-semibold uppercase tracking-wide min-w-[170px]">
+                <Globe className="w-3.5 h-3.5 shrink-0" />
+                Gateway URL
+              </div>
+              <span className="text-xs font-mono text-foreground font-medium break-all text-right">
+                {data.gatewayUrl ?? "—"}
+              </span>
+            </div>
+
             {/* Environment */}
             <div className="flex items-center justify-between px-6 py-3.5 gap-4 hover:bg-secondary/20 transition-colors">
               <div className="flex items-center gap-2.5 text-xs text-muted-foreground font-semibold uppercase tracking-wide min-w-[170px]">
@@ -191,6 +202,17 @@ function HmrcGatewaySection() {
               </div>
               <Badge variant="secondary" className="text-xs font-mono">
                 {data.environment}
+              </Badge>
+            </div>
+
+            {/* Readiness */}
+            <div className="flex items-center justify-between px-6 py-3.5 gap-4 hover:bg-secondary/20 transition-colors">
+              <div className="flex items-center gap-2.5 text-xs text-muted-foreground font-semibold uppercase tracking-wide min-w-[170px]">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                Gateway readiness
+              </div>
+              <Badge variant={data.ready ? "default" : "destructive"}>
+                {data.ready ? "Ready" : "Not ready"}
               </Badge>
             </div>
 

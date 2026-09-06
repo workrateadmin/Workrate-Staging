@@ -3449,7 +3449,9 @@ export const CreateHmrcGatewayAttestationGrantResponse = zod.object({
  */
 export const GetHmrcSandboxGatewayStatusResponse = zod.object({
   "gateway": zod.enum(['connected', 'unavailable']),
+  "gatewayUrl": zod.string().nullable(),
   "environment": zod.enum(['sandbox']),
+  "ready": zod.boolean(),
   "publicIp": zod.string().nullish(),
   "version": zod.string().nullish(),
   "buildId": zod.string().nullish(),
