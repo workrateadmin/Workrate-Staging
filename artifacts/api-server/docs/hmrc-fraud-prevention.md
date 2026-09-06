@@ -109,8 +109,9 @@ The browser receives a short-lived tenant/user/session-bound grant from WorkRate
 sends its telemetry directly to the gateway, and keeps the returned opaque
 attestation in memory only.
 
-WorkRate requires `HMRC_SANDBOX_GATEWAY_URL` (a clean HTTPS origin) and
-`HMRC_SANDBOX_GATEWAY_HMAC_SECRET`. Every server request includes a timestamp,
+WorkRate requires `HMRC_GATEWAY_URL` (a clean HTTPS origin) and
+`HMRC_GATEWAY_HMAC_SECRET`. The legacy `HMRC_SANDBOX_GATEWAY_*` names remain
+accepted only for backward compatibility. Every server request includes a timestamp,
 UUID request ID, method, path, and exact-body HMAC. The gateway uses
 constant-time comparison, a narrow skew window, and replay caches. HMRC access
 tokens are request-scoped and remain server-side. Logs exclude bodies, tokens,

@@ -13,8 +13,8 @@ export type GatewayResult = {
 type GatewayIdentity = { userId: string; companyId: number; sessionId: string };
 
 function config() {
-  const url = process.env.HMRC_SANDBOX_GATEWAY_URL?.trim();
-  const secret = process.env.HMRC_SANDBOX_GATEWAY_HMAC_SECRET?.trim();
+  const url = (process.env.HMRC_GATEWAY_URL ?? process.env.HMRC_SANDBOX_GATEWAY_URL)?.trim();
+  const secret = (process.env.HMRC_GATEWAY_HMAC_SECRET ?? process.env.HMRC_SANDBOX_GATEWAY_HMAC_SECRET)?.trim();
   if (!url || !secret || secret.length < 32) {
     throw new Error("HMRC sandbox gateway is unavailable until controlled edge evidence is configured.");
   }
@@ -120,6 +120,20 @@ export async function getHmrcGatewayStatus(): Promise<{
     };
   } catch {
     return unavailable("HMRC sandbox gateway could not be reached.");
+  }
+}
+
+/**
+ * Proves that the gateway accepted WorkRate's canonical HMAC before its
+ * attestation gate. This never supplies browser evidence and cannot reach HMRC.
+ */
+export async function checkHmrcGatewayAuthentication(): Promise<{ authenticated: boolean; safeError?: string }> {
+  try {
+    const { response, raw } = await signedRequest("/v1/hmrc/sandbox/read", { operation: "authentication-check" });
+    if (response.status === 401 && raw?.code === "invalid_attestation") return { authenticated: true };
+    return { authenticated: false, safeError: "The gateway did not accept WorkRate's signed request." };
+  } catch {
+    return { authenticated: false, safeError: "The gateway authentication check could not be completed." };
   }
 }
 

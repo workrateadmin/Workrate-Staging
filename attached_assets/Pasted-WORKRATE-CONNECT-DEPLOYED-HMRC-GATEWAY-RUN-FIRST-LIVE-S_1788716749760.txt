@@ -1,0 +1,246 @@
+WORKRATE — CONNECT DEPLOYED HMRC GATEWAY + RUN FIRST LIVE SANDBOX DIAGNOSTIC
+
+GOAL:
+
+Wire WorkRate to the deployed HMRC sandbox gateway at:
+
+https://hmrc-gateway.work-rate.uk
+
+Then verify WorkRate can authenticate to it and run the first HMRC fraud-prevention diagnostics path.
+
+IMPORTANT:
+
+The gateway is already deployed and healthy.
+
+Current gateway facts:
+
+- Host: https://hmrc-gateway.work-rate.uk
+- Environment: sandbox
+- Public reserved IPv4: 67.207.68.112
+- Health endpoint returns HTTP 200
+- Gateway reports ready=true
+- Gateway version 1.0.0
+- Node service is running under systemd
+- Caddy HTTPS is working
+- HMRC production must remain disabled
+- Do not publish automatically
+- Do not fabricate any fraud-prevention evidence
+- Do not expose secrets in logs or UI
+
+==================================================
+1. VERIFY WORKRATE SECRETS
+==================================================
+
+Confirm the Replit environment has:
+
+HMRC_GATEWAY_URL=https://hmrc-gateway.work-rate.uk
+
+HMRC_GATEWAY_HMAC_SECRET=<already added securely>
+
+Do NOT print the HMAC secret.
+
+If HMRC_GATEWAY_HMAC_SECRET is missing:
+report that clearly and stop before any signed gateway call.
+
+==================================================
+2. RESTART BACKEND SAFELY
+==================================================
+
+Restart/reload only the WorkRate API/backend process needed to pick up the new gateway env values.
+
+Do not publish production.
+
+Do not restart unrelated services unless required.
+
+==================================================
+3. GATEWAY HEALTH CHECK
+==================================================
+
+From the WorkRate server, call:
+
+GET https://hmrc-gateway.work-rate.uk/healthz
+
+Confirm:
+
+- HTTP 200
+- environment=sandbox
+- publicIp=67.207.68.112
+- ready=true
+
+Do not treat health success as HMRC fraud-header success.
+
+==================================================
+4. HMAC AUTHENTICATION CHECK
+==================================================
+
+Use the existing WorkRate gateway client.
+
+Send one authenticated server-to-server request through the proper signed contract.
+
+Verify:
+
+- timestamp signing
+- nonce/request ID
+- HMAC signature
+- replay protection
+- gateway response accepted
+- invalid HMAC path remains rejected
+
+Do not bypass the real client contract with an ad-hoc curl except for health.
+
+==================================================
+5. BROWSER ATTESTATION CHECK
+==================================================
+
+Verify the existing browser attestation flow works end-to-end:
+
+Browser
+→ gateway attestation endpoint
+→ gateway observes remote connection evidence
+→ signed short-lived attestation returned
+→ browser supplies opaque attestation to WorkRate
+→ WorkRate forwards it in the existing HMRC flow
+→ gateway validates it
+
+Confirm:
+
+- tenant binding
+- user/session binding
+- expiry
+- replay resistance
+- browser evidence binding
+- no browser-supplied IP is trusted directly
+
+Do not weaken auth to make the test pass.
+
+==================================================
+6. WORKRATE DIAGNOSTICS PAGE
+==================================================
+
+Verify or expose:
+
+Settings
+→ Advanced
+→ Diagnostics
+→ HMRC / MTD
+
+Show only safe fields:
+
+- Gateway: Connected / Unavailable
+- Gateway URL
+- Gateway version
+- Environment: Sandbox
+- Public gateway IP
+- Gateway readiness
+- HMRC connectivity
+- Fraud Prevention Headers status
+- Last validation timestamp
+- Missing/invalid fraud header names
+- Dynamic submission capability
+
+Never show:
+
+- HMAC secret
+- HMRC client secret
+- access/refresh token
+- NINO
+- raw Authorization headers
+- raw taxpayer payloads
+
+==================================================
+7. RUN FIRST FRAUD-PREVENTION VALIDATION
+==================================================
+
+Use the gateway’s existing HMRC Fraud Prevention Headers validation route.
+
+Requirements:
+
+- sandbox only
+- real observed gateway/client evidence
+- real WorkRate browser telemetry
+- no fabricated omission
+- no production HMRC traffic
+- do not mark PASS unless HMRC actually returns a passing result
+
+Capture and normalize:
+
+PASS
+WARNING
+FAIL
+UNAVAILABLE
+
+Also return the specific missing/invalid header names safely.
+
+==================================================
+8. IF VALIDATION IS BLOCKED
+==================================================
+
+If HMRC validation cannot complete, identify the exact reason.
+
+Examples:
+
+- missing browser attestation
+- source port unavailable
+- vendor-forwarded mismatch
+- client public IP issue
+- MFA evidence missing
+- vendor licence ID omission needed
+- HMRC client credentials wrong
+- gateway signing mismatch
+- sandbox API version mismatch
+
+Do NOT guess.
+
+Report the exact blocker.
+
+==================================================
+9. SANDBOX HMRC CONNECTIVITY
+==================================================
+
+After gateway auth is proven, verify a safe HMRC sandbox connectivity path.
+
+Do NOT submit a quarterly update yet unless fraud-header validation has passed sufficiently for the configured sandbox flow.
+
+Check:
+
+- HMRC sandbox reachable
+- client credentials accepted where applicable
+- WorkRate HMRC token flow remains server-side
+- no production host can be selected
+
+==================================================
+10. SECURITY CHECKS
+==================================================
+
+Run focused checks:
+
+- bad HMAC rejected
+- stale timestamp rejected
+- replayed nonce rejected
+- invalid attestation rejected
+- expired attestation rejected
+- wrong tenant binding rejected
+- production HMRC host blocked
+- no secrets in logs
+- diagnostics redacted
+
+==================================================
+11. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. WorkRate gateway URL loaded
+B. gateway health result
+C. HMAC auth result
+D. browser attestation result
+E. diagnostics page result
+F. HMRC fraud-header validation result
+G. HMRC sandbox connectivity result
+H. exact missing/invalid headers, if any
+I. security tests passed
+J. whether dynamic sandbox quarterly submission is now ready
+K. exact next step
+L. whether one WorkRate publish is required
+
+Do not publish automatically.

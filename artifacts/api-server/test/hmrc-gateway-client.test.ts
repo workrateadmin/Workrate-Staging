@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
 import {
+  checkHmrcGatewayAuthentication,
   createHmrcGatewayAttestationGrant,
   submitViaHmrcSandboxGateway,
   validateFraudHeadersViaGateway,
@@ -10,8 +11,8 @@ import {
 const gatewayUrl = "https://gateway.example.test";
 const secret = "a-secure-test-secret-that-is-longer-than-32-bytes";
 const originalFetch = globalThis.fetch;
-process.env.HMRC_SANDBOX_GATEWAY_URL = gatewayUrl;
-process.env.HMRC_SANDBOX_GATEWAY_HMAC_SECRET = secret;
+process.env.HMRC_GATEWAY_URL = gatewayUrl;
+process.env.HMRC_GATEWAY_HMAC_SECRET = secret;
 
 test.after(() => { globalThis.fetch = originalFetch; });
 
@@ -39,6 +40,18 @@ test("gateway calls sign timestamp, UUID, method, path and exact body", async ()
     attestation: "opaque-attestation", browserContext: { deviceId: "device" },
   });
   assert.equal(result.confirmed, true);
+});
+
+test("authentication probe proves HMAC acceptance without browser evidence", async () => {
+  globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    const body = String(init?.body);
+    const canonical = `${headers.get("x-workrate-timestamp")}\n${headers.get("x-workrate-request-id")}\nPOST\n/v1/hmrc/sandbox/read\n${body}`;
+    assert.equal(headers.get("x-workrate-signature"), `sha256=${createHmac("sha256", secret).update(canonical).digest("base64url")}`);
+    assert.equal(headers.has("x-workrate-attestation"), false);
+    return new Response(JSON.stringify({ code: "invalid_attestation" }), { status: 401 });
+  }) as typeof fetch;
+  assert.deepEqual(await checkHmrcGatewayAuthentication(), { authenticated: true });
 });
 
 test("malformed and failed submission responses never become submitted", async () => {
