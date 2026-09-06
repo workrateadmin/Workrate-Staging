@@ -1,4 +1,5 @@
 import {
+  date,
   integer,
   jsonb,
   pgTable,
@@ -58,5 +59,48 @@ export const hmrcOauthStatesTable = pgTable("hmrc_oauth_states", {
   uniqueIndex("hmrc_oauth_state_hash_unique").on(table.stateHash),
 ]);
 
+/** Tenant-scoped Income Tax MTD preparation and sandbox attempt history. */
+export const hmrcQuarterlyPreparationsTable = pgTable("hmrc_quarterly_preparations", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull(),
+  ownerUserId: text("owner_user_id").notNull(),
+  obligationKey: text("obligation_key").notNull(),
+  businessId: text("business_id").notNull(),
+  businessType: text("business_type").notNull(),
+  dueDate: date("due_date", { mode: "string" }),
+  obligationStatus: text("obligation_status").notNull(),
+  periodStart: date("period_start", { mode: "string" }).notNull(),
+  periodEnd: date("period_end", { mode: "string" }).notNull(),
+  figures: jsonb("figures").notNull(),
+  payloadHash: text("payload_hash").notNull(),
+  status: text("status").notNull().default("prepared"),
+  declarationText: text("declaration_text"),
+  reviewedByUserId: text("reviewed_by_user_id"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (table) => [
+  uniqueIndex("hmrc_quarterly_preparations_company_obligation_unique").on(table.companyId, table.obligationKey),
+]);
+
+export const hmrcSubmissionAttemptsTable = pgTable("hmrc_submission_attempts", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull(),
+  ownerUserId: text("owner_user_id").notNull(),
+  preparationId: integer("preparation_id").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  status: text("status").notNull().default("pending"),
+  payloadHash: text("payload_hash").notNull(),
+  hmrcReference: text("hmrc_reference"),
+  safeResponse: jsonb("safe_response"),
+  safeError: text("safe_error"),
+  attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (table) => [
+  uniqueIndex("hmrc_submission_attempts_company_idempotency_unique").on(table.companyId, table.idempotencyKey),
+]);
+
 export type HmrcConnection = typeof hmrcConnectionsTable.$inferSelect;
 export type HmrcOauthState = typeof hmrcOauthStatesTable.$inferSelect;
+export type HmrcQuarterlyPreparation = typeof hmrcQuarterlyPreparationsTable.$inferSelect;
+export type HmrcSubmissionAttempt = typeof hmrcSubmissionAttemptsTable.$inferSelect;

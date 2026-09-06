@@ -2173,6 +2173,75 @@ paths:
       security: [{ ClerkAuth: [] }]
       parameters: [{ $ref: "#/components/parameters/JobEvidenceJobId" }, { name: allocationId, in: path, required: true, schema: { type: number } }]
       responses: { "204": { description: Allocation deleted } }
+  /finance/hmrc/preparations:
+    get:
+      operationId: listHmrcQuarterlyPreparations
+      tags: [finance]
+      security: [{ ClerkAuth: [] }]
+      responses:
+        "200": { description: Tenant-scoped preparations, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/HmrcQuarterlyPreparation" } } } } }
+    post:
+      operationId: createHmrcQuarterlyPreparation
+      tags: [finance]
+      summary: Prepare an Income Tax MTD sandbox quarter from confirmed finance records
+      security: [{ ClerkAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [obligationKey, periodStart, periodEnd]
+              properties:
+                obligationKey: { type: string }
+                periodStart: { type: string, format: date }
+                periodEnd: { type: string, format: date }
+      responses:
+        "201": { description: Tenant-scoped MTD preparation; never a production filing, content: { application/json: { schema: { $ref: "#/components/schemas/HmrcQuarterlyPreparation" } } } }
+        "402": { description: Advanced Finance / MTD entitlement required }
+  /finance/hmrc/submissions:
+    get:
+      operationId: listHmrcSandboxSubmissionAttempts
+      tags: [finance]
+      summary: List tenant-scoped Income Tax MTD sandbox submission attempts
+      security: [{ ClerkAuth: [] }]
+      responses:
+        "200": { description: Submission attempt history, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/HmrcSubmissionAttempt" } } } } }
+  /finance/hmrc/preparations/{id}/submit:
+    post:
+      operationId: submitHmrcSandboxPreparation
+      tags: [finance]
+      summary: Submit a human-reviewed Income Tax MTD preparation through the configured sandbox gateway
+      description: Returns unavailable unless verified gateway evidence is configured; never reports success without an HMRC reference.
+      security: [{ ClerkAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [declaration, idempotencyKey]
+              properties:
+                declaration: { type: boolean, enum: [true] }
+                idempotencyKey: { type: string, pattern: '^[0-9a-fA-F-]{36}$' }
+      responses:
+        "200": { description: Idempotent prior attempt, content: { application/json: { schema: { $ref: "#/components/schemas/HmrcSubmissionAttempt" } } } }
+        "503": { description: Gateway unavailable or evidence incomplete; no HMRC success claimed, content: { application/json: { schema: { $ref: "#/components/schemas/HmrcSubmissionAttempt" } } } }
+  /finance/hmrc/fraud-header-validation:
+    post:
+      operationId: validateHmrcSandboxFraudHeaders
+      tags: [finance]
+      summary: Validate sandbox fraud headers through the controlled gateway
+      security: [{ ClerkAuth: [] }]
+      responses:
+        "200": { description: Gateway validation confirmed, content: { application/json: { schema: { $ref: "#/components/schemas/HmrcFraudValidationStatus" } } } }
+        "503": { description: Validation unavailable; validation was not claimed, content: { application/json: { schema: { $ref: "#/components/schemas/HmrcFraudValidationStatus" } } } }
+
 components:
   parameters:
     JobEvidenceJobId:
@@ -2221,6 +2290,62 @@ components:
         type: string
         format: date
   schemas:
+    HmrcFraudValidationStatus:
+      type: object
+      required: [status, message]
+      properties:
+        status: { type: string, enum: [validated, unavailable] }
+        message: { type: [string, "null"] }
+    HmrcPreparationWarnings:
+      type: object
+      required: [unreviewedExpenseIds, missingEvidenceExpenseIds, uncategorisedExpenseIds, unsupportedExpenseIds, potentialDuplicateExpenseIds]
+      properties:
+        unreviewedExpenseIds: { type: array, items: { type: number } }
+        missingEvidenceExpenseIds: { type: array, items: { type: number } }
+        uncategorisedExpenseIds: { type: array, items: { type: number } }
+        unsupportedExpenseIds: { type: array, items: { type: number } }
+        potentialDuplicateExpenseIds: { type: array, items: { type: number } }
+    HmrcQuarterlyFigures:
+      type: object
+      required: [incomeTotal, expenseTotal, netProfit, expenseCategories, includedIncomeIds, includedExpenseIds, warnings, readyForSubmission]
+      properties:
+        incomeTotal: { type: number }
+        expenseTotal: { type: number }
+        netProfit: { type: number }
+        expenseCategories: { type: array, items: { type: object, required: [category, amount], properties: { category: { type: string }, amount: { type: number } } } }
+        includedIncomeIds: { type: array, items: { type: number } }
+        includedExpenseIds: { type: array, items: { type: number } }
+        warnings: { $ref: "#/components/schemas/HmrcPreparationWarnings" }
+        readyForSubmission: { type: boolean }
+    HmrcQuarterlyPreparation:
+      type: object
+      required: [id, obligationKey, businessId, businessType, obligationStatus, periodStart, periodEnd, figures, payloadHash, status]
+      properties:
+        id: { type: number }
+        obligationKey: { type: string }
+        businessId: { type: string }
+        businessType: { type: string }
+        dueDate: { type: [string, "null"], format: date }
+        obligationStatus: { type: string }
+        periodStart: { type: string, format: date }
+        periodEnd: { type: string, format: date }
+        figures: { $ref: "#/components/schemas/HmrcQuarterlyFigures" }
+        payloadHash: { type: string }
+        status: { type: string }
+    HmrcSubmissionAttempt:
+      type: object
+      required: [id, preparationId, idempotencyKey, status, payloadHash, attemptedAt]
+      properties:
+        id: { type: number }
+        preparationId: { type: number }
+        idempotencyKey: { type: string }
+        status: { type: string, enum: [pending, submitted, retry_required, failed] }
+        payloadHash: { type: string }
+        hmrcReference: { type: [string, "null"] }
+        safeResponse: { type: [object, "null"], additionalProperties: true }
+        safeError: { type: [string, "null"] }
+        attemptedAt: { type: string, format: date-time }
+        completedAt: { type: [string, "null"], format: date-time }
     TimelineEvent:
       type: object
       required: [id, category, eventType, occurredAt, title, detail, channel, amount, status, actionLabel, actionHref]

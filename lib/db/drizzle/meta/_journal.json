@@ -50,6 +50,13 @@
       "when": 1788635405922,
       "tag": "0023_job_cost_evidence_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788693933786,
+      "tag": "0024_hmrc_quarterly_preparation",
+      "breakpoints": true
     }
   ]
 }

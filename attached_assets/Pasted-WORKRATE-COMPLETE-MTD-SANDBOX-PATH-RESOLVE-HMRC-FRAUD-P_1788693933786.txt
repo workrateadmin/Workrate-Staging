@@ -1,0 +1,461 @@
+WORKRATE — COMPLETE MTD SANDBOX PATH + RESOLVE HMRC FRAUD-PREVENTION BLOCKER
+
+GOAL:
+Take WorkRate from “HMRC connected” to a properly testable end-to-end Making Tax Digital sandbox workflow.
+
+The target customer journey is:
+
+WorkRate finance records
+→ HMRC connected
+→ Business Details
+→ Obligations
+→ quarterly period selected
+→ WorkRate prepares figures
+→ user reviews
+→ submission sent
+→ HMRC response stored
+→ submission history visible
+
+IMPORTANT:
+Do NOT claim MTD is live for customers until the sandbox workflow is proven and HMRC production access is approved.
+
+Do NOT fabricate HMRC fraud-prevention headers.
+Do NOT weaken existing fail-closed behaviour.
+Do NOT submit anything to HMRC production.
+Do NOT publish automatically.
+
+==================================================
+1. AUDIT CURRENT HMRC IMPLEMENTATION
+==================================================
+
+First inspect:
+
+- HMRC OAuth
+- encrypted token storage
+- token refresh
+- Business Details API support
+- Obligations API support
+- Finance / tax-period data
+- current fraud-prevention header builder
+- current fail-closed logic
+- existing HMRC routes/services
+- existing MTD preparation screens
+
+Report briefly what already exists before changing code.
+
+==================================================
+2. FRAUD-PREVENTION REQUIREMENTS
+==================================================
+
+Using HMRC's current Web Application via Server requirements, identify:
+
+- headers WorkRate can already supply truthfully
+- headers currently missing
+- headers requiring controlled network/edge information
+- any values that cannot safely be obtained from the current Replit edge
+
+Do NOT invent:
+- public IP
+- proxy chain
+- source port
+- MFA evidence
+- vendor headers
+
+==================================================
+3. SMALLEST SAFE INFRASTRUCTURE SOLUTION
+==================================================
+
+Determine the smallest architecture that lets WorkRate satisfy HMRC fraud-prevention requirements.
+
+Preference:
+
+KEEP the main WorkRate app hosted on Replit.
+
+If required, introduce only a small dedicated HMRC gateway/edge.
+
+Possible architecture:
+
+WorkRate
+→ authenticated HMRC gateway
+→ HMRC sandbox API
+
+The gateway should exist only for HMRC traffic.
+
+Do not migrate the whole WorkRate application unless absolutely necessary.
+
+==================================================
+4. HMRC GATEWAY SECURITY
+==================================================
+
+If a gateway is required, design it so:
+
+- only WorkRate can call it
+- HMRC tokens never reach the browser
+- tenant/business ownership remains enforced
+- forwarded-client information cannot be spoofed
+- secrets remain encrypted
+- logging contains no HMRC tokens or sensitive tax data
+- sandbox and production are strictly separated
+- requests are idempotent where relevant
+
+==================================================
+5. FRAUD-PREVENTION VALIDATOR
+==================================================
+
+Use HMRC's sandbox/Test Fraud Prevention Headers tooling where available.
+
+Goal:
+
+- validate the final header set
+- capture warnings/errors
+- correct every issue that can truthfully be fixed
+
+Do not treat OAuth success as proof of fraud-header compliance.
+
+==================================================
+6. BUSINESS DETAILS
+==================================================
+
+Once fraud-prevention requirements are satisfied in sandbox:
+
+Implement/verify:
+
+GET Business Details
+
+WorkRate should retrieve only the authenticated business's HMRC data.
+
+Store only what is needed for the WorkRate workflow.
+
+Show:
+
+- business/tax identity information where appropriate
+- HMRC connection state
+- last successful sync
+- safe error state
+
+==================================================
+7. OBLIGATIONS
+==================================================
+
+Implement/verify HMRC Obligations retrieval.
+
+Show:
+
+- tax period
+- start date
+- end date
+- due date
+- status
+- submitted / outstanding
+
+Use HMRC as source of truth for obligation status.
+
+==================================================
+8. QUARTERLY PREPARATION
+==================================================
+
+Use WorkRate's EXISTING Finance records.
+
+Prepare quarterly figures from:
+
+- confirmed income
+- confirmed expenses
+- supported tax categories
+
+Do not include:
+
+- unreviewed AI suggestions
+- duplicate receipts
+- unsupported transactions
+- cross-tenant finance records
+
+Show clear drill-down from totals back to WorkRate transactions/evidence.
+
+==================================================
+9. REVIEW BEFORE SUBMISSION
+==================================================
+
+Submission must require human review.
+
+Show:
+
+Quarter / obligation
+Income totals
+Expense totals
+Category breakdown
+Missing-evidence warnings
+Unreviewed transactions
+Potential duplicates
+Submission declaration
+
+Do NOT let AI silently submit tax information.
+
+==================================================
+10. SANDBOX SUBMISSION
+==================================================
+
+Build the real HMRC SANDBOX quarterly submission flow.
+
+Requirements:
+
+- sandbox only
+- exact required HMRC payload
+- correct tax/business identifiers
+- validated totals
+- explicit user confirmation
+- server-side submission
+- authenticated HMRC token
+- required fraud-prevention headers
+- idempotent submission handling
+
+Do not send from the browser directly to HMRC.
+
+==================================================
+11. HMRC RESPONSE
+==================================================
+
+Store:
+
+- submission timestamp
+- obligation/period
+- HMRC response/reference IDs where provided
+- submission status
+- safe error details
+- payload version/hash where useful
+
+Do not store unnecessary sensitive response data.
+
+==================================================
+12. SUBMISSION HISTORY
+==================================================
+
+Create/upgrade:
+
+Finance → Tax / MTD
+
+Show:
+
+- HMRC connection
+- obligations
+- upcoming due dates
+- prepared periods
+- submitted periods
+- submission history
+- failed/retry-required states
+
+The user should understand:
+
+"What do I need to do next?"
+
+==================================================
+13. FAILURE / RETRY
+==================================================
+
+Handle:
+
+- expired HMRC access token
+- refresh failure
+- HMRC downtime
+- validation errors
+- fraud-header rejection
+- duplicate submission
+- obligation already fulfilled
+- network timeout
+
+Do not falsely display "Submitted" unless HMRC confirmed success.
+
+==================================================
+14. AUDIT TRAIL
+==================================================
+
+Record important MTD events:
+
+- connection
+- sync
+- preparation
+- user confirmation
+- submission attempt
+- success/failure
+- HMRC reference
+
+Keep tenant-scoped audit history.
+
+==================================================
+15. MTD FEATURE ENTITLEMENT
+==================================================
+
+Use the current billing entitlement system.
+
+Advanced Finance / MTD:
+
+Core without add-on:
+BLOCKED
+
+Core + Advanced Finance / MTD:
+ALLOWED
+
+Complete:
+ALLOWED
+
+Existing legacy production safeguards must remain intact during testing.
+
+Do not rely only on frontend hiding.
+
+==================================================
+16. PRODUCT WORDING
+==================================================
+
+Until production HMRC approval exists, customer-facing wording must remain truthful.
+
+Examples:
+
+"HMRC sandbox/testing"
+"MTD preparation"
+"Production filing not yet enabled"
+
+Do NOT display:
+
+"File your tax return with WorkRate"
+
+unless the live production HMRC workflow is genuinely authorised.
+
+==================================================
+17. VAT MTD
+==================================================
+
+Do NOT build VAT MTD in this task.
+
+Document it as a separate future path.
+
+Income Tax MTD and VAT MTD must remain conceptually separate.
+
+==================================================
+18. LTD COMPANY PATH
+==================================================
+
+Do NOT treat Income Tax MTD as Corporation Tax support.
+
+Ltd company accounting/tax remains a separate future roadmap item.
+
+==================================================
+19. ENVIRONMENT SAFETY
+==================================================
+
+Respect the WorkRate environment separation work.
+
+Development / staging:
+HMRC sandbox only.
+
+Production:
+HMRC production only after explicit approval/configuration.
+
+Fail closed on environment mismatch.
+
+==================================================
+20. TESTING
+==================================================
+
+Test:
+
+AUTH
+- connect
+- token refresh
+- disconnect
+- reconnect
+
+BUSINESS DETAILS
+- successful read
+- tenant isolation
+- invalid identifier
+
+OBLIGATIONS
+- outstanding obligation
+- fulfilled obligation
+- no obligations
+
+FINANCE
+- confirmed records included
+- unconfirmed AI extraction excluded
+- duplicate handling
+
+SUBMISSION
+- valid sandbox submission
+- validation rejection
+- duplicate/retry handling
+- token expiry
+- HMRC failure
+- fraud-header rejection
+- success persisted only after HMRC confirms
+
+SECURITY
+- cross-tenant denial
+- direct API bypass
+- secrets not exposed
+- production HMRC blocked in dev/staging
+
+==================================================
+21. DO NOT OVERBUILD
+==================================================
+
+Do not add:
+
+- VAT filing
+- Corporation Tax
+- payroll/PAYE
+- full bookkeeping engine
+- accountant marketplace
+- automatic tax advice
+- autonomous AI filing
+
+This task is:
+
+HMRC FRAUD-PREVENTION COMPLIANCE
++
+BUSINESS DETAILS
++
+OBLIGATIONS
++
+QUARTERLY PREPARATION
++
+SANDBOX SUBMISSION
++
+SUBMISSION HISTORY
+
+==================================================
+22. BEFORE IMPLEMENTATION
+==================================================
+
+First report:
+
+A. current HMRC functionality already present
+B. exact remaining fraud-prevention blockers
+C. whether Replit alone can satisfy them
+D. whether a small HMRC gateway is required
+E. proposed architecture
+F. code/infrastructure changes required
+G. estimated monthly gateway cost if one is required
+H. any HMRC approval/manual step still outside WorkRate
+
+Then proceed with everything that can safely be implemented without fabricating infrastructure evidence.
+
+==================================================
+23. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. fraud-prevention status
+B. gateway/edge architecture if used
+C. Business Details result
+D. Obligations result
+E. quarterly preparation behavior
+F. sandbox submission result
+G. submission-history behavior
+H. entitlement enforcement
+I. environment protection
+J. tests passed
+K. remaining HMRC external approvals/blockers
+L. exact next step toward HMRC production access
+M. whether ONE publish is required
+
+Do not publish automatically.

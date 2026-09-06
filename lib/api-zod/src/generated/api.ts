@@ -3238,3 +3238,136 @@ export const DeleteJobFinanceAllocationParams = zod.object({
 })
 
 export const DeleteJobFinanceAllocationResponse = zod.void()
+
+
+export const ListHmrcQuarterlyPreparationsResponseItem = zod.object({
+  "id": zod.number(),
+  "obligationKey": zod.string(),
+  "businessId": zod.string(),
+  "businessType": zod.string(),
+  "dueDate": zod.coerce.date().nullish(),
+  "obligationStatus": zod.string(),
+  "periodStart": zod.coerce.date(),
+  "periodEnd": zod.coerce.date(),
+  "figures": zod.object({
+  "incomeTotal": zod.number(),
+  "expenseTotal": zod.number(),
+  "netProfit": zod.number(),
+  "expenseCategories": zod.array(zod.object({
+  "category": zod.string(),
+  "amount": zod.number()
+})),
+  "includedIncomeIds": zod.array(zod.number()),
+  "includedExpenseIds": zod.array(zod.number()),
+  "warnings": zod.object({
+  "unreviewedExpenseIds": zod.array(zod.number()),
+  "missingEvidenceExpenseIds": zod.array(zod.number()),
+  "uncategorisedExpenseIds": zod.array(zod.number()),
+  "unsupportedExpenseIds": zod.array(zod.number()),
+  "potentialDuplicateExpenseIds": zod.array(zod.number())
+}),
+  "readyForSubmission": zod.boolean()
+}),
+  "payloadHash": zod.string(),
+  "status": zod.string()
+})
+export const ListHmrcQuarterlyPreparationsResponse = zod.array(ListHmrcQuarterlyPreparationsResponseItem)
+
+
+/**
+ * @summary Prepare an Income Tax MTD sandbox quarter from confirmed finance records
+ */
+export const CreateHmrcQuarterlyPreparationBody = zod.object({
+  "obligationKey": zod.string(),
+  "periodStart": zod.coerce.date(),
+  "periodEnd": zod.coerce.date()
+})
+
+export const CreateHmrcQuarterlyPreparationResponse = zod.object({
+  "id": zod.number(),
+  "obligationKey": zod.string(),
+  "businessId": zod.string(),
+  "businessType": zod.string(),
+  "dueDate": zod.coerce.date().nullish(),
+  "obligationStatus": zod.string(),
+  "periodStart": zod.coerce.date(),
+  "periodEnd": zod.coerce.date(),
+  "figures": zod.object({
+  "incomeTotal": zod.number(),
+  "expenseTotal": zod.number(),
+  "netProfit": zod.number(),
+  "expenseCategories": zod.array(zod.object({
+  "category": zod.string(),
+  "amount": zod.number()
+})),
+  "includedIncomeIds": zod.array(zod.number()),
+  "includedExpenseIds": zod.array(zod.number()),
+  "warnings": zod.object({
+  "unreviewedExpenseIds": zod.array(zod.number()),
+  "missingEvidenceExpenseIds": zod.array(zod.number()),
+  "uncategorisedExpenseIds": zod.array(zod.number()),
+  "unsupportedExpenseIds": zod.array(zod.number()),
+  "potentialDuplicateExpenseIds": zod.array(zod.number())
+}),
+  "readyForSubmission": zod.boolean()
+}),
+  "payloadHash": zod.string(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary List tenant-scoped Income Tax MTD sandbox submission attempts
+ */
+export const ListHmrcSandboxSubmissionAttemptsResponseItem = zod.object({
+  "id": zod.number(),
+  "preparationId": zod.number(),
+  "idempotencyKey": zod.string(),
+  "status": zod.enum(['pending', 'submitted', 'retry_required', 'failed']),
+  "payloadHash": zod.string(),
+  "hmrcReference": zod.string().nullish(),
+  "safeResponse": zod.record(zod.string(), zod.unknown()).nullish(),
+  "safeError": zod.string().nullish(),
+  "attemptedAt": zod.coerce.date(),
+  "completedAt": zod.coerce.date().nullish()
+})
+export const ListHmrcSandboxSubmissionAttemptsResponse = zod.array(ListHmrcSandboxSubmissionAttemptsResponseItem)
+
+
+/**
+ * Returns unavailable unless verified gateway evidence is configured; never reports success without an HMRC reference.
+ * @summary Submit a human-reviewed Income Tax MTD preparation through the configured sandbox gateway
+ */
+export const SubmitHmrcSandboxPreparationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const submitHmrcSandboxPreparationBodyIdempotencyKeyRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const SubmitHmrcSandboxPreparationBody = zod.object({
+  "declaration": zod.literal(true),
+  "idempotencyKey": zod.string().regex(submitHmrcSandboxPreparationBodyIdempotencyKeyRegExp)
+})
+
+export const SubmitHmrcSandboxPreparationResponse = zod.object({
+  "id": zod.number(),
+  "preparationId": zod.number(),
+  "idempotencyKey": zod.string(),
+  "status": zod.enum(['pending', 'submitted', 'retry_required', 'failed']),
+  "payloadHash": zod.string(),
+  "hmrcReference": zod.string().nullish(),
+  "safeResponse": zod.record(zod.string(), zod.unknown()).nullish(),
+  "safeError": zod.string().nullish(),
+  "attemptedAt": zod.coerce.date(),
+  "completedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Validate sandbox fraud headers through the controlled gateway
+ */
+export const ValidateHmrcSandboxFraudHeadersResponse = zod.object({
+  "status": zod.enum(['validated', 'unavailable']),
+  "message": zod.string().nullable()
+})

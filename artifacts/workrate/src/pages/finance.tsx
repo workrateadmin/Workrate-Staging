@@ -1,21 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useListJobs } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  useListJobs,
+  useListHmrcQuarterlyPreparations,
+  getListHmrcQuarterlyPreparationsQueryKey,
+  useCreateHmrcQuarterlyPreparation,
+  useListHmrcSandboxSubmissionAttempts,
+  getListHmrcSandboxSubmissionAttemptsQueryKey,
+  useSubmitHmrcSandboxPreparation,
+  useValidateHmrcSandboxFraudHeaders,
+} from "@workspace/api-client-react";
+import type { HmrcQuarterlyPreparation, HmrcSubmissionAttempt, HmrcFraudValidationStatus } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@workspace/memphis-bold/components/ui/card";
+import { Button } from "@workspace/memphis-bold/components/ui/button";
+import { Input } from "@workspace/memphis-bold/components/ui/input";
+import { Badge } from "@workspace/memphis-bold/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/memphis-bold/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@workspace/memphis-bold/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@workspace/memphis-bold/components/ui/select";
+import { Skeleton } from "@workspace/memphis-bold/components/ui/skeleton";
+import { Separator } from "@workspace/memphis-bold/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils";
 import {
   AlertTriangle, ArrowDownLeft, ArrowUpRight, CheckCircle2, Download, FileSearch,
   FileUp, Loader2, Pencil, Plus, ReceiptText, RefreshCw, ShieldCheck,
   Unplug, WalletCards, Building2, CalendarClock, Link2, XCircle,
+  ClipboardCheck, Send, Clock, Hash, ChevronDown, ChevronUp, ShieldAlert, Info,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -997,366 +1010,21 @@ export default function FinancePage() {
 
         {/* Tax / MTD prep */}
         <TabsContent value="tax" className="space-y-4 mt-4">
-          {/* Preparation-only notice */}
-          <Card className="rounded-2xl border-primary/20 bg-primary/5 shadow-sm">
-            <CardContent className="p-5 flex gap-4">
-              <ShieldCheck className="w-6 h-6 text-primary shrink-0 mt-0.5" aria-hidden="true" />
-              <div>
-                <p className="font-black">Preparation only — no HMRC submission</p>
-                <p className="text-sm text-muted-foreground font-medium mt-1">
-                  WorkRate is collecting reviewable records and evidence. Check values against the
-                  original documents before using them in your accounting or MTD software.
-                  Connected never means submitted or filed.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* HMRC sandbox connection */}
-          <Card className="rounded-2xl shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CardTitle className="text-lg">HMRC sandbox connection</CardTitle>
-                    {hmrcStatus ? (
-                      <Badge variant={hmrcStatusInfo(hmrcStatus.status).variant}>
-                        {hmrcStatusInfo(hmrcStatus.status).label}
-                      </Badge>
-                    ) : (
-                      <Skeleton className="h-5 w-24" />
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground font-medium mt-1">
-                    Read-only sandbox business details and MTD obligations only.
-                    WorkRate cannot submit, file, or send anything to HMRC from this page.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 shrink-0">
-                  {hmrcStatus?.status === "connected" || hmrcStatus?.status === "error" ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-lg gap-2"
-                        disabled={hmrcSubmitting}
-                        onClick={() => void syncHmrcSandbox()}
-                        data-testid="button-hmrc-sync"
-                      >
-                        {hmrcSubmitting
-                          ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                          : <RefreshCw className="w-4 h-4" aria-hidden="true" />}
-                        Refresh
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-lg gap-2 text-destructive hover:text-destructive"
-                        disabled={hmrcSubmitting}
-                        onClick={() => void disconnectHmrcSandbox()}
-                        data-testid="button-hmrc-disconnect"
-                      >
-                        <Unplug className="w-4 h-4" aria-hidden="true" /> Disconnect
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      size="sm"
-                      className="rounded-lg gap-2"
-                      disabled={!hmrcStatus?.sandboxConfigured || hmrcSubmitting}
-                      onClick={() => setHmrcDialogOpen(true)}
-                      data-testid="button-hmrc-connect"
-                    >
-                      {hmrcSubmitting
-                        ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                        : <Link2 className="w-4 h-4" aria-hidden="true" />}
-                      Connect HMRC
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-4">
-              {hmrcStatus && !hmrcStatus.sandboxConfigured && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-                  <p className="font-bold">Sandbox configuration needed</p>
-                  <p className="mt-1">
-                    {hmrcStatus.configurationMessage
-                      ?? "Add the HMRC sandbox settings on the server before connecting a business."}
-                  </p>
-                </div>
-              )}
-              {hmrcStatus?.status === "error" && hmrcStatus.lastError && (
-                <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
-                  <p className="font-bold text-destructive">Connection error</p>
-                  <p className="mt-1 text-muted-foreground">{hmrcStatus.lastError}</p>
-                </div>
-              )}
-              {hmrcStatus?.status === "disconnected" && (
-                <div className="rounded-xl border border-border/60 bg-secondary/40 px-4 py-3 text-sm">
-                  <p className="font-bold">Previously connected</p>
-                  <p className="mt-1 text-muted-foreground">
-                    This sandbox was disconnected
-                    {hmrcStatus.disconnectedAt
-                      ? ` on ${new Date(hmrcStatus.disconnectedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}.`
-                      : "."}
-                    {" "}Connect again to retrieve current obligations.
-                  </p>
-                </div>
-              )}
-              {hmrcStatus?.status === "connected" && (
-                <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs font-medium text-muted-foreground">
-                  <span>Scope: {hmrcStatus.scopes.join(", ") || "read-only"}</span>
-                  <span>
-                    Last read-only sync:{" "}
-                    {hmrcStatus.lastSuccessfulSyncAt
-                      ? new Date(hmrcStatus.lastSuccessfulSyncAt).toLocaleString("en-GB")
-                      : "Not yet retrieved"}
-                  </span>
-                </div>
-              )}
-              {hmrcStatus?.status === "connected" && hmrcStatus.businesses.length > 0 && (
-                <div className="grid md:grid-cols-2 gap-3">
-                  {hmrcStatus.businesses.map((business, index) => (
-                    <div
-                      key={`${business.businessId ?? "business"}-${index}`}
-                      className="rounded-xl border border-border/60 p-4"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-primary" aria-hidden="true" />
-                        <p className="font-bold">
-                          {business.tradingName || business.typeOfBusiness || "Registered business"}
-                        </p>
-                      </div>
-                      <p className="text-xs text-muted-foreground font-medium mt-2">
-                        {business.typeOfBusiness || "Business type not supplied"}
-                        {business.tradingType ? ` · ${business.tradingType}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {hmrcStatus?.status === "connected" && hmrcStatus.businesses.length === 0 && !hmrcStatus.lastError && (
-                <p className="text-sm text-muted-foreground">
-                  Connected to HMRC sandbox. Refresh to retrieve registered businesses and current obligations.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* MTD Obligations */}
-          {hmrcStatus?.status === "connected" && (
-            <Card className="rounded-2xl shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">HMRC MTD obligations</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {hmrcObligations.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No sandbox obligations have been retrieved yet.
-                  </p>
-                ) : (
-                  <div className="divide-y divide-border/60">
-                    {hmrcObligations.map((obligation, index) => (
-                      <div
-                        key={`${obligation.businessId ?? "business"}-${obligation.periodEndDate ?? index}`}
-                        className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-                      >
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <CalendarClock className="w-4 h-4 text-primary" aria-hidden="true" />
-                            <p className="font-bold">
-                              {obligation.periodStartDate || "Period start unavailable"}
-                              {" — "}
-                              {obligation.periodEndDate || "Period end unavailable"}
-                            </p>
-                            <Badge variant={obligationStatusVariant(obligation.status)}>
-                              {obligation.status || "Unknown"}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground font-medium mt-1">
-                            {obligation.typeOfBusiness || "Business"}
-                            {obligation.receivedDate ? ` · Received ${obligation.receivedDate}` : ""}
-                          </p>
-                        </div>
-                        <p className="text-sm font-bold">
-                          {obligation.dueDate ? `Due ${obligation.dueDate}` : "No due date supplied"}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          <ReviewNotice warnings={warnings} loading={loading} />
-
-          {/* Category breakdown */}
-          <Card className="rounded-2xl shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Expense categories in this period</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {loading ? (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="rounded-xl border border-border/60 p-3 space-y-2">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-6 w-16" />
-                    </div>
-                  ))}
-                </div>
-              ) : (summary?.expenses?.categoryBreakdown ?? []).length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Confirm expense records to see their category totals here.
-                </p>
-              ) : (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {(summary?.expenses?.categoryBreakdown ?? []).map((category: any) => (
-                    <button
-                      key={category.category}
-                      onClick={() => void filterTaxTransactions(category.category)}
-                      className="text-left rounded-xl border border-border/60 p-3 hover:bg-secondary/50 transition-colors"
-                      aria-label={`Filter by ${category.category}: ${formatCurrency(category.grossAmount)}`}
-                      data-testid={`category-${category.category}`}
-                    >
-                      <p className="font-bold text-sm">{category.category}</p>
-                      <p className="font-black mt-1">{formatCurrency(category.grossAmount)}</p>
-                      <p className="text-xs text-muted-foreground font-medium">
-                        {category.count} record{category.count === 1 ? "" : "s"} — select to inspect
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Receipt evidence */}
-          <Card className="rounded-2xl shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Receipt evidence</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 grid sm:grid-cols-3 gap-3">
-              {loading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="bg-secondary/40 rounded-xl p-4 space-y-2">
-                    <Skeleton className="h-3 w-28" />
-                    <Skeleton className="h-6 w-16" />
-                  </div>
-                ))
-              ) : (
-                <>
-                  <InfoStat label="Confirmed with receipt" value={summary?.expenses?.receiptAttachedGross} />
-                  <InfoStat label="Attached records" value={summary?.expenses?.receiptAttachedCount} numeric />
-                  <InfoStat label="Missing receipt" value={summary?.expenses?.missingReceiptCount} numeric />
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Transaction drill-down */}
-          <Card className="rounded-2xl shadow-sm">
-            <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3">
-              <CardTitle className="text-lg">Transaction and document drill-down</CardTitle>
-              {taxCategory && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void filterTaxTransactions()}
-                  data-testid="button-clear-category"
-                >
-                  Clear: {taxCategory}
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="pt-0">
-              {taxTransactions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No expenses match this period and filter.
-                </p>
-              ) : (
-                <div className="divide-y divide-border/60">
-                  {taxTransactions.map((record) => (
-                    <div
-                      key={record.id}
-                      className="py-3 flex flex-col sm:flex-row sm:items-start justify-between gap-3"
-                      data-testid={`transaction-${record.id}`}
-                    >
-                      <div>
-                        <p className="font-bold">
-                          {record.supplierName || record.description || "Untitled expense"}
-                        </p>
-                        <p className="text-xs text-muted-foreground font-medium mt-1">
-                          {record.transactionDate || "Date needed"}
-                          {" · "}
-                          {record.category || "Uncategorised"}
-                          {" · "}
-                          {record.receipts?.length
-                            ? `${record.receipts.length} receipt attached`
-                            : "No receipt attached"}
-                        </p>
-                        {record.receipts?.map((receipt: any) => (
-                          <a
-                            key={receipt.id}
-                            href={`${apiBase}/finance/receipts/${receipt.id}/file`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs font-bold text-primary hover:underline mr-3"
-                            aria-label={`View receipt: ${receipt.originalName}`}
-                          >
-                            {receipt.originalName}
-                          </a>
-                        ))}
-                      </div>
-                      <p className="font-black shrink-0">
-                        {record.grossAmount == null
-                          ? "Amount needed"
-                          : formatCurrency(record.grossAmount)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Audit trail */}
-          <Card className="rounded-2xl shadow-sm overflow-hidden">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Recent finance audit trail</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {loading ? (
-                <div className="space-y-1">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="py-3 flex items-center justify-between gap-3">
-                      <Skeleton className="h-4 w-48" />
-                      <Skeleton className="h-3 w-24" />
-                    </div>
-                  ))}
-                </div>
-              ) : audit.length === 0 ? (
-                <p className="py-6 text-sm text-muted-foreground">
-                  Actions such as uploads, edits, and confirmations will be recorded here.
-                </p>
-              ) : (
-                <div className="divide-y divide-border/60">
-                  {audit.slice(0, 10).map((event) => (
-                    <div key={event.id} className="py-3 flex items-center justify-between gap-3 text-sm">
-                      <span className="font-medium">
-                        <span className="font-bold capitalize">{event.entityType}</span> {event.action}
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        {new Date(event.createdAt).toLocaleString("en-GB")}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <MtdTaxWorkflow
+            hmrcStatus={hmrcStatus}
+            hmrcObligations={hmrcObligations}
+            hmrcSubmitting={hmrcSubmitting}
+            summary={summary}
+            loading={loading}
+            warnings={warnings}
+            taxTransactions={taxTransactions}
+            taxCategory={taxCategory}
+            apiBase={apiBase}
+            onHmrcConnect={() => setHmrcDialogOpen(true)}
+            onHmrcSync={() => void syncHmrcSandbox()}
+            onHmrcDisconnect={() => void disconnectHmrcSandbox()}
+            onFilterCategory={(cat) => void filterTaxTransactions(cat)}
+          />
         </TabsContent>
       </Tabs>
 
@@ -1985,5 +1653,979 @@ function ExpenseFields({
         />
       </Field>
     </div>
+  );
+}
+
+// ── MTD Tax Workflow ────────────────────────────────────────────────────────
+
+type MtdObligation = {
+  periodStartDate?: string;
+  periodEndDate?: string;
+  dueDate?: string;
+  status?: string;
+  receivedDate?: string;
+  businessId?: string;
+  typeOfBusiness?: string;
+};
+
+function preparationStatusVariant(status: string): "default" | "secondary" | "outline" | "destructive" {
+  if (status === "submitted") return "default";
+  if (status === "ready") return "secondary";
+  if (status === "draft") return "outline";
+  return "outline";
+}
+
+function preparationStatusLabel(status: string): string {
+  if (status === "submitted") return "Sandbox submitted";
+  if (status === "ready") return "Ready for review";
+  if (status === "draft") return "Draft";
+  return status;
+}
+
+function attemptStatusVariant(status: string): "default" | "secondary" | "outline" | "destructive" {
+  if (status === "submitted") return "default";
+  if (status === "pending") return "secondary";
+  if (status === "retry_required") return "outline";
+  if (status === "failed") return "destructive";
+  return "outline";
+}
+
+function attemptStatusLabel(status: string): string {
+  if (status === "submitted") return "Accepted by sandbox";
+  if (status === "pending") return "Pending";
+  if (status === "retry_required") return "Retry required";
+  if (status === "failed") return "Failed";
+  return status;
+}
+
+function MtdTaxWorkflow({
+  hmrcStatus,
+  hmrcObligations,
+  hmrcSubmitting,
+  summary,
+  loading,
+  warnings,
+  taxTransactions,
+  taxCategory,
+  apiBase,
+  onHmrcConnect,
+  onHmrcSync,
+  onHmrcDisconnect,
+  onFilterCategory,
+}: {
+  hmrcStatus: HmrcStatus | null;
+  hmrcObligations: MtdObligation[];
+  hmrcSubmitting: boolean;
+  summary: any;
+  loading: boolean;
+  warnings: Record<string, any[]>;
+  taxTransactions: any[];
+  taxCategory: string;
+  apiBase: string;
+  onHmrcConnect: () => void;
+  onHmrcSync: () => void;
+  onHmrcDisconnect: () => void;
+  onFilterCategory: (cat: string) => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // ── Preparation queries + mutations
+  const { data: preparations = [], isLoading: preparationsLoading } = useListHmrcQuarterlyPreparations();
+  const { data: submissionAttempts = [], isLoading: attemptsLoading } = useListHmrcSandboxSubmissionAttempts();
+
+  const createPreparation = useCreateHmrcQuarterlyPreparation();
+  const submitPreparation = useSubmitHmrcSandboxPreparation();
+  const validateFraud = useValidateHmrcSandboxFraudHeaders();
+
+  // ── Local UI state
+  const [selectedObligKey, setSelectedObligKey] = useState<string>("");
+  const [prepDialogOpen, setPrepDialogOpen] = useState(false);
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const [selectedPrepId, setSelectedPrepId] = useState<number | null>(null);
+  const [declaration, setDeclaration] = useState(false);
+  const [fraudStatus, setFraudStatus] = useState<HmrcFraudValidationStatus | null>(null);
+  const [fraudChecking, setFraudChecking] = useState(false);
+  const [expandedPrepId, setExpandedPrepId] = useState<number | null>(null);
+
+  // Canonical key: businessType:businessId:periodStart:periodEnd
+  function buildObligationKey(
+    typeOfBusiness: string,
+    businessId: string,
+    periodStartDate: string,
+    periodEndDate: string,
+  ): string {
+    return `${typeOfBusiness}:${businessId}:${periodStartDate}:${periodEndDate}`;
+  }
+
+  // Build selectable obligations from connected HMRC status
+  const selectableObligations = useMemo<Array<{ key: string; label: string; obligation: MtdObligation }>>(() => {
+    return hmrcObligations
+      .filter((o) => o.typeOfBusiness && o.businessId && o.periodStartDate && o.periodEndDate)
+      .map((o) => {
+        const key = buildObligationKey(o.typeOfBusiness!, o.businessId!, o.periodStartDate!, o.periodEndDate!);
+        const label = `${o.typeOfBusiness} · ${o.periodStartDate} — ${o.periodEndDate}${o.status ? ` (${o.status})` : ""}`;
+        return { key, label, obligation: o };
+      });
+  }, [hmrcObligations]);
+
+  async function handleCheckFraud() {
+    setFraudChecking(true);
+    setFraudStatus(null);
+    try {
+      const result = await validateFraud.mutateAsync();
+      setFraudStatus(result);
+    } catch (err: any) {
+      // Server returns error body typed as HmrcFraudValidationStatus for unavailable
+      const body = err?.response?.data ?? err?.data ?? null;
+      if (body?.status === "unavailable") {
+        setFraudStatus(body as HmrcFraudValidationStatus);
+      } else {
+        setFraudStatus({ status: "unavailable", message: err?.message ?? "Fraud header check could not be completed." });
+      }
+    } finally {
+      setFraudChecking(false);
+    }
+  }
+
+  async function handleCreatePreparation() {
+    if (!selectedObligKey) return;
+    const selected = selectableObligations.find((o) => o.key === selectedObligKey);
+    if (!selected) return;
+    const { obligation } = selected;
+    try {
+      await createPreparation.mutateAsync({
+        data: {
+          obligationKey: selectedObligKey,
+          periodStart: obligation.periodStartDate!,
+          periodEnd: obligation.periodEndDate!,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: getListHmrcQuarterlyPreparationsQueryKey() });
+      toast({ title: "Quarterly preparation created", description: "Review the figures and warnings below before proceeding." });
+      setPrepDialogOpen(false);
+      setSelectedObligKey("");
+    } catch (err: any) {
+      toast({ title: "Could not create preparation", description: err?.message ?? "Check that the obligation has confirmed records in the selected period.", variant: "destructive" });
+    }
+  }
+
+  async function handleSubmit() {
+    if (!selectedPrepId || !declaration) return;
+    const idempotencyKey = crypto.randomUUID();
+    try {
+      const attempt = await submitPreparation.mutateAsync({
+        id: selectedPrepId,
+        data: { declaration: true, idempotencyKey },
+      });
+      await queryClient.invalidateQueries({ queryKey: getListHmrcQuarterlyPreparationsQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: getListHmrcSandboxSubmissionAttemptsQueryKey() });
+      setSubmitDialogOpen(false);
+      setDeclaration(false);
+      setSelectedPrepId(null);
+      if (attempt.status === "submitted" && attempt.hmrcReference) {
+        toast({ title: "Sandbox submission accepted", description: `HMRC sandbox reference: ${attempt.hmrcReference}` });
+      } else {
+        toast({ title: "Submission recorded — status pending", description: "Check the attempt history below for updates.", variant: "destructive" });
+      }
+    } catch (err: any) {
+      await queryClient.invalidateQueries({ queryKey: getListHmrcSandboxSubmissionAttemptsQueryKey() });
+      toast({ title: "Sandbox submission could not complete", description: err?.message ?? "Review the attempt history for details.", variant: "destructive" });
+      setSubmitDialogOpen(false);
+      setDeclaration(false);
+    }
+  }
+
+  function openSubmitDialog(prepId: number) {
+    setSelectedPrepId(prepId);
+    setDeclaration(false);
+    setFraudStatus(null);
+    setSubmitDialogOpen(true);
+  }
+
+  const selectedPrep = selectedPrepId ? preparations.find((p) => p.id === selectedPrepId) ?? null : null;
+
+  // Attempts grouped by preparationId
+  const attemptsByPrepId = useMemo<Map<number, HmrcSubmissionAttempt[]>>(() => {
+    const map = new Map<number, HmrcSubmissionAttempt[]>();
+    for (const a of submissionAttempts) {
+      const list = map.get(a.preparationId) ?? [];
+      list.push(a);
+      map.set(a.preparationId, list);
+    }
+    return map;
+  }, [submissionAttempts]);
+
+  return (
+    <>
+      {/* Sandbox / testing notice — always visible */}
+      <Card className="rounded-2xl border-primary/20 bg-primary/5 shadow-sm">
+        <CardContent className="p-5 flex gap-4">
+          <ShieldCheck className="w-6 h-6 text-primary shrink-0 mt-0.5" aria-hidden="true" />
+          <div>
+            <p className="font-black">HMRC sandbox and MTD testing only — no production filing</p>
+            <p className="text-sm text-muted-foreground font-medium mt-1">
+              WorkRate prepares and sandboxes quarterly submissions for review. All actions on this page
+              target the HMRC sandbox testing environment. Nothing here constitutes a real tax filing.
+              Connected never means submitted to production HMRC.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* HMRC Sandbox Connection */}
+      <Card className="rounded-2xl shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="text-lg">HMRC sandbox connection</CardTitle>
+                {hmrcStatus ? (
+                  <Badge variant={hmrcStatusInfo(hmrcStatus.status).variant}>
+                    {hmrcStatusInfo(hmrcStatus.status).label}
+                  </Badge>
+                ) : (
+                  <Skeleton className="h-5 w-24" />
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground font-medium mt-1">
+                Read-only sandbox — retrieves registered businesses and MTD obligations only.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              {hmrcStatus?.status === "connected" || hmrcStatus?.status === "error" ? (
+                <>
+                  <Button size="sm" variant="outline" className="rounded-lg gap-2" disabled={hmrcSubmitting} onClick={onHmrcSync} data-testid="button-hmrc-sync">
+                    {hmrcSubmitting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="w-4 h-4" aria-hidden="true" />}
+                    Refresh
+                  </Button>
+                  <Button size="sm" variant="outline" className="rounded-lg gap-2 text-destructive hover:text-destructive" disabled={hmrcSubmitting} onClick={onHmrcDisconnect} data-testid="button-hmrc-disconnect">
+                    <Unplug className="w-4 h-4" aria-hidden="true" /> Disconnect
+                  </Button>
+                </>
+              ) : (
+                <Button size="sm" className="rounded-lg gap-2" disabled={!hmrcStatus?.sandboxConfigured || hmrcSubmitting} onClick={onHmrcConnect} data-testid="button-hmrc-connect">
+                  {hmrcSubmitting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Link2 className="w-4 h-4" aria-hidden="true" />}
+                  Connect HMRC sandbox
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-4">
+          {hmrcStatus && !hmrcStatus.sandboxConfigured && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              <p className="font-bold">Sandbox configuration needed</p>
+              <p className="mt-1">{hmrcStatus.configurationMessage ?? "Add the HMRC sandbox settings on the server before connecting a business."}</p>
+            </div>
+          )}
+          {hmrcStatus?.status === "error" && hmrcStatus.lastError && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+              <p className="font-bold text-destructive">Connection error</p>
+              <p className="mt-1 text-muted-foreground">{hmrcStatus.lastError}</p>
+            </div>
+          )}
+          {hmrcStatus?.status === "disconnected" && (
+            <div className="rounded-xl border border-border/60 bg-secondary/40 px-4 py-3 text-sm">
+              <p className="font-bold">Previously connected</p>
+              <p className="mt-1 text-muted-foreground">
+                Disconnected{hmrcStatus.disconnectedAt ? ` on ${new Date(hmrcStatus.disconnectedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}` : ""}.
+                Connect again to retrieve current obligations.
+              </p>
+            </div>
+          )}
+          {hmrcStatus?.status === "connected" && (
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs font-medium text-muted-foreground">
+              <span>Scope: {hmrcStatus.scopes.join(", ") || "read-only"}</span>
+              <span>Last read-only sync: {hmrcStatus.lastSuccessfulSyncAt ? new Date(hmrcStatus.lastSuccessfulSyncAt).toLocaleString("en-GB") : "Not yet retrieved"}</span>
+            </div>
+          )}
+          {hmrcStatus?.status === "connected" && hmrcStatus.businesses.length > 0 && (
+            <div className="grid md:grid-cols-2 gap-3">
+              {hmrcStatus.businesses.map((business, index) => (
+                <div key={`${business.businessId ?? "business"}-${index}`} className="rounded-xl border border-border/60 p-4">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-primary" aria-hidden="true" />
+                    <p className="font-bold">{business.tradingName || business.typeOfBusiness || "Registered business"}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-medium mt-2">
+                    {business.typeOfBusiness || "Business type not supplied"}
+                    {business.tradingType ? ` · ${business.tradingType}` : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+          {hmrcStatus?.status === "connected" && hmrcStatus.businesses.length === 0 && !hmrcStatus.lastError && (
+            <p className="text-sm text-muted-foreground">
+              Connected to HMRC sandbox. Use Refresh to retrieve registered businesses and current obligations.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* MTD Obligations */}
+      {hmrcStatus?.status === "connected" && (
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <CardTitle className="text-lg">MTD obligations</CardTitle>
+              {selectableObligations.length > 0 && (
+                <Button
+                  size="sm"
+                  className="rounded-lg gap-2 shrink-0"
+                  onClick={() => setPrepDialogOpen(true)}
+                  data-testid="button-create-preparation"
+                >
+                  <ClipboardCheck className="w-4 h-4" aria-hidden="true" />
+                  Prepare a quarter
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {hmrcObligations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No sandbox obligations have been retrieved yet. Use Refresh to load them.</p>
+            ) : (
+              <div className="divide-y divide-border/60">
+                {hmrcObligations.map((obligation, index) => {
+                  const oblKey = obligation.typeOfBusiness && obligation.businessId && obligation.periodStartDate && obligation.periodEndDate
+                    ? buildObligationKey(obligation.typeOfBusiness, obligation.businessId, obligation.periodStartDate, obligation.periodEndDate)
+                    : null;
+                  const existingPrep = oblKey ? preparations.find((p) => p.obligationKey === oblKey) : null;
+                  return (
+                    <div
+                      key={`${obligation.businessId ?? "business"}-${obligation.periodEndDate ?? index}`}
+                      className="py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <CalendarClock className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
+                          <p className="font-bold">
+                            {obligation.periodStartDate || "—"} — {obligation.periodEndDate || "—"}
+                          </p>
+                          <Badge variant={obligationStatusVariant(obligation.status)}>
+                            {obligation.status || "Unknown"}
+                          </Badge>
+                          {existingPrep && (
+                            <Badge variant={preparationStatusVariant(existingPrep.status)}>
+                              {preparationStatusLabel(existingPrep.status)}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground font-medium mt-1">
+                          {obligation.typeOfBusiness || "Business"}
+                          {obligation.businessId ? ` · ID: ${obligation.businessId}` : ""}
+                          {obligation.receivedDate ? ` · Received ${obligation.receivedDate}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <p className="text-sm font-bold text-muted-foreground">
+                          {obligation.dueDate ? `Due ${obligation.dueDate}` : "No due date"}
+                        </p>
+                        {existingPrep && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-lg gap-1.5"
+                            onClick={() => setExpandedPrepId(expandedPrepId === existingPrep.id ? null : existingPrep.id)}
+                            data-testid={`button-view-prep-${existingPrep.id}`}
+                          >
+                            {expandedPrepId === existingPrep.id ? <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />}
+                            Review
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Quarterly Preparations */}
+      {(preparationsLoading || preparations.length > 0) && (
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Quarterly preparations</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {preparationsLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="rounded-xl border border-border/60 p-4 space-y-2">
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-3 w-64" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {preparations.map((prep) => {
+                  const attempts = attemptsByPrepId.get(prep.id) ?? [];
+                  const latestAttempt = attempts.length > 0 ? attempts[0] : null;
+                  const isExpanded = expandedPrepId === prep.id;
+                  const hasWarnings = (prep.figures.warnings.unreviewedExpenseIds.length +
+                    prep.figures.warnings.missingEvidenceExpenseIds.length +
+                    prep.figures.warnings.uncategorisedExpenseIds.length +
+                    prep.figures.warnings.unsupportedExpenseIds.length +
+                    prep.figures.warnings.potentialDuplicateExpenseIds.length) > 0;
+
+                  return (
+                    <div key={prep.id} className="rounded-xl border border-border/60 overflow-hidden" data-testid={`prep-card-${prep.id}`}>
+                      {/* Header row */}
+                      <div className="p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-bold">{prep.periodStart} — {prep.periodEnd}</p>
+                            <Badge variant={preparationStatusVariant(prep.status)}>
+                              {preparationStatusLabel(prep.status)}
+                            </Badge>
+                            {hasWarnings && (
+                              <Badge variant="outline" className="gap-1 border-amber-300 text-amber-700 bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:bg-amber-950/30">
+                                <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+                                Warnings
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground font-medium mt-1">
+                            {prep.businessType} · Obligation: {prep.obligationKey}
+                          </p>
+                          {latestAttempt && (
+                            <p className="text-xs font-medium mt-1">
+                              Latest attempt:{" "}
+                              <Badge variant={attemptStatusVariant(latestAttempt.status)} className="text-xs">
+                                {attemptStatusLabel(latestAttempt.status)}
+                              </Badge>
+                              {latestAttempt.status === "submitted" && latestAttempt.hmrcReference && (
+                                <span className="ml-2 text-muted-foreground">Ref: {latestAttempt.hmrcReference}</span>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-lg gap-1.5"
+                            onClick={() => setExpandedPrepId(isExpanded ? null : prep.id)}
+                            aria-expanded={isExpanded}
+                            data-testid={`button-expand-prep-${prep.id}`}
+                          >
+                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />}
+                            {isExpanded ? "Hide" : "Review figures"}
+                          </Button>
+                          {prep.status !== "submitted" && (
+                            <Button
+                              size="sm"
+                              className="rounded-lg gap-1.5"
+                              disabled={!prep.figures.readyForSubmission}
+                              onClick={() => openSubmitDialog(prep.id)}
+                              data-testid={`button-submit-prep-${prep.id}`}
+                            >
+                              <Send className="w-3.5 h-3.5" aria-hidden="true" />
+                              {prep.figures.readyForSubmission ? "Submit to sandbox" : "Not ready"}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Expanded detail */}
+                      {isExpanded && (
+                        <div className="border-t border-border/60 bg-secondary/20 p-4 space-y-4">
+                          {/* Figures */}
+                          <div>
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Figures</p>
+                            <div className="grid sm:grid-cols-3 gap-3">
+                              <div className="rounded-xl border border-border/60 bg-card p-3">
+                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Total income</p>
+                                <p className="font-black text-lg mt-1">{formatCurrency(prep.figures.incomeTotal)}</p>
+                              </div>
+                              <div className="rounded-xl border border-border/60 bg-card p-3">
+                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Total expenses</p>
+                                <p className="font-black text-lg mt-1">{formatCurrency(prep.figures.expenseTotal)}</p>
+                              </div>
+                              <div className="rounded-xl border border-border/60 bg-card p-3">
+                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Net profit</p>
+                                <p className={`font-black text-lg mt-1 ${prep.figures.netProfit < 0 ? "text-destructive" : ""}`}>
+                                  {formatCurrency(prep.figures.netProfit)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Expense categories breakdown */}
+                          {prep.figures.expenseCategories.length > 0 && (
+                            <div>
+                              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Expense category breakdown</p>
+                              <div className="divide-y divide-border/60 rounded-xl border border-border/60 overflow-hidden">
+                                {prep.figures.expenseCategories.map((cat) => (
+                                  <div key={cat.category} className="flex items-center justify-between px-3 py-2 text-sm bg-card">
+                                    <span className="font-medium">{cat.category}</span>
+                                    <span className="font-bold tabular-nums">{formatCurrency(cat.amount)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Warnings */}
+                          {hasWarnings && (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-800/40 dark:bg-amber-950/20">
+                              <div className="flex items-center gap-2 mb-2">
+                                <AlertTriangle className="w-4 h-4 text-amber-600" aria-hidden="true" />
+                                <p className="font-bold text-sm">Preparation warnings</p>
+                              </div>
+                              <div className="space-y-1.5 text-sm text-muted-foreground">
+                                {prep.figures.warnings.unreviewedExpenseIds.length > 0 && (
+                                  <p>
+                                    <span className="font-bold text-foreground">{prep.figures.warnings.unreviewedExpenseIds.length}</span> unreviewed expense{prep.figures.warnings.unreviewedExpenseIds.length === 1 ? "" : "s"} —{" "}
+                                    <span className="text-xs font-mono">IDs: {prep.figures.warnings.unreviewedExpenseIds.join(", ")}</span>
+                                  </p>
+                                )}
+                                {prep.figures.warnings.missingEvidenceExpenseIds.length > 0 && (
+                                  <p>
+                                    <span className="font-bold text-foreground">{prep.figures.warnings.missingEvidenceExpenseIds.length}</span> expense{prep.figures.warnings.missingEvidenceExpenseIds.length === 1 ? "" : "s"} missing receipt evidence —{" "}
+                                    <span className="text-xs font-mono">IDs: {prep.figures.warnings.missingEvidenceExpenseIds.join(", ")}</span>
+                                  </p>
+                                )}
+                                {prep.figures.warnings.uncategorisedExpenseIds.length > 0 && (
+                                  <p>
+                                    <span className="font-bold text-foreground">{prep.figures.warnings.uncategorisedExpenseIds.length}</span> uncategorised expense{prep.figures.warnings.uncategorisedExpenseIds.length === 1 ? "" : "s"} —{" "}
+                                    <span className="text-xs font-mono">IDs: {prep.figures.warnings.uncategorisedExpenseIds.join(", ")}</span>
+                                  </p>
+                                )}
+                                {prep.figures.warnings.unsupportedExpenseIds.length > 0 && (
+                                  <p>
+                                    <span className="font-bold text-foreground">{prep.figures.warnings.unsupportedExpenseIds.length}</span> expense{prep.figures.warnings.unsupportedExpenseIds.length === 1 ? "" : "s"} with unsupported category —{" "}
+                                    <span className="text-xs font-mono">IDs: {prep.figures.warnings.unsupportedExpenseIds.join(", ")}</span>
+                                  </p>
+                                )}
+                                {prep.figures.warnings.potentialDuplicateExpenseIds.length > 0 && (
+                                  <p>
+                                    <span className="font-bold text-foreground">{prep.figures.warnings.potentialDuplicateExpenseIds.length}</span> potentially duplicate expense{prep.figures.warnings.potentialDuplicateExpenseIds.length === 1 ? "" : "s"} —{" "}
+                                    <span className="text-xs font-mono">IDs: {prep.figures.warnings.potentialDuplicateExpenseIds.join(", ")}</span>
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Evidence IDs */}
+                          <div className="grid sm:grid-cols-2 gap-3">
+                            <div>
+                              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Income IDs included</p>
+                              <p className="text-xs font-mono text-muted-foreground">
+                                {prep.figures.includedIncomeIds.length > 0 ? prep.figures.includedIncomeIds.join(", ") : "None"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Expense IDs included</p>
+                              <p className="text-xs font-mono text-muted-foreground">
+                                {prep.figures.includedExpenseIds.length > 0 ? prep.figures.includedExpenseIds.join(", ") : "None"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Payload hash */}
+                          <div className="flex items-start gap-2">
+                            <Hash className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" aria-hidden="true" />
+                            <p className="text-xs text-muted-foreground font-mono break-all">{prep.payloadHash}</p>
+                          </div>
+
+                          {/* Attempt history */}
+                          {attempts.length > 0 && (
+                            <div>
+                              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Submission attempt history</p>
+                              <div className="divide-y divide-border/60 rounded-xl border border-border/60 overflow-hidden">
+                                {attempts.map((attempt) => (
+                                  <div key={attempt.id} className="px-3 py-3 bg-card space-y-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Badge variant={attemptStatusVariant(attempt.status)}>
+                                        {attemptStatusLabel(attempt.status)}
+                                      </Badge>
+                                      {attempt.status === "submitted" && attempt.hmrcReference ? (
+                                        <span className="text-xs font-bold text-foreground">
+                                          HMRC sandbox ref: {attempt.hmrcReference}
+                                        </span>
+                                      ) : attempt.status === "submitted" ? (
+                                        <span className="text-xs text-muted-foreground">No reference returned</span>
+                                      ) : null}
+                                    </div>
+                                    {attempt.safeError && (
+                                      <p className="text-xs text-destructive font-medium">{attempt.safeError}</p>
+                                    )}
+                                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                                      <span className="flex items-center gap-1">
+                                        <Clock className="w-3 h-3" aria-hidden="true" />
+                                        Attempted: {new Date(attempt.attemptedAt).toLocaleString("en-GB")}
+                                      </span>
+                                      {attempt.completedAt && (
+                                        <span>Completed: {new Date(attempt.completedAt).toLocaleString("en-GB")}</span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs font-mono text-muted-foreground break-all">Key: {attempt.idempotencyKey}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Review checks */}
+      <ReviewNotice warnings={warnings} loading={loading} />
+
+      {/* Category breakdown */}
+      <Card className="rounded-2xl shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Expense categories in this period</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {loading ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-border/60 p-3 space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-6 w-16" />
+                </div>
+              ))}
+            </div>
+          ) : (summary?.expenses?.categoryBreakdown ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">Confirm expense records to see their category totals here.</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {(summary?.expenses?.categoryBreakdown ?? []).map((category: any) => (
+                <button
+                  key={category.category}
+                  onClick={() => onFilterCategory(category.category)}
+                  className="text-left rounded-xl border border-border/60 p-3 hover:bg-secondary/50 transition-colors"
+                  aria-label={`Filter by ${category.category}: ${formatCurrency(category.grossAmount)}`}
+                  data-testid={`category-${category.category}`}
+                >
+                  <p className="font-bold text-sm">{category.category}</p>
+                  <p className="font-black mt-1">{formatCurrency(category.grossAmount)}</p>
+                  <p className="text-xs text-muted-foreground font-medium">{category.count} record{category.count === 1 ? "" : "s"} — select to inspect</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Receipt evidence */}
+      <Card className="rounded-2xl shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Receipt evidence</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0 grid sm:grid-cols-3 gap-3">
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="bg-secondary/40 rounded-xl p-4 space-y-2">
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="h-6 w-16" />
+              </div>
+            ))
+          ) : (
+            <>
+              <InfoStat label="Confirmed with receipt" value={summary?.expenses?.receiptAttachedGross} />
+              <InfoStat label="Attached records" value={summary?.expenses?.receiptAttachedCount} numeric />
+              <InfoStat label="Missing receipt" value={summary?.expenses?.missingReceiptCount} numeric />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Transaction drill-down */}
+      <Card className="rounded-2xl shadow-sm">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3">
+          <CardTitle className="text-lg">Transaction and document drill-down</CardTitle>
+          {taxCategory && (
+            <Button size="sm" variant="outline" onClick={() => onFilterCategory("")} data-testid="button-clear-category">
+              Clear: {taxCategory}
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="pt-0">
+          {taxTransactions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No expenses match this period and filter.</p>
+          ) : (
+            <div className="divide-y divide-border/60">
+              {taxTransactions.map((record) => (
+                <div key={record.id} className="py-3 flex flex-col sm:flex-row sm:items-start justify-between gap-3" data-testid={`transaction-${record.id}`}>
+                  <div>
+                    <p className="font-bold">{record.supplierName || record.description || "Untitled expense"}</p>
+                    <p className="text-xs text-muted-foreground font-medium mt-1">
+                      {record.transactionDate || "Date needed"} · {record.category || "Uncategorised"} ·{" "}
+                      {record.receipts?.length ? `${record.receipts.length} receipt attached` : "No receipt attached"}
+                    </p>
+                    {record.receipts?.map((receipt: any) => (
+                      <a key={receipt.id} href={`${apiBase}/finance/receipts/${receipt.id}/file`} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-primary hover:underline mr-3" aria-label={`View receipt: ${receipt.originalName}`}>
+                        {receipt.originalName}
+                      </a>
+                    ))}
+                  </div>
+                  <p className="font-black shrink-0">
+                    {record.grossAmount == null ? "Amount needed" : formatCurrency(record.grossAmount)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* All submission attempts */}
+      {(attemptsLoading || submissionAttempts.length > 0) && (
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Sandbox submission history</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {attemptsLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="py-3 flex items-center justify-between gap-3">
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="divide-y divide-border/60">
+                {submissionAttempts.map((attempt) => {
+                  const prep = preparations.find((p) => p.id === attempt.preparationId);
+                  return (
+                    <div key={attempt.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm" data-testid={`attempt-row-${attempt.id}`}>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={attemptStatusVariant(attempt.status)}>
+                            {attemptStatusLabel(attempt.status)}
+                          </Badge>
+                          {attempt.status === "submitted" && attempt.hmrcReference && (
+                            <span className="font-bold text-foreground">Ref: {attempt.hmrcReference}</span>
+                          )}
+                          {prep && (
+                            <span className="text-muted-foreground text-xs">{prep.periodStart} — {prep.periodEnd}</span>
+                          )}
+                        </div>
+                        {attempt.safeError && (
+                          <p className="text-xs text-destructive font-medium mt-1">{attempt.safeError}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(attempt.attemptedAt).toLocaleString("en-GB")}
+                          {attempt.completedAt ? ` — completed ${new Date(attempt.completedAt).toLocaleString("en-GB")}` : ""}
+                        </p>
+                      </div>
+                      <span className="text-xs font-mono text-muted-foreground shrink-0 max-w-[180px] truncate">{attempt.idempotencyKey}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Create preparation dialog */}
+      <Dialog open={prepDialogOpen} onOpenChange={setPrepDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-black">Prepare a quarterly return</DialogTitle>
+            <DialogDescription>
+              Select a sandbox obligation to compile figures from your confirmed finance records.
+              This does not submit anything to HMRC.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <Field label="Obligation">
+              <Select value={selectedObligKey} onValueChange={setSelectedObligKey}>
+                <SelectTrigger data-testid="select-obligation">
+                  <SelectValue placeholder="Select an obligation period" />
+                </SelectTrigger>
+                <SelectContent>
+                  {selectableObligations.map((o) => (
+                    <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            {selectedObligKey && (
+              <div className="rounded-xl border border-border/60 bg-secondary/30 px-3 py-2 text-xs font-mono text-muted-foreground break-all">
+                Key: {selectedObligKey}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Only confirmed, reviewed expenses and invoiced income within the obligation period
+              will be included. Unreviewed records are excluded.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPrepDialogOpen(false); setSelectedObligKey(""); }}>Cancel</Button>
+            <Button
+              disabled={!selectedObligKey || createPreparation.isPending}
+              onClick={() => void handleCreatePreparation()}
+              data-testid="button-confirm-prepare"
+            >
+              {createPreparation.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" aria-hidden="true" />Preparing…</>
+                : "Compile preparation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Submit dialog */}
+      <Dialog open={submitDialogOpen} onOpenChange={(open) => { if (!open) { setSubmitDialogOpen(false); setDeclaration(false); setFraudStatus(null); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-black">Submit to HMRC sandbox</DialogTitle>
+            <DialogDescription>
+              This sends a test submission through the HMRC sandbox gateway only. It is not a real
+              tax filing and will not affect your actual HMRC records.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedPrep && (
+            <div className="space-y-4 py-1">
+              {/* Summary figures */}
+              <div className="rounded-xl border border-border/60 bg-secondary/30 p-4 space-y-2">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Preparation summary</p>
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium">Income</p>
+                    <p className="font-black">{formatCurrency(selectedPrep.figures.incomeTotal)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium">Expenses</p>
+                    <p className="font-black">{formatCurrency(selectedPrep.figures.expenseTotal)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium">Net profit</p>
+                    <p className={`font-black ${selectedPrep.figures.netProfit < 0 ? "text-destructive" : ""}`}>
+                      {formatCurrency(selectedPrep.figures.netProfit)}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">Period: {selectedPrep.periodStart} — {selectedPrep.periodEnd}</p>
+              </div>
+
+              {/* Warnings */}
+              {!selectedPrep.figures.readyForSubmission && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm dark:border-amber-800/40 dark:bg-amber-950/20">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
+                    <p className="font-bold">This preparation is not marked as ready</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Resolve warnings before submitting to avoid rejection.</p>
+                </div>
+              )}
+
+              {/* Fraud header validation */}
+              <div className="rounded-xl border border-border/60 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-primary" aria-hidden="true" />
+                    <p className="font-bold text-sm">Gateway fraud header check</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-lg gap-1.5"
+                    disabled={fraudChecking}
+                    onClick={() => void handleCheckFraud()}
+                    data-testid="button-validate-fraud"
+                  >
+                    {fraudChecking ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
+                    {fraudStatus ? "Re-check" : "Check now"}
+                  </Button>
+                </div>
+                {fraudStatus && (
+                  <div className={`rounded-lg px-3 py-2 text-sm ${fraudStatus.status === "validated" ? "border border-primary/20 bg-primary/5" : "border border-amber-200 bg-amber-50/60 dark:border-amber-800/40 dark:bg-amber-950/20"}`}>
+                    <div className="flex items-center gap-2">
+                      {fraudStatus.status === "validated"
+                        ? <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
+                        : <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />}
+                      <p className="font-bold">
+                        {fraudStatus.status === "validated" ? "Gateway validated" : "Gateway unavailable"}
+                      </p>
+                    </div>
+                    {fraudStatus.message && (
+                      <p className="text-xs text-muted-foreground mt-1">{fraudStatus.message}</p>
+                    )}
+                  </div>
+                )}
+                {!fraudStatus && (
+                  <p className="text-xs text-muted-foreground">
+                    Check that the sandbox gateway can validate fraud headers before submitting.
+                    Submission is blocked if the gateway is unavailable.
+                  </p>
+                )}
+              </div>
+
+              {/* Payload hash */}
+              <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                <Hash className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+                <span className="font-mono break-all">{selectedPrep.payloadHash}</span>
+              </div>
+
+              <Separator />
+
+              {/* Declaration */}
+              <div className="rounded-xl border border-border/60 bg-secondary/20 px-4 py-3 space-y-3">
+                <div className="flex items-start gap-2">
+                  <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" aria-hidden="true" />
+                  <p className="text-xs text-muted-foreground font-medium">
+                    By proceeding you confirm that you have reviewed the figures above, that they
+                    are accurate to the best of your knowledge, and that you understand this is an
+                    HMRC sandbox test submission only — not a real tax filing.
+                  </p>
+                </div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={declaration}
+                    onChange={(e) => setDeclaration(e.target.checked)}
+                    className="w-4 h-4 rounded accent-primary"
+                    data-testid="checkbox-declaration"
+                  />
+                  <span className="text-sm font-bold">
+                    I have reviewed and confirm the figures above (sandbox testing only)
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setSubmitDialogOpen(false); setDeclaration(false); setFraudStatus(null); }}>
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                !declaration ||
+                submitPreparation.isPending ||
+                fraudStatus?.status === "unavailable" ||
+                !fraudStatus
+              }
+              onClick={() => void handleSubmit()}
+              data-testid="button-confirm-submit"
+            >
+              {submitPreparation.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" aria-hidden="true" />Submitting to sandbox…</>
+                : <><Send className="w-4 h-4 mr-2" aria-hidden="true" />Submit to HMRC sandbox</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

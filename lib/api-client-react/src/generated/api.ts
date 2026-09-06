@@ -40,6 +40,7 @@ import type {
   CompleteHmrcSandboxAuthorizationParams,
   ConfirmFinanceExpenseBody,
   ConnectIntegrationBody,
+  CreateHmrcQuarterlyPreparationBody,
   DashboardStats,
   DemoCompleteRequest,
   DemoMessageRequest,
@@ -70,6 +71,9 @@ import type {
   HmrcAuthorizationStart,
   HmrcConnectionInput,
   HmrcConnectionStatus,
+  HmrcFraudValidationStatus,
+  HmrcQuarterlyPreparation,
+  HmrcSubmissionAttempt,
   HmrcSyncInput,
   IntegrationStatus,
   InternalBillingCatalog,
@@ -114,6 +118,7 @@ import type {
   ReceptionistTopUpPackList,
   RecordProposalView200,
   RecordWidgetHeartbeat202,
+  SubmitHmrcSandboxPreparationBody,
   TimelinePage,
   UpdateInternalBillingCatalogItemBody,
   UploadEnquiryAttachmentBody,
@@ -8555,4 +8560,367 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getDeleteJobFinanceAllocationMutationOptions(options));
+    }
+
+export const getListHmrcQuarterlyPreparationsUrl = () => {
+
+
+
+
+  return `/api/finance/hmrc/preparations`
+}
+
+export const listHmrcQuarterlyPreparations = async ( options?: Parameters<typeof customFetch>[1]): Promise<HmrcQuarterlyPreparation[]> => {
+
+  return customFetch<HmrcQuarterlyPreparation[]>(getListHmrcQuarterlyPreparationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListHmrcQuarterlyPreparationsQueryKey = () => {
+    return [
+    `/api/finance/hmrc/preparations`
+    ] as const;
+    }
+
+
+export const getListHmrcQuarterlyPreparationsQueryOptions = <TData = Awaited<ReturnType<typeof listHmrcQuarterlyPreparations>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listHmrcQuarterlyPreparations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListHmrcQuarterlyPreparationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listHmrcQuarterlyPreparations>>> = ({ signal }) => listHmrcQuarterlyPreparations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listHmrcQuarterlyPreparations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListHmrcQuarterlyPreparationsQueryResult = NonNullable<Awaited<ReturnType<typeof listHmrcQuarterlyPreparations>>>
+export type ListHmrcQuarterlyPreparationsQueryError = ErrorType<unknown>
+
+
+
+export function useListHmrcQuarterlyPreparations<TData = Awaited<ReturnType<typeof listHmrcQuarterlyPreparations>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listHmrcQuarterlyPreparations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListHmrcQuarterlyPreparationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateHmrcQuarterlyPreparationUrl = () => {
+
+
+
+
+  return `/api/finance/hmrc/preparations`
+}
+
+/**
+ * @summary Prepare an Income Tax MTD sandbox quarter from confirmed finance records
+ */
+export const createHmrcQuarterlyPreparation = async (createHmrcQuarterlyPreparationBody: CreateHmrcQuarterlyPreparationBody, options?: Parameters<typeof customFetch>[1]): Promise<HmrcQuarterlyPreparation> => {
+
+  return customFetch<HmrcQuarterlyPreparation>(getCreateHmrcQuarterlyPreparationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createHmrcQuarterlyPreparationBody)
+  }
+);}
+
+
+
+
+
+export const getCreateHmrcQuarterlyPreparationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createHmrcQuarterlyPreparation>>, TError,{data: BodyType<CreateHmrcQuarterlyPreparationBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createHmrcQuarterlyPreparation>>, TError,{data: BodyType<CreateHmrcQuarterlyPreparationBody>}, TContext> => {
+
+const mutationKey = ['createHmrcQuarterlyPreparation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createHmrcQuarterlyPreparation>>, {data: BodyType<CreateHmrcQuarterlyPreparationBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createHmrcQuarterlyPreparation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateHmrcQuarterlyPreparationMutationResult = NonNullable<Awaited<ReturnType<typeof createHmrcQuarterlyPreparation>>>
+    export type CreateHmrcQuarterlyPreparationMutationBody = BodyType<CreateHmrcQuarterlyPreparationBody>
+    export type CreateHmrcQuarterlyPreparationMutationError = ErrorType<void>
+
+    /**
+ * @summary Prepare an Income Tax MTD sandbox quarter from confirmed finance records
+ */
+export const useCreateHmrcQuarterlyPreparation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createHmrcQuarterlyPreparation>>, TError,{data: BodyType<CreateHmrcQuarterlyPreparationBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createHmrcQuarterlyPreparation>>,
+        TError,
+        {data: BodyType<CreateHmrcQuarterlyPreparationBody>},
+        TContext
+      > => {
+      return useMutation(getCreateHmrcQuarterlyPreparationMutationOptions(options));
+    }
+
+export const getListHmrcSandboxSubmissionAttemptsUrl = () => {
+
+
+
+
+  return `/api/finance/hmrc/submissions`
+}
+
+/**
+ * @summary List tenant-scoped Income Tax MTD sandbox submission attempts
+ */
+export const listHmrcSandboxSubmissionAttempts = async ( options?: Parameters<typeof customFetch>[1]): Promise<HmrcSubmissionAttempt[]> => {
+
+  return customFetch<HmrcSubmissionAttempt[]>(getListHmrcSandboxSubmissionAttemptsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListHmrcSandboxSubmissionAttemptsQueryKey = () => {
+    return [
+    `/api/finance/hmrc/submissions`
+    ] as const;
+    }
+
+
+export const getListHmrcSandboxSubmissionAttemptsQueryOptions = <TData = Awaited<ReturnType<typeof listHmrcSandboxSubmissionAttempts>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listHmrcSandboxSubmissionAttempts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListHmrcSandboxSubmissionAttemptsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listHmrcSandboxSubmissionAttempts>>> = ({ signal }) => listHmrcSandboxSubmissionAttempts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listHmrcSandboxSubmissionAttempts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListHmrcSandboxSubmissionAttemptsQueryResult = NonNullable<Awaited<ReturnType<typeof listHmrcSandboxSubmissionAttempts>>>
+export type ListHmrcSandboxSubmissionAttemptsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List tenant-scoped Income Tax MTD sandbox submission attempts
+ */
+
+export function useListHmrcSandboxSubmissionAttempts<TData = Awaited<ReturnType<typeof listHmrcSandboxSubmissionAttempts>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listHmrcSandboxSubmissionAttempts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListHmrcSandboxSubmissionAttemptsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitHmrcSandboxPreparationUrl = (id: number,) => {
+
+
+
+
+  return `/api/finance/hmrc/preparations/${id}/submit`
+}
+
+/**
+ * Returns unavailable unless verified gateway evidence is configured; never reports success without an HMRC reference.
+ * @summary Submit a human-reviewed Income Tax MTD preparation through the configured sandbox gateway
+ */
+export const submitHmrcSandboxPreparation = async (id: number,
+    submitHmrcSandboxPreparationBody: SubmitHmrcSandboxPreparationBody, options?: Parameters<typeof customFetch>[1]): Promise<HmrcSubmissionAttempt> => {
+
+  return customFetch<HmrcSubmissionAttempt>(getSubmitHmrcSandboxPreparationUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(submitHmrcSandboxPreparationBody)
+  }
+);}
+
+
+
+
+
+export const getSubmitHmrcSandboxPreparationMutationOptions = <TError = ErrorType<HmrcSubmissionAttempt>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>, TError,{id: number;data: BodyType<SubmitHmrcSandboxPreparationBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>, TError,{id: number;data: BodyType<SubmitHmrcSandboxPreparationBody>}, TContext> => {
+
+const mutationKey = ['submitHmrcSandboxPreparation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>, {id: number;data: BodyType<SubmitHmrcSandboxPreparationBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  submitHmrcSandboxPreparation(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitHmrcSandboxPreparationMutationResult = NonNullable<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>>
+    export type SubmitHmrcSandboxPreparationMutationBody = BodyType<SubmitHmrcSandboxPreparationBody>
+    export type SubmitHmrcSandboxPreparationMutationError = ErrorType<HmrcSubmissionAttempt>
+
+    /**
+ * @summary Submit a human-reviewed Income Tax MTD preparation through the configured sandbox gateway
+ */
+export const useSubmitHmrcSandboxPreparation = <TError = ErrorType<HmrcSubmissionAttempt>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>, TError,{id: number;data: BodyType<SubmitHmrcSandboxPreparationBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitHmrcSandboxPreparation>>,
+        TError,
+        {id: number;data: BodyType<SubmitHmrcSandboxPreparationBody>},
+        TContext
+      > => {
+      return useMutation(getSubmitHmrcSandboxPreparationMutationOptions(options));
+    }
+
+export const getValidateHmrcSandboxFraudHeadersUrl = () => {
+
+
+
+
+  return `/api/finance/hmrc/fraud-header-validation`
+}
+
+/**
+ * @summary Validate sandbox fraud headers through the controlled gateway
+ */
+export const validateHmrcSandboxFraudHeaders = async ( options?: Parameters<typeof customFetch>[1]): Promise<HmrcFraudValidationStatus> => {
+
+  return customFetch<HmrcFraudValidationStatus>(getValidateHmrcSandboxFraudHeadersUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getValidateHmrcSandboxFraudHeadersMutationOptions = <TError = ErrorType<HmrcFraudValidationStatus>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>, TError,void, TContext> => {
+
+const mutationKey = ['validateHmrcSandboxFraudHeaders'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>, void> = () => {
+
+
+          return  validateHmrcSandboxFraudHeaders(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ValidateHmrcSandboxFraudHeadersMutationResult = NonNullable<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>>
+
+    export type ValidateHmrcSandboxFraudHeadersMutationError = ErrorType<HmrcFraudValidationStatus>
+
+    /**
+ * @summary Validate sandbox fraud headers through the controlled gateway
+ */
+export const useValidateHmrcSandboxFraudHeaders = <TError = ErrorType<HmrcFraudValidationStatus>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof validateHmrcSandboxFraudHeaders>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getValidateHmrcSandboxFraudHeadersMutationOptions(options));
     }

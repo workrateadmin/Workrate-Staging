@@ -1,12 +1,15 @@
-# HMRC sandbox read-only setup
+# HMRC Income Tax MTD sandbox setup
 
-WorkRate's HMRC integration is intentionally sandbox-only. It authorises
-`read:self-assessment` and only retrieves:
+WorkRate's HMRC integration is intentionally sandbox-only. Its proven path
+authorises `read:self-assessment` and retrieves:
 
 - Business Details MTD API v2
 - Obligations MTD API v3
 
-It cannot create submissions, update obligations, or use the live HMRC API.
+WorkRate can also prepare obligation-bound quarterly figures and persist
+human-reviewed sandbox submission attempts. Outbound submission remains
+fail-closed until the controlled HMRC gateway and truthful fraud-prevention
+evidence are configured. It cannot use the live HMRC API.
 
 ## Required secure settings
 
@@ -95,6 +98,23 @@ evidence is ready.
   request in addition to Clerk authentication.
 
 ## Test API
+
+## Controlled sandbox gateway contract
+
+Quarterly submission remains unavailable by default. When the controlled edge is
+provisioned, the application requires both `HMRC_SANDBOX_GATEWAY_URL` (an HTTPS
+URL) and `HMRC_SANDBOX_GATEWAY_HMAC_SECRET`. The server sends only a
+server-to-server, HMAC-SHA256 authenticated request with an idempotency key;
+neither the browser nor logs receive HMRC tokens, taxpayer identifiers, browser
+evidence, or the submission payload. The gateway must be sandbox-only and must
+respond with JSON `{ "confirmed": true, "reference": "..." }` only after HMRC
+has accepted the submission. Any non-2xx response, malformed response, missing
+reference, timeout, or absent configuration is persisted as a safe
+`retry_required` failure and never shown as submitted.
+
+The fraud-header validator endpoint currently returns explicit `unavailable`
+until this same gateway can provide request-specific controlled-edge evidence.
+It never claims a validation took place based on OAuth or configuration alone.
 
 Use the HMRC fraud-prevention Test API and sandbox test users before any
 end-to-end trial. `Gov-Test-Scenario` is not set by WorkRate's normal routes;

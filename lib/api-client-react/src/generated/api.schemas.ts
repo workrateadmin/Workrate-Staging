@@ -5,6 +5,91 @@
  * WorkRate API specification
  * OpenAPI spec version: 0.1.0
  */
+export type HmrcFraudValidationStatusStatus = typeof HmrcFraudValidationStatusStatus[keyof typeof HmrcFraudValidationStatusStatus];
+
+
+export const HmrcFraudValidationStatusStatus = {
+  validated: 'validated',
+  unavailable: 'unavailable',
+} as const;
+
+export interface HmrcFraudValidationStatus {
+  status: HmrcFraudValidationStatusStatus;
+  /** @nullable */
+  message: string | null;
+}
+
+export interface HmrcPreparationWarnings {
+  unreviewedExpenseIds: number[];
+  missingEvidenceExpenseIds: number[];
+  uncategorisedExpenseIds: number[];
+  unsupportedExpenseIds: number[];
+  potentialDuplicateExpenseIds: number[];
+}
+
+export type HmrcQuarterlyFiguresExpenseCategoriesItem = {
+  category: string;
+  amount: number;
+};
+
+export interface HmrcQuarterlyFigures {
+  incomeTotal: number;
+  expenseTotal: number;
+  netProfit: number;
+  expenseCategories: HmrcQuarterlyFiguresExpenseCategoriesItem[];
+  includedIncomeIds: number[];
+  includedExpenseIds: number[];
+  warnings: HmrcPreparationWarnings;
+  readyForSubmission: boolean;
+}
+
+export interface HmrcQuarterlyPreparation {
+  id: number;
+  obligationKey: string;
+  businessId: string;
+  businessType: string;
+  /** @nullable */
+  dueDate?: string | null;
+  obligationStatus: string;
+  periodStart: string;
+  periodEnd: string;
+  figures: HmrcQuarterlyFigures;
+  payloadHash: string;
+  status: string;
+}
+
+export type HmrcSubmissionAttemptStatus = typeof HmrcSubmissionAttemptStatus[keyof typeof HmrcSubmissionAttemptStatus];
+
+
+export const HmrcSubmissionAttemptStatus = {
+  pending: 'pending',
+  submitted: 'submitted',
+  retry_required: 'retry_required',
+  failed: 'failed',
+} as const;
+
+/**
+ * @nullable
+ */
+export type HmrcSubmissionAttemptSafeResponse = { [key: string]: unknown } | null;
+
+export interface HmrcSubmissionAttempt {
+  id: number;
+  preparationId: number;
+  idempotencyKey: string;
+  status: HmrcSubmissionAttemptStatus;
+  payloadHash: string;
+  /** @nullable */
+  hmrcReference?: string | null;
+  /** @nullable */
+  safeResponse?: HmrcSubmissionAttemptSafeResponse;
+  /** @nullable */
+  safeError?: string | null;
+  attemptedAt: string;
+  /** @nullable */
+  completedAt?: string | null;
+}
+
 export type TimelineEventCategory = typeof TimelineEventCategory[keyof typeof TimelineEventCategory];
 
 
@@ -1715,4 +1800,16 @@ export type ListMaterialsParams = {
 search?: string;
 limit?: number;
 offset?: number;
+};
+
+export type CreateHmrcQuarterlyPreparationBody = {
+  obligationKey: string;
+  periodStart: string;
+  periodEnd: string;
+};
+
+export type SubmitHmrcSandboxPreparationBody = {
+  declaration: true;
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  idempotencyKey: string;
 };

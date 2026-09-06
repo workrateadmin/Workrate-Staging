@@ -7,8 +7,13 @@ import {
   companiesTable,
   db,
   financeAuditEventsTable,
+  financeExpensesTable,
+  financeIncomeRecordsTable,
+  financeReceiptsTable,
   hmrcConnectionsTable,
   hmrcOauthStatesTable,
+  hmrcQuarterlyPreparationsTable,
+  hmrcSubmissionAttemptsTable,
 } from "@workspace/db";
 import {
   createAuthorizationUrl,
@@ -29,6 +34,8 @@ import {
   type HmrcSandboxConfig,
   type StoredFraudContext,
 } from "../lib/hmrc";
+import { canonicalObligationKey, prepareQuarterlyFigures } from "../lib/hmrc-quarterly-preparation";
+import { validateFraudHeadersViaGateway } from "../lib/hmrc-gateway";
 import { claimHmrcOauthState } from "../lib/hmrc-oauth-state";
 import { hmrcClientIp, requireHmrcSameOrigin } from "../lib/hmrc-security";
 import { requireBillingFeature } from "../services/billing/authorization";
@@ -64,6 +71,15 @@ const connectSchema = z.object({
 const syncSchema = z.object({
   browserContext: browserContextSchema,
 });
+const preparationSchema = z.object({
+  obligationKey: z.string().min(1).max(300),
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+}).refine((value) => value.periodStart <= value.periodEnd, "Period start must be on or before period end.");
+const submitSchema = z.object({
+  declaration: z.literal(true, { error: "A human declaration is required before sandbox submission." }),
+  idempotencyKey: z.string().uuid(),
+});
 
 type HmrcBusinesses = {
   listOfBusinesses?: Array<{
@@ -87,6 +103,24 @@ type HmrcObligations = {
     }>;
   }>;
 };
+type CachedObligation = {
+  businessId: string; businessType: string; periodStartDate: string; periodEndDate: string; dueDate?: string; status?: string;
+};
+function cachedObligation(connection: typeof hmrcConnectionsTable.$inferSelect | null, key: string): CachedObligation | null {
+  for (const group of (connection?.obligations as HmrcObligations | null)?.obligations ?? []) {
+    for (const detail of group.obligationDetails ?? []) {
+      if (group.businessId && group.typeOfBusiness && detail.periodStartDate && detail.periodEndDate) {
+        const value: CachedObligation = {
+          businessId: group.businessId, businessType: group.typeOfBusiness,
+          periodStartDate: detail.periodStartDate, periodEndDate: detail.periodEndDate,
+          dueDate: detail.dueDate, status: detail.status,
+        };
+        if (canonicalObligationKey(value) === key) return value;
+      }
+    }
+  }
+  return null;
+}
 
 const requireAuth = (req: any, res: any, next: any) => {
   const auth = getAuth(req);
@@ -234,7 +268,16 @@ async function accessTokenFor(
     config,
     `connection:${connection.companyId}:refresh-token`,
   );
-  const tokens = await refreshAccessToken(config, refreshToken);
+  let tokens;
+  try {
+    tokens = await refreshAccessToken(config, refreshToken);
+  } catch {
+    await db.update(hmrcConnectionsTable).set({
+      status: "reconnect_required",
+      lastError: "HMRC access could not be refreshed. Reconnect the sandbox account.",
+    }).where(eq(hmrcConnectionsTable.id, connection.id));
+    throw new Error("HMRC access could not be refreshed. Reconnect the sandbox account.");
+  }
   const [updated] = await db.update(hmrcConnectionsTable).set({
     encryptedAccessToken: encryptHmrcValue(
       tokens.access_token!,
@@ -513,6 +556,89 @@ router.post("/finance/hmrc/sync", requireAuth, requireBillingFeature("advanced_f
     req.log.warn({ companyId: company.id }, "HMRC sandbox sync failed");
     res.status(422).json({ error: message });
   }
+});
+
+// Income Tax MTD preparation only: it is intentionally separate from VAT and
+// corporation tax. The cached HMRC obligation is the authoritative period list.
+router.post("/finance/hmrc/preparations", requireAuth, requireBillingFeature("advanced_finance_mtd"), requireHmrcSameOrigin, async (req, res): Promise<void> => {
+  const parsed = preparationSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid quarterly period." }); return; }
+  const { userId } = getAuth(req);
+  const company = await businessFor(userId!);
+  if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  const connection = await storedConnection(company.id, userId!);
+  const obligation = cachedObligation(connection, parsed.data.obligationKey);
+  if (!obligation || obligation.periodStartDate !== parsed.data.periodStart || obligation.periodEndDate !== parsed.data.periodEnd || obligation.status?.toLowerCase() === "fulfilled") {
+    res.status(409).json({ error: "This outstanding HMRC obligation is not available for preparation." }); return;
+  }
+  const [expenses, income, receipts] = await Promise.all([
+    db.select().from(financeExpensesTable).where(and(eq(financeExpensesTable.companyId, company.id), eq(financeExpensesTable.ownerUserId, userId!))),
+    db.select().from(financeIncomeRecordsTable).where(and(eq(financeIncomeRecordsTable.companyId, company.id), eq(financeIncomeRecordsTable.ownerUserId, userId!))),
+    db.select({ expenseId: financeReceiptsTable.expenseId }).from(financeReceiptsTable).where(and(eq(financeReceiptsTable.companyId, company.id), eq(financeReceiptsTable.ownerUserId, userId!))),
+  ]);
+  const prepared = prepareQuarterlyFigures({
+    ...parsed.data,
+    expenses,
+    income,
+    receiptExpenseIds: new Set(receipts.map((receipt) => receipt.expenseId)),
+  });
+  const existing = await db.select().from(hmrcQuarterlyPreparationsTable).where(and(
+    eq(hmrcQuarterlyPreparationsTable.companyId, company.id),
+    eq(hmrcQuarterlyPreparationsTable.obligationKey, parsed.data.obligationKey),
+  )).limit(1);
+  const values = { periodStart: parsed.data.periodStart, periodEnd: parsed.data.periodEnd, businessId: obligation.businessId, businessType: obligation.businessType, dueDate: obligation.dueDate ?? null, obligationStatus: obligation.status ?? "outstanding", figures: prepared.figures, payloadHash: prepared.payloadHash, status: "prepared", declarationText: null, reviewedByUserId: null, reviewedAt: null };
+  const [record] = existing[0]
+    ? await db.update(hmrcQuarterlyPreparationsTable).set(values).where(eq(hmrcQuarterlyPreparationsTable.id, existing[0].id)).returning()
+    : await db.insert(hmrcQuarterlyPreparationsTable).values({ companyId: company.id, ownerUserId: userId!, obligationKey: parsed.data.obligationKey, ...values }).returning();
+  await writeAudit({ companyId: company.id, ownerUserId: userId!, entityId: record.id, action: "quarterly_prepared", afterData: { obligationKey: record.obligationKey, payloadHash: record.payloadHash } });
+  res.status(201).json({ ...record, notice: "MTD preparation only. Production filing is not enabled." });
+});
+
+router.get("/finance/hmrc/preparations", requireAuth, requireBillingFeature("advanced_finance_mtd"), async (req, res): Promise<void> => {
+  const { userId } = getAuth(req); const company = await businessFor(userId!);
+  if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  res.json(await db.select().from(hmrcQuarterlyPreparationsTable).where(and(eq(hmrcQuarterlyPreparationsTable.companyId, company.id), eq(hmrcQuarterlyPreparationsTable.ownerUserId, userId!))));
+});
+
+router.get("/finance/hmrc/submissions", requireAuth, requireBillingFeature("advanced_finance_mtd"), async (req, res): Promise<void> => {
+  const { userId } = getAuth(req); const company = await businessFor(userId!);
+  if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  const submissions = await db.select().from(hmrcSubmissionAttemptsTable).where(and(eq(hmrcSubmissionAttemptsTable.companyId, company.id), eq(hmrcSubmissionAttemptsTable.ownerUserId, userId!)));
+  res.json(submissions);
+});
+
+router.post("/finance/hmrc/preparations/:id/submit", requireAuth, requireBillingFeature("advanced_finance_mtd"), requireHmrcSameOrigin, async (req, res): Promise<void> => {
+  const parsed = submitSchema.safeParse(req.body);
+  const preparationId = Number(req.params.id);
+  if (!parsed.success || !Number.isInteger(preparationId)) { res.status(400).json({ error: parsed.success ? "Invalid preparation id." : parsed.error.issues[0]?.message }); return; }
+  const { userId } = getAuth(req); const company = await businessFor(userId!);
+  if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  const [preparation] = await db.select().from(hmrcQuarterlyPreparationsTable).where(and(eq(hmrcQuarterlyPreparationsTable.id, preparationId), eq(hmrcQuarterlyPreparationsTable.companyId, company.id), eq(hmrcQuarterlyPreparationsTable.ownerUserId, userId!))).limit(1);
+  if (!preparation) { res.status(404).json({ error: "Quarterly preparation not found" }); return; }
+  const [prior] = await db.select().from(hmrcSubmissionAttemptsTable).where(and(eq(hmrcSubmissionAttemptsTable.companyId, company.id), eq(hmrcSubmissionAttemptsTable.idempotencyKey, parsed.data.idempotencyKey))).limit(1);
+  if (prior) { if (prior.preparationId !== preparation.id || prior.payloadHash !== preparation.payloadHash) { res.status(409).json({ error: "Idempotency key belongs to another preparation or payload." }); return; } res.json(prior); return; }
+  const connection = await storedConnection(company.id, userId!);
+  const obligation = cachedObligation(connection, preparation.obligationKey);
+  if (!connection || !obligation || obligation.status?.toLowerCase() === "fulfilled" || obligation.businessId !== preparation.businessId || obligation.businessType !== preparation.businessType) {
+    res.status(409).json({ error: "The current HMRC obligation is no longer outstanding for this preparation." }); return;
+  }
+  const figures = preparation.figures as { readyForSubmission?: boolean };
+  if (!figures.readyForSubmission) { res.status(422).json({ error: "Unreviewed, unsupported, uncategorised, or potentially duplicate expenses must be resolved before submission." }); return; }
+  // A gateway is deliberately not inferred from Replit headers. No outbound
+  // request is possible until controlled edge evidence/configuration exists.
+  const [attempt] = await db.insert(hmrcSubmissionAttemptsTable).values({
+    companyId: company.id, ownerUserId: userId!, preparationId: preparation.id,
+    idempotencyKey: parsed.data.idempotencyKey, payloadHash: preparation.payloadHash,
+    status: "retry_required", safeError: "HMRC sandbox gateway is unavailable until controlled edge evidence is configured.", completedAt: new Date(),
+  }).returning();
+  await writeAudit({ companyId: company.id, ownerUserId: userId!, entityId: preparation.id, action: "human_declaration_recorded", afterData: { preparationId: preparation.id } });
+  await writeAudit({ companyId: company.id, ownerUserId: userId!, entityId: attempt.id, action: "sandbox_submission_blocked", afterData: { preparationId: preparation.id, status: attempt.status } });
+  res.status(503).json({ ...attempt, error: attempt.safeError });
+});
+
+router.post("/finance/hmrc/fraud-header-validation", requireAuth, requireBillingFeature("advanced_finance_mtd"), requireHmrcSameOrigin, async (_req, res): Promise<void> => {
+  const result = await validateFraudHeadersViaGateway();
+  res.status(result.confirmed ? 200 : 503).json({ status: result.confirmed ? "validated" : "unavailable", message: result.safeError ?? null });
 });
 
 router.delete("/finance/hmrc", requireAuth, requireBillingFeature("advanced_finance_mtd"), requireHmrcSameOrigin, async (req, res): Promise<void> => {

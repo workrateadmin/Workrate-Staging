@@ -8,6 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "test:hmrc-security": "node ./test/build-and-run-hmrc-security-tests.mjs",
+    "test:hmrc-quarterly-preparation": "node ./test/build-and-run-hmrc-quarterly-preparation-tests.mjs",
     "test:finance-validation": "node ./test/build-and-run-finance-validation-tests.mjs",
     "test:invoice-pdf": "node ./test/build-and-run-invoice-pdf-tests.mjs",
     "test:vapi-security": "node ./test/build-and-run-vapi-security-tests.mjs",

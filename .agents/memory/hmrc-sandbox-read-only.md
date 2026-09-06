@@ -1,12 +1,12 @@
 ---
-name: HMRC sandbox read-only
-description: Security and operational constraints for the tenant-bound HMRC sandbox read-only integration.
+name: HMRC sandbox and fraud boundary
+description: Security and operational constraints for tenant-bound Income Tax MTD preparation and sandbox traffic.
 ---
 
-HMRC access is sandbox-only and read-only: constrain the API host to the test
-origin, request only `read:self-assessment`, and use only read endpoints for
-business details and obligations. Never reuse the generic integrations store
-for HMRC secrets.
+HMRC access is sandbox-only: constrain the API host to the test origin and never
+reuse the generic integrations store for HMRC secrets. Business/obligation reads
+and obligation-bound preparation may run in WorkRate, but outbound updates stay
+disabled until a controlled gateway can satisfy the fraud-prevention boundary.
 
 **Why:** HMRC tokens, taxpayer identifiers, PKCE material, and fraud-prevention
 evidence are more sensitive than the plaintext generic integration config. A
@@ -22,6 +22,20 @@ explicit trusted proxy CIDRs before accepting forwarded client IP information;
 if a required source cannot be obtained or HMRC has not approved its omission,
 fail the sync rather than inventing a value. Keep credential actions same-origin
 and protect against cross-origin requests.
+
+Quarterly preparation and review are not proof of filing. A submission attempt
+must remain blocked or retry-required unless HMRC sandbox explicitly confirms
+acceptance and returns a reference. Human declaration, deterministic payload
+hashing, tenant-scoped idempotency, and persisted attempt history are mandatory.
+
+**Why:** OAuth success and locally valid totals say nothing about whether the
+required per-request network evidence was truthful or whether HMRC accepted an
+update.
+
+**How to apply:** Bind each preparation to the exact cached business and
+obligation period. Exclude unreviewed, unsupported, and potentially duplicate
+transactions. Never show `submitted` from configuration, HTTP reachability, or
+an unverified gateway response.
 
 For `WEB_APP_VIA_SERVER`, do not model `Gov-Vendor-Forwarded`,
 `Gov-Vendor-Public-IP`, or `Gov-Vendor-Version` as manually entered static
