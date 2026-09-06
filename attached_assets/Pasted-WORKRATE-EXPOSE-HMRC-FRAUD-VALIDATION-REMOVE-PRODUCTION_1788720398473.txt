@@ -1,0 +1,284 @@
+WORKRATE — EXPOSE HMRC FRAUD VALIDATION + REMOVE PRODUCTION TEST SHORTCUT
+
+CURRENT PUBLISHED STATE:
+
+HMRC / MTD Gateway Status currently shows:
+
+- Gateway connected
+- Gateway URL: https://hmrc-gateway.work-rate.uk
+- Environment: sandbox
+- Gateway readiness: Ready
+- Public IP: 67.207.68.112
+- Fraud status: unavailable
+- Last validation: Never
+- Missing headers: None
+- HMRC connectivity: unknown
+- Dynamic submission: unavailable
+- Version: 1.0.0
+
+Also visible in production:
+
+“WorkRateAppTesting shortcut is active in production. Enquiries created by it are flagged TEST”
+
+GOAL:
+
+1. Expose the existing real HMRC fraud-header validation action in the published app.
+2. Keep it authorized and sandbox-only.
+3. Remove/disable the WorkRateAppTesting shortcut from production.
+4. Do NOT submit any quarterly update yet.
+5. Do NOT contact HMRC production.
+6. Do NOT publish automatically.
+
+==================================================
+1. AUDIT EXISTING VALIDATION FLOW
+==================================================
+
+Inspect the existing:
+
+- browser attestation flow
+- gateway attestation endpoint
+- WorkRate backend validation route
+- gateway fraud-validation route
+- HMRC Fraud Prevention Headers sandbox test endpoint
+- generated client hooks/contracts
+
+Reuse the existing implementation.
+
+Do NOT create a second validation system.
+
+==================================================
+2. EXPOSE THE VALIDATION ACTION
+==================================================
+
+Add a clear action to the published owner/admin UI.
+
+Preferred location:
+
+Settings → Advanced → Diagnostics → HMRC / MTD
+
+Button label:
+
+“Validate fraud headers”
+
+The action should only be visible to an authorized tenant owner/admin or WorkRate platform admin according to the current diagnostics authorization model.
+
+==================================================
+3. VALIDATION FLOW
+==================================================
+
+When clicked:
+
+1. obtain genuine browser attestation from:
+   https://hmrc-gateway.work-rate.uk
+
+2. gateway must directly observe the real browser connection evidence
+
+3. bind attestation to:
+   - current authenticated Clerk session
+   - WorkRate tenant/company
+   - browser evidence
+   - short expiry
+
+4. browser sends only the opaque attestation to WorkRate
+
+5. WorkRate calls the gateway using the existing HMAC-authenticated server contract
+
+6. gateway validates:
+   - HMAC
+   - timestamp
+   - nonce/replay protection
+   - attestation
+   - tenant/session binding
+
+7. gateway builds the canonical HMRC fraud-header set
+
+8. gateway calls HMRC SANDBOX Fraud Prevention Headers validation endpoint
+
+9. return only a normalized safe result to WorkRate
+
+==================================================
+4. UI STATES
+==================================================
+
+Show:
+
+NOT RUN
+RUNNING
+PASS
+WARNING
+FAIL
+UNAVAILABLE
+
+Also show:
+
+- last validation timestamp
+- safe list of missing/invalid header names
+- retry action
+- HMRC sandbox connectivity state
+- dynamic submission readiness
+
+Do NOT show:
+
+- HMAC secret
+- attestation secret
+- HMRC client secret
+- access token
+- refresh token
+- NINO
+- raw IP/source-port telemetry
+- raw Authorization headers
+- raw taxpayer payloads
+
+==================================================
+5. SANDBOX ONLY
+==================================================
+
+Validation must remain pinned to:
+
+https://test-api.service.hmrc.gov.uk
+
+Reject:
+- production HMRC
+- caller-supplied target hosts
+- arbitrary proxying
+
+==================================================
+6. DO NOT SUBMIT TAX DATA
+==================================================
+
+This task is ONLY:
+
+browser attestation
++
+fraud-header validation
+
+Do NOT submit a quarterly update.
+
+Even if validation passes, stop before submission and report readiness.
+
+==================================================
+7. REMOVE PRODUCTION TEST SHORTCUT
+==================================================
+
+The published app currently exposes:
+
+“WorkRateAppTesting shortcut is active in production. Enquiries created by it are flagged TEST”
+
+This must not remain in customer production.
+
+Audit how WorkRateAppTesting is enabled.
+
+Desired behavior:
+
+DEVELOPMENT:
+may be enabled if useful
+
+STAGING:
+may be enabled if explicitly configured
+
+PRODUCTION:
+disabled by default and not visible to customers
+
+Do not delete useful internal test tooling if it can be safely environment-gated.
+
+Use WORKRATE_ENV or the current environment model.
+
+In production:
+- hide/remove the testing shortcut
+- block its backend test-only actions where applicable
+- do not allow arbitrary browser toggling to re-enable it
+
+==================================================
+8. AUTHORIZATION
+==================================================
+
+Preserve the current safe diagnostics model:
+
+Allowed:
+- tenant owner for own tenant
+- authorized WorkRate platform admin
+
+Denied:
+- unauthenticated user
+- normal non-owner tenant user
+- wrong tenant
+
+Do not weaken this.
+
+==================================================
+9. TESTING
+==================================================
+
+Verify:
+
+HMRC:
+- authorized owner can see validation button
+- unauthorized user cannot
+- real published browser attestation succeeds
+- dev preview origin remains blocked unless intentionally added later
+- correct HMAC accepted
+- bad HMAC rejected
+- stale request rejected
+- replay rejected
+- invalid attestation rejected
+- expired attestation rejected
+- wrong tenant/session binding rejected
+- sandbox host pinned
+- no production HMRC call
+
+UI:
+- NOT RUN renders
+- RUNNING renders
+- PASS renders
+- WARNING renders
+- FAIL renders
+- UNAVAILABLE renders
+- last validation updates
+- missing header names display safely
+
+TEST SHORTCUT:
+- absent in production
+- backend production guard enforced
+- still available in dev/staging only if intentionally configured
+
+==================================================
+10. LIVE VALIDATION
+==================================================
+
+After implementation, if the current published browser session can safely execute the validation:
+
+run ONE genuine sandbox fraud-header validation.
+
+Do NOT fabricate success.
+
+Return the actual normalized result:
+
+PASS
+WARNING
+FAIL
+or UNAVAILABLE
+
+and any safe missing/invalid header names.
+
+If a new publish is required before a genuine browser validation can run, report that and stop.
+
+==================================================
+11. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. where the validation button was added
+B. exact existing route/hook reused
+C. browser attestation result
+D. HMAC result
+E. HMRC fraud-validation result
+F. missing/invalid headers
+G. HMRC connectivity state
+H. dynamic submission readiness
+I. production test-shortcut fix
+J. security tests passed
+K. whether one publish is required
+L. exact next step
+
+Do not publish automatically.

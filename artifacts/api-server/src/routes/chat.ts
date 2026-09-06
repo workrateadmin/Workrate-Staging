@@ -18,6 +18,7 @@ import {
 } from "@workspace/api-zod";
 import OpenAI from "openai";
 import { generateAndSaveSummary } from "../utils/generate-summary.js";
+import { areTestShortcutsEnabled } from "../services/testing/shortcuts";
 
 const router: IRouter = Router();
 
@@ -597,7 +598,7 @@ router.post("/chat/:token/message", async (req, res): Promise<void> => {
   // Bypasses the AI Q&A and submits a complete test enquiry through the real
   // production pipeline (DB save, AI summary, confirmation email, dashboard).
   // Exact-match only — never exposed in the chat UI or docs.
-  if (body.data.content.trim() === "WorkRateAppTesting") {
+  if (areTestShortcutsEnabled() && body.data.content.trim() === "WorkRateAppTesting") {
     const testExtracted = {
       customerName: "[TEST] WorkRate Test",
       customerEmail: "orhuntley@gmail.com",
@@ -643,7 +644,7 @@ router.post("/chat/:token/message", async (req, res): Promise<void> => {
   // for a real photo upload — which uses the full production storage pipeline.
   // After upload the enquiry auto-completes and the concept visual is offered.
   // Never advertised to customers. Exact-match only.
-  if (body.data.content.trim() === "WorkRateVisualTesting") {
+  if (areTestShortcutsEnabled() && body.data.content.trim() === "WorkRateVisualTesting") {
     const VISUAL_TEST_DESCRIPTION =
       "[TEST ENQUIRY — VISUAL TEST] Wall-to-wall fitted wardrobes, " +
       "3000mm wide x 2400mm high x 600mm deep. Shaker style doors, painted warm white, " +

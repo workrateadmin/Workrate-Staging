@@ -626,6 +626,14 @@ router.post("/finance/hmrc/attestation-grant", requireAuth, requireBillingFeatur
   const auth = getAuth(req);
   const company = await businessFor(auth.userId!);
   if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  if (!canAccessOwnerDiagnostics({
+    authenticatedUserId: auth.userId,
+    tenantOwnerUserId: company.ownerUserId,
+    isPlatformAdmin: isBillingAdmin(auth.userId),
+  })) {
+    res.status(403).json({ error: "Owner or administrator access is required." });
+    return;
+  }
   if (!auth.sessionId) { res.status(401).json({ error: "An active authenticated session is required." }); return; }
   try {
     res.json(createHmrcGatewayAttestationGrant({ userId: auth.userId!, companyId: company.id, sessionId: auth.sessionId }));
@@ -722,6 +730,14 @@ router.post("/finance/hmrc/fraud-header-validation", requireAuth, requireBilling
   const auth = getAuth(req);
   const company = await businessFor(auth.userId!);
   if (!company) { res.status(404).json({ error: "Business profile not found" }); return; }
+  if (!canAccessOwnerDiagnostics({
+    authenticatedUserId: auth.userId,
+    tenantOwnerUserId: company.ownerUserId,
+    isPlatformAdmin: isBillingAdmin(auth.userId),
+  })) {
+    res.status(403).json({ error: "Owner or administrator access is required." });
+    return;
+  }
   if (!auth.sessionId) { res.status(401).json({ error: "An active authenticated session is required." }); return; }
   const result = await validateFraudHeadersViaGateway({
     userId: auth.userId!, companyId: company.id, sessionId: auth.sessionId,

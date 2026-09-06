@@ -11,6 +11,7 @@
     "test:hmrc-quarterly-preparation": "node ./test/build-and-run-hmrc-quarterly-preparation-tests.mjs",
     "test:hmrc-gateway-client": "node ./test/build-and-run-hmrc-gateway-client-tests.mjs",
     "test:diagnostics-authorization": "node ./test/build-and-run-diagnostics-authorization-tests.mjs",
+    "test:test-shortcuts": "node ./test/build-and-run-test-shortcut-tests.mjs",
     "test:finance-validation": "node ./test/build-and-run-finance-validation-tests.mjs",
     "test:invoice-pdf": "node ./test/build-and-run-invoice-pdf-tests.mjs",
     "test:vapi-security": "node ./test/build-and-run-vapi-security-tests.mjs",

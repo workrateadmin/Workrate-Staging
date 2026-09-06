@@ -1,12 +1,17 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@workspace/memphis-bold/components/ui/card";
 import { Skeleton } from "@workspace/memphis-bold/components/ui/skeleton";
 import { Badge } from "@workspace/memphis-bold/components/ui/badge";
+import { Button } from "@workspace/memphis-bold/components/ui/button";
 import {
+  useCreateHmrcGatewayAttestationGrant,
   useGetHmrcSandboxGatewayStatus,
+  useValidateHmrcSandboxFraudHeaders,
   getGetHmrcSandboxGatewayStatusQueryKey,
 } from "@workspace/api-client-react";
-import type { HmrcGatewayStatus } from "@workspace/api-client-react";
+import type { HmrcFraudValidationStatus, HmrcGatewayStatus } from "@workspace/api-client-react";
+import { acquireHmrcGatewayAttestation } from "@/lib/hmrc-browser";
 import {
   Activity,
   Server,
@@ -26,6 +31,8 @@ import {
   RadioTower,
   AlertCircle,
   CheckCircle2,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 
 // ── WorkRate system diagnostics ────────────────────────────────────────────
@@ -69,10 +76,11 @@ function gatewayStatusVariant(
 }
 
 function fraudStatusVariant(
-  status: HmrcGatewayStatus["fraudPrevention"],
+  status: HmrcGatewayStatus["fraudPrevention"] | "not_run" | "running",
 ): "default" | "outline" | "destructive" | "secondary" {
   if (status === "pass") return "default";
   if (status === "warning") return "secondary";
+  if (status === "not_run" || status === "running") return "outline";
   return "destructive";
 }
 
@@ -123,6 +131,45 @@ function HmrcGatewaySection() {
   const { data, isLoading, error, refetch } = useGetHmrcSandboxGatewayStatus({
     query: { staleTime: 30_000, queryKey: getGetHmrcSandboxGatewayStatusQueryKey() },
   });
+  const createGrant = useCreateHmrcGatewayAttestationGrant();
+  const validateFraud = useValidateHmrcSandboxFraudHeaders();
+  const [validationResult, setValidationResult] = useState<HmrcFraudValidationStatus | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+
+  const validationStatus = isValidating
+    ? "running"
+    : validationResult?.status
+      ?? (data?.lastValidationAt ? data.fraudPrevention : "not_run");
+  const validationIssues = validationResult?.issues ?? data?.missingHeaders ?? [];
+
+  async function handleValidateFraudHeaders() {
+    setIsValidating(true);
+    setValidationResult(null);
+    try {
+      const { attestation, browserContext } = await acquireHmrcGatewayAttestation(
+        () => createGrant.mutateAsync(),
+      );
+      const result = await validateFraud.mutateAsync({
+        data: { browserContext, attestation },
+      });
+      setValidationResult(result);
+    } catch (err: any) {
+      const body = err?.response?.data ?? err?.data ?? null;
+      if (body?.status && ["unavailable", "fail", "warning"].includes(body.status)) {
+        setValidationResult(body as HmrcFraudValidationStatus);
+      } else {
+        setValidationResult({
+          status: "unavailable",
+          message: err?.message ?? "Fraud header validation could not be completed.",
+          checkedAt: new Date().toISOString(),
+          issues: [],
+        });
+      }
+    } finally {
+      setIsValidating(false);
+      await refetch();
+    }
+  }
 
   return (
     <Card className="shadow-sm border-border/60 rounded-2xl overflow-hidden">
@@ -132,11 +179,32 @@ function HmrcGatewaySection() {
             <ShieldAlert className="w-4 h-4 text-primary" />
             HMRC / MTD Gateway Status
           </CardTitle>
-          {data && (
-            <Badge variant={gatewayStatusVariant(data.gateway)}>
-              {data.gateway === "connected" ? "Gateway connected" : "Gateway unavailable"}
-            </Badge>
-          )}
+          <div className="flex items-center gap-2">
+            {data && (
+              <Badge variant={gatewayStatusVariant(data.gateway)}>
+                {data.gateway === "connected" ? "Gateway connected" : "Gateway unavailable"}
+              </Badge>
+            )}
+            {data && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-lg gap-1.5"
+                disabled={isValidating || createGrant.isPending || validateFraud.isPending || !data.ready}
+                onClick={() => void handleValidateFraudHeaders()}
+                data-testid="button-validate-fraud-headers"
+              >
+                {(isValidating || createGrant.isPending || validateFraud.isPending)
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                  : <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
+                {isValidating || createGrant.isPending || validateFraud.isPending
+                  ? "Validating…"
+                  : validationResult || data.lastValidationAt
+                    ? "Retry validation"
+                    : "Validate fraud headers"}
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -233,8 +301,12 @@ function HmrcGatewaySection() {
                 <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                 Fraud status
               </div>
-              <Badge variant={fraudStatusVariant(data.fraudPrevention)} className="capitalize">
-                {data.fraudPrevention}
+                <Badge
+                  variant={fraudStatusVariant(validationStatus)}
+                  className="uppercase"
+                  data-testid="status-hmrc-fraud-validation"
+                >
+                  {validationStatus.replace("_", " ")}
               </Badge>
             </div>
 
@@ -245,8 +317,8 @@ function HmrcGatewaySection() {
                 Last validation
               </div>
               <span className="text-sm font-medium text-foreground">
-                {data.lastValidationAt
-                  ? new Date(data.lastValidationAt).toLocaleString("en-GB", {
+                {validationResult?.checkedAt || data.lastValidationAt
+                  ? new Date(validationResult?.checkedAt ?? data.lastValidationAt!).toLocaleString("en-GB", {
                       dateStyle: "medium",
                       timeStyle: "short",
                     })
@@ -261,9 +333,9 @@ function HmrcGatewaySection() {
                 Missing headers
               </div>
               <span className="text-sm font-medium text-foreground">
-                {data.missingHeaders.length === 0
+                {validationIssues.length === 0
                   ? <span className="text-primary font-bold">None</span>
-                  : <span className="text-destructive font-bold font-mono text-xs">{data.missingHeaders.join(", ")}</span>}
+                  : <span className="text-destructive font-bold font-mono text-xs">{validationIssues.join(", ")}</span>}
               </span>
             </div>
 
@@ -309,6 +381,12 @@ function HmrcGatewaySection() {
               <div className="px-6 py-3.5 flex items-start gap-2">
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
                 <p className="text-xs text-muted-foreground font-medium">{data.message}</p>
+              </div>
+            )}
+            {validationResult?.message && (
+              <div className="px-6 py-3.5 flex items-start gap-2" data-testid="text-hmrc-validation-message">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
+                <p className="text-xs text-muted-foreground font-medium">{validationResult.message}</p>
               </div>
             )}
           </div>
@@ -448,11 +526,6 @@ export default function DiagnosticsPage() {
       {/* HMRC / MTD Gateway Status */}
       <HmrcGatewaySection />
 
-      {/* Footer note */}
-      <p className="text-xs text-muted-foreground/60 font-medium text-center">
-        WorkRateAppTesting shortcut is active in production. Enquiries created by it are
-        flagged TEST and can be bulk-deleted via DELETE /api/enquiries/test-data.
-      </p>
     </div>
   );
 }
