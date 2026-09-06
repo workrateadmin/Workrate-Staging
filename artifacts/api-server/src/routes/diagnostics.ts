@@ -3,6 +3,7 @@ import { getAuth } from "@clerk/express";
 import { db, enquiriesTable, companiesTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { isBillingAdmin } from "../services/billing/pricing";
+import { canAccessOwnerDiagnostics } from "../services/diagnostics/authorization";
 
 const router: IRouter = Router();
 
@@ -22,8 +23,19 @@ const requireAuth = (req: any, res: any, next: any) => {
  */
 router.get("/diagnostics", requireAuth, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
-  if (!isBillingAdmin(userId)) {
-    res.status(403).json({ error: "Administrator access is required." });
+
+  const [ownedCompany] = await db
+    .select({ id: companiesTable.id, name: companiesTable.name, ownerUserId: companiesTable.ownerUserId })
+    .from(companiesTable)
+    .where(eq(companiesTable.ownerUserId, userId!))
+    .limit(1);
+
+  if (!canAccessOwnerDiagnostics({
+    authenticatedUserId: userId,
+    tenantOwnerUserId: ownedCompany?.ownerUserId,
+    isPlatformAdmin: isBillingAdmin(userId),
+  })) {
+    res.status(403).json({ error: "Owner or administrator access is required." });
     return;
   }
 
@@ -41,12 +53,6 @@ router.get("/diagnostics", requireAuth, async (req, res): Promise<void> => {
 
   // ── Company row ────────────────────────────────────────────────────────────
   let company: { id: number; name: string } | null = null;
-
-  const [ownedCompany] = await db
-    .select({ id: companiesTable.id, name: companiesTable.name })
-    .from(companiesTable)
-    .where(eq(companiesTable.ownerUserId, userId!))
-    .limit(1);
 
   company = ownedCompany ?? null;
 

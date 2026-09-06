@@ -1,0 +1,123 @@
+WORKRATE — FIX PUBLISHED HMRC DIAGNOSTICS 403 FOR OWNER ACCOUNT
+
+CURRENT ISSUE:
+
+On the PUBLISHED WorkRate app, while signed in as the real WorkRate owner account, opening the HMRC/MTD diagnostics returns:
+
+HTTP 403
+"Administrator access is required."
+
+This is NOT a dev-preview/session limitation.
+
+The published production user should be authorized to access owner/admin diagnostics.
+
+IMPORTANT:
+Do NOT weaken diagnostics authorization globally.
+Do NOT make HMRC diagnostics public.
+Do NOT remove tenant checks.
+Do NOT publish automatically.
+Do NOT touch HMRC production.
+
+==================================================
+1. IDENTIFY CURRENT SIGNED-IN PRODUCTION USER
+==================================================
+
+Inspect the currently authenticated Clerk user/session on the published app.
+
+Confirm:
+
+- Clerk user ID
+- tenant/company ID
+- owner/admin role source
+- whether this is the expected production owner identity
+- whether the duplicate historical production Clerk identity is involved
+
+Do not expose private user data in logs beyond what is required for debugging.
+
+==================================================
+2. TRACE THE 403
+==================================================
+
+Locate the exact backend authorization check returning:
+
+"Administrator access is required."
+
+Report:
+
+- route
+- middleware/helper
+- required role/metadata/claim
+- actual value seen for the signed-in user
+- whether the check is tenant-owner, platform-admin, developer-only, or some combination
+
+==================================================
+3. PRESERVE SECURITY MODEL
+==================================================
+
+The correct rule should be:
+
+- authenticated
+- correct tenant
+- authorized owner/admin for that tenant
+- optionally platform/developer if diagnostics are intentionally internal-only
+
+Do NOT replace this with "any logged-in user".
+
+If the feature is intended only for WorkRate internal admins, then expose a separate safe owner-facing HMRC status page instead.
+
+==================================================
+4. FIX OWNER ACCESS
+==================================================
+
+If the current production owner should legitimately have access:
+
+fix the authorization mapping so the real owner/admin account is recognized.
+
+Examples:
+- use existing tenant ownership source instead of missing Clerk metadata
+- map owner role from WorkRate DB
+- avoid relying on a dev-only Clerk custom claim
+- preserve cross-tenant denial
+
+Do NOT hardcode one Clerk user ID unless absolutely necessary.
+
+==================================================
+5. DUPLICATE IDENTITY SAFETY
+==================================================
+
+Check whether the signed-in user is the duplicate production identity instead of the original owner account.
+
+If so:
+- report that clearly
+- do NOT reassign production ownership blindly
+- do NOT delete accounts
+- do NOT merge data automatically
+
+==================================================
+6. TEST
+==================================================
+
+Verify:
+
+- expected owner/admin: 200
+- normal tenant user: 403
+- wrong tenant: 403
+- unauthenticated: 401/403 as appropriate
+- no HMRC secrets exposed
+- no production HMRC call
+
+==================================================
+7. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. exact cause of 403
+B. current signed-in production identity
+C. intended authorization model
+D. fix made
+E. tests passed
+F. whether duplicate Clerk identity is involved
+G. whether one publish is required
+
+Do not publish automatically.

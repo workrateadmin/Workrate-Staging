@@ -44,6 +44,7 @@ import { claimHmrcOauthState } from "../lib/hmrc-oauth-state";
 import { hmrcClientIp, requireHmrcSameOrigin } from "../lib/hmrc-security";
 import { requireBillingFeature } from "../services/billing/authorization";
 import { isBillingAdmin } from "../services/billing/pricing";
+import { canAccessOwnerDiagnostics } from "../services/diagnostics/authorization";
 
 const router: IRouter = Router();
 const HMRC_STATE_TTL_MS = 10 * 60 * 1000;
@@ -145,7 +146,7 @@ const requireAuth = (req: any, res: any, next: any) => {
 
 async function businessFor(userId: string) {
   const [company] = await db
-    .select({ id: companiesTable.id })
+    .select({ id: companiesTable.id, ownerUserId: companiesTable.ownerUserId })
     .from(companiesTable)
     .where(eq(companiesTable.ownerUserId, userId))
     .limit(1);
@@ -634,7 +635,16 @@ router.post("/finance/hmrc/attestation-grant", requireAuth, requireBillingFeatur
 });
 
 router.get("/finance/hmrc/gateway-status", requireAuth, requireBillingFeature("advanced_finance_mtd"), async (req, res): Promise<void> => {
-  if (!isBillingAdmin(getAuth(req).userId)) { res.status(403).json({ error: "Administrator access is required." }); return; }
+  const { userId } = getAuth(req);
+  const company = await businessFor(userId!);
+  if (!canAccessOwnerDiagnostics({
+    authenticatedUserId: userId,
+    tenantOwnerUserId: company?.ownerUserId,
+    isPlatformAdmin: isBillingAdmin(userId),
+  })) {
+    res.status(403).json({ error: "Owner or administrator access is required." });
+    return;
+  }
   res.json(await getHmrcGatewayStatus());
 });
 
