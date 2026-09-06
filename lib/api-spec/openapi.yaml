@@ -2309,8 +2309,9 @@ components:
   schemas:
     HmrcFraudValidationStatus:
       type: object
-      required: [status, message, checkedAt, issues]
+      required: [code, status, message, checkedAt, issues]
       properties:
+        code: { type: [string, "null"] }
         status: { type: string, enum: [pass, warning, fail, unavailable] }
         message: { type: [string, "null"] }
         checkedAt: { type: [string, "null"], format: date-time }

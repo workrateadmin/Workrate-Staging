@@ -744,6 +744,7 @@ router.post("/finance/hmrc/fraud-header-validation", requireAuth, requireBilling
     attestation: parsed.data.attestation, browserContext: parsed.data.browserContext,
   });
   res.status(result.confirmed ? 200 : 503).json({
+    code: result.code ?? null,
     status: result.status ?? "unavailable",
     message: result.safeError ?? null,
     checkedAt: result.checkedAt ?? null,

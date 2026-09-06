@@ -159,6 +159,7 @@ function HmrcGatewaySection() {
         setValidationResult(body as HmrcFraudValidationStatus);
       } else {
         setValidationResult({
+          code: null,
           status: "unavailable",
           message: err?.message ?? "Fraud header validation could not be completed.",
           checkedAt: new Date().toISOString(),
@@ -335,7 +336,9 @@ function HmrcGatewaySection() {
               <span className="text-sm font-medium text-foreground">
                 {validationIssues.length === 0
                   ? <span className="text-primary font-bold">None</span>
-                  : <span className="text-destructive font-bold font-mono text-xs">{validationIssues.join(", ")}</span>}
+                  : <span className="text-destructive font-bold font-mono text-xs">
+                      {validationIssues.map(issue => typeof issue === "string" ? issue : `${issue.header}: ${issue.message}`).join(", ")}
+                    </span>}
               </span>
             </div>
 

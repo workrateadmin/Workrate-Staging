@@ -2,6 +2,7 @@ import { createHmac, randomUUID } from "node:crypto";
 
 export type GatewayResult = {
   confirmed: boolean;
+  code?: string | null;
   reference?: string;
   safeResponse?: Record<string, unknown>;
   safeError?: string;
@@ -150,15 +151,37 @@ export async function validateFraudHeadersViaGateway(input: GatewayIdentity & {
       browserContext: input.browserContext,
     }, input.attestation);
     const status = ["pass", "warning", "fail"].includes(String(raw?.status)) ? raw!.status as "pass" | "warning" | "fail" : "unavailable";
+    const rawCode = typeof raw?.code === "string" ? raw.code : null;
+    const code = rawCode === "approved_omission_required"
+      ? "APPROVED_OMISSION_REQUIRED"
+      : rawCode === "hmrc_auth_failed"
+        ? "HMRC_AUTH_FAILED"
+        : rawCode === "hmrc_timeout"
+          ? "HMRC_TIMEOUT"
+          : rawCode === "fraud_data_unavailable"
+            ? "FRAUD_HEADERS_INCOMPLETE"
+            : null;
+    const safeError = code === "APPROVED_OMISSION_REQUIRED"
+      ? "Additional fraud-prevention evidence requires HMRC approval."
+      : code === "HMRC_AUTH_FAILED"
+        ? "HMRC rejected the sandbox application credentials."
+        : code === "HMRC_TIMEOUT"
+          ? "HMRC sandbox could not be reached in time."
+          : typeof raw?.message === "string"
+            ? raw.message.slice(0, 500)
+            : response.ok
+              ? undefined
+              : "HMRC fraud-header validation did not pass.";
     return {
       confirmed: response.ok && status === "pass",
+      code,
       status,
       checkedAt: typeof raw?.checkedAt === "string" ? raw.checkedAt : new Date().toISOString(),
       issues: safeIssues(raw?.issues),
-      safeError: typeof raw?.message === "string" ? raw.message.slice(0, 500) : response.ok ? undefined : "HMRC fraud-header validation did not pass.",
+      safeError,
     };
   } catch (error) {
-    return { confirmed: false, status: "unavailable", checkedAt: null, issues: [], safeError: error instanceof Error && error.message.startsWith("HMRC") ? error.message : "HMRC sandbox gateway could not be reached." };
+    return { confirmed: false, code: "HMRC_CONNECTIVITY_UNAVAILABLE", status: "unavailable", checkedAt: null, issues: [], safeError: error instanceof Error && error.message.startsWith("HMRC") ? error.message : "HMRC sandbox gateway could not be reached." };
   }
 }
 

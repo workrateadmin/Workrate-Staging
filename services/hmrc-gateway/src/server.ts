@@ -46,6 +46,11 @@ function decode(value: unknown, secret: string): Json | null {
 function requiredEnv(env: NodeJS.ProcessEnv, name: string) { const value = env[name]?.trim(); if (!value) throw new Error(`missing ${name}`); return value; }
 function loopback(ip: string | undefined) { return ip === "::1" || ip === "127.0.0.1" || ip === "::ffff:127.0.0.1"; }
 function omissionAllowed(env: NodeJS.ProcessEnv, name: string) { return (env.HMRC_FRAUD_APPROVED_OMISSIONS ?? "").split(",").map(x => x.trim()).includes(name); }
+class FraudEvidenceUnavailable extends Error {
+  constructor(readonly issues: Array<{ header: string; message: string }>) {
+    super("Additional fraud-prevention evidence requires HMRC approval.");
+  }
+}
 export function observedNetworkEvidence(
   remoteAddress: string | undefined,
   headers: IncomingHttpHeaders,
@@ -88,9 +93,12 @@ function fraud(att: Attestation, env: NodeJS.ProcessEnv): Record<string, string>
     "Gov-Client-Screens": JSON.stringify(b.screens), "Gov-Client-Window-Size": JSON.stringify(b.windowSize),
     "Gov-Vendor-Forwarded": "by=workrate-gateway", "Gov-Vendor-Product-Name": "WorkRate", "Gov-Vendor-Public-IP": requiredEnv(env, "GATEWAY_PUBLIC_IP"), "Gov-Vendor-Version": requiredEnv(env, "GATEWAY_VERSION")
   };
-  if (att.port) headers["Gov-Client-Public-Port"] = String(att.port); else if (!omissionAllowed(env, "client-public-port")) throw new Error("fraud data unavailable");
-  if (!omissionAllowed(env, "client-multi-factor")) throw new Error("fraud data unavailable");
-  if (!omissionAllowed(env, "vendor-license-ids")) throw new Error("fraud data unavailable");
+  const issues: Array<{ header: string; message: string }> = [];
+  if (att.port) headers["Gov-Client-Public-Port"] = String(att.port);
+  else if (!omissionAllowed(env, "client-public-port")) issues.push({ header: "Gov-Client-Public-Port", message: "OMISSION_REQUIRED" });
+  if (!omissionAllowed(env, "client-multi-factor")) issues.push({ header: "Gov-Client-Multi-Factor", message: "OMISSION_REQUIRED" });
+  if (!omissionAllowed(env, "vendor-license-ids")) issues.push({ header: "Gov-Vendor-License-IDs", message: "OMISSION_REQUIRED" });
+  if (issues.length > 0) throw new FraudEvidenceUnavailable(issues);
   return headers;
 }
 async function app(req: IncomingMessage, res: ServerResponse, deps: GatewayDeps = {}) {
@@ -133,7 +141,21 @@ async function app(req: IncomingMessage, res: ServerResponse, deps: GatewayDeps 
   if (!decoded || !string(decoded.userId) || !Number.isInteger(decoded.companyId) || !string(decoded.sessionId) || !string(decoded.jti) || typeof decoded.expiresAt !== "number" || decoded.expiresAt < now || !browser(decoded.browserContext) || body.value.userId !== decoded.userId || body.value.companyId !== decoded.companyId || body.value.sessionId !== decoded.sessionId || JSON.stringify(body.value.browserContext) !== JSON.stringify(decoded.browserContext)) return finish(401, { code: "invalid_attestation" });
   const op = url.pathname.endsWith("submit") ? "submit" : url.pathname.endsWith("read") ? `read:${body.value.operation}` : "validate";
   if (operations.has(`${decoded.jti}:${op}`, now)) return finish(409, { code: "attestation_already_used" }); operations.add(`${decoded.jti}:${op}`, decoded.expiresAt);
-  let headers: Record<string, string>; try { headers = fraud(decoded, env); } catch { return finish(422, { code: "fraud_data_unavailable" }); }
+  let headers: Record<string, string>;
+  try {
+    headers = fraud(decoded, env);
+  } catch (error) {
+    if (error instanceof FraudEvidenceUnavailable) {
+      return finish(422, {
+        code: "approved_omission_required",
+        status: "unavailable",
+        checkedAt: new Date(now).toISOString(),
+        message: error.message,
+        issues: error.issues,
+      });
+    }
+    return finish(422, { code: "fraud_data_unavailable" });
+  }
   const f = deps.fetch ?? fetch;
   try {
     if (url.pathname.endsWith("read")) {

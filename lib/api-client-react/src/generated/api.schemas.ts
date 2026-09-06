@@ -21,6 +21,8 @@ export interface HmrcFraudIssue {
 }
 
 export interface HmrcFraudValidationStatus {
+  /** @nullable */
+  code: string | null;
   status: HmrcFraudValidationStatusStatus;
   /** @nullable */
   message: string | null;

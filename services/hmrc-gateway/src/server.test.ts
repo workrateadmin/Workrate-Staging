@@ -186,6 +186,42 @@ test("validates fraud headers with request-scoped app authentication", async () 
   }, { fetch: fakeFetch as typeof fetch });
 });
 
+test("reports unapproved fraud-evidence omissions without contacting HMRC", async () => {
+  let hmrcCalls = 0;
+  const fakeFetch = async () => {
+    hmrcCalls += 1;
+    return new Response(JSON.stringify({ result: "PASS", issues: [] }), { status: 200 });
+  };
+  await withServer(async base => {
+    const response = await attest(base);
+    const { attestation } = await jsonBody<{ attestation: string }>(response);
+    const result = await signedPost(base, "/v1/hmrc/sandbox/validate-fraud", {
+      userId: "user-1",
+      companyId: 1,
+      sessionId: "session-1",
+      browserContext: browser,
+    }, attestation);
+    const body = await jsonBody<{
+      code: string;
+      status: string;
+      message: string;
+      issues: Array<{ header: string; message: string }>;
+    }>(result);
+    assert.equal(result.status, 422);
+    assert.equal(body.code, "approved_omission_required");
+    assert.equal(body.status, "unavailable");
+    assert.equal(body.message, "Additional fraud-prevention evidence requires HMRC approval.");
+    assert.deepEqual(body.issues, [
+      { header: "Gov-Client-Multi-Factor", message: "OMISSION_REQUIRED" },
+      { header: "Gov-Vendor-License-IDs", message: "OMISSION_REQUIRED" },
+    ]);
+    assert.equal(hmrcCalls, 0);
+  }, {
+    env: { ...baseEnv, HMRC_FRAUD_APPROVED_OMISSIONS: "client-public-port" },
+    fetch: fakeFetch as typeof fetch,
+  });
+});
+
 test("pins read operations and quarterly submission to configured sandbox targets", async () => {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   const fakeFetch = async (input: string | URL | Request, init?: RequestInit) => {

@@ -3421,6 +3421,7 @@ export const ValidateHmrcSandboxFraudHeadersBody = zod.object({
 })
 
 export const ValidateHmrcSandboxFraudHeadersResponse = zod.object({
+  "code": zod.string().nullable(),
   "status": zod.enum(['pass', 'warning', 'fail', 'unavailable']),
   "message": zod.string().nullable(),
   "checkedAt": zod.coerce.date().nullable(),

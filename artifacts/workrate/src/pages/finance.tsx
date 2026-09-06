@@ -1761,6 +1761,7 @@ function MtdTaxWorkflow({
         setFraudStatus(body as HmrcFraudValidationStatus);
       } else {
         setFraudStatus({
+          code: null,
           status: "unavailable",
           message: err?.message ?? "Fraud header check could not be completed.",
           checkedAt: new Date().toISOString(),

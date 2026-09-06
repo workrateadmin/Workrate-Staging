@@ -9,6 +9,8 @@ import type { HmrcFraudIssue } from './hmrcFraudIssue';
 import type { HmrcFraudValidationStatusStatus } from './hmrcFraudValidationStatusStatus';
 
 export interface HmrcFraudValidationStatus {
+  /** @nullable */
+  code: string | null;
   status: HmrcFraudValidationStatusStatus;
   /** @nullable */
   message: string | null;

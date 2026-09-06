@@ -1,0 +1,272 @@
+WORKRATE — TRACE LIVE HMRC FRAUD VALIDATION UNAVAILABLE RESULT
+
+CURRENT LIVE RESULT:
+
+Published WorkRate app
+Settings → Advanced → Diagnostics
+
+Gateway:
+CONNECTED
+
+Environment:
+SANDBOX
+
+Gateway readiness:
+READY
+
+Public IP:
+67.207.68.112
+
+Fraud status:
+UNAVAILABLE
+
+Last validation:
+6 Sept 2026, 20:23
+
+Missing headers:
+NONE
+
+HMRC connectivity:
+UNKNOWN
+
+Dynamic submission:
+UNAVAILABLE
+
+Displayed message:
+
+“HMRC fraud-header validation did not pass.”
+
+IMPORTANT:
+
+This was a real published-browser validation attempt.
+
+Do NOT contact HMRC production.
+Do NOT submit a quarterly update.
+Do NOT fabricate a PASS result.
+Do NOT guess missing headers.
+Do NOT expose tokens, NINO, raw network evidence, HMAC secrets, attestation secrets, or HMRC client secrets.
+
+==================================================
+1. TRACE THE LIVE ATTEMPT
+==================================================
+
+Trace the exact live request from:
+
+Published browser
+→ attestation grant
+→ gateway browser attestation
+→ WorkRate validation endpoint
+→ HMAC-authenticated gateway request
+→ gateway HMRC sandbox fraud-validation route
+
+Determine exactly where the attempt became:
+
+UNAVAILABLE
+
+Do not infer from the UI alone.
+
+==================================================
+2. IDENTIFY THE NORMALIZED ERROR
+==================================================
+
+Find the exact safe internal error/code returned by the gateway or WorkRate.
+
+Examples may include:
+
+HMRC_CONNECTIVITY_UNAVAILABLE
+HMRC_AUTH_FAILED
+HMRC_VALIDATION_ENDPOINT_UNAVAILABLE
+FRAUD_HEADERS_INCOMPLETE
+APPROVED_OMISSION_REQUIRED
+ATTESTATION_INVALID
+HMRC_API_VERSION_MISMATCH
+HMRC_RESPONSE_INVALID
+HMRC_TIMEOUT
+
+Report the actual code found.
+
+Do NOT print sensitive payloads.
+
+==================================================
+3. VERIFY ATTESTATION SUCCEEDED
+==================================================
+
+Confirm whether the latest live attempt successfully completed:
+
+- WorkRate attestation grant
+- direct browser attestation
+- observed public IP
+- observed source port
+- tenant binding
+- Clerk user/session binding
+- browser evidence binding
+- grant consumption
+
+If attestation failed, report the exact safe reason.
+
+If attestation passed, explicitly say so and continue tracing toward HMRC.
+
+==================================================
+4. VERIFY FRAUD HEADER SET
+==================================================
+
+Before calling HMRC, inspect the canonical header builder.
+
+Confirm whether WorkRate/gateway can truthfully populate the required sandbox header set.
+
+Report only SAFE header names and status:
+
+PRESENT
+MISSING
+OMISSION_REQUIRED
+
+Do not output values.
+
+Pay particular attention to the previously known infrastructure-sensitive fields:
+
+- client public IP
+- client public port
+- vendor forwarded
+- vendor public IP
+- client multi-factor
+- vendor licence IDs
+
+Do not invent values.
+
+==================================================
+5. CHECK APPROVED OMISSIONS
+==================================================
+
+Inspect:
+
+HMRC_FRAUD_APPROVED_OMISSIONS
+
+If blank, confirm whether the current validation route refuses to proceed because fields such as:
+
+- client-multi-factor
+- vendor-license-ids
+
+have no truthful value and no written HMRC omission.
+
+Do not populate this environment variable without actual HMRC approval.
+
+If an approved omission is genuinely required, report that clearly as the blocker.
+
+==================================================
+6. VERIFY HMRC SANDBOX CLIENT CONFIG
+==================================================
+
+Check server-side configuration only:
+
+- HMRC_SANDBOX_CLIENT_ID present
+- HMRC_SANDBOX_CLIENT_SECRET present
+- sandbox host correct
+- validation endpoint/path correct
+- media type/API version correct
+- request authentication method correct
+
+Do NOT print credential values.
+
+==================================================
+7. VERIFY HMRC CONNECTIVITY
+==================================================
+
+Use only the permitted HMRC SANDBOX test endpoint.
+
+Determine whether the gateway can actually reach:
+
+https://test-api.service.hmrc.gov.uk
+
+Report:
+
+CONNECTED
+AUTH_FAILED
+REJECTED
+TIMEOUT
+UNAVAILABLE
+
+Do NOT contact production.
+
+==================================================
+8. CAPTURE HMRC SAFE RESPONSE
+==================================================
+
+If HMRC actually returned a response during the live validation attempt:
+
+capture only:
+
+- HTTP status
+- normalized HMRC error code
+- safe missing/invalid fraud header names
+- HMRC correlation/reference ID if safe
+
+Do not expose the raw body if it contains sensitive evidence.
+
+==================================================
+9. IMPROVE THE UI MESSAGE
+==================================================
+
+The current UI only says:
+
+“HMRC fraud-header validation did not pass.”
+
+If the backend already has a safe normalized reason, show it in plain English.
+
+Examples:
+
+“HMRC sandbox could not be reached.”
+“HMRC rejected the application credentials.”
+“Additional fraud-prevention evidence requires HMRC approval.”
+“Browser attestation failed.”
+“HMRC returned invalid fraud-prevention headers.”
+
+Do not expose technical secrets.
+
+==================================================
+10. NO NEW ARCHITECTURE
+==================================================
+
+Do not redesign the gateway.
+
+Do not add another proxy.
+
+Do not weaken the fraud-header requirements.
+
+The gateway is deployed and healthy.
+
+This task is debugging the exact live UNAVAILABLE result.
+
+==================================================
+11. TEST
+==================================================
+
+Add a focused regression test for the exact failure found.
+
+Preserve existing tests for:
+
+- HMAC
+- replay
+- stale timestamp
+- attestation
+- tenant/session binding
+- sandbox host pinning
+- secret redaction
+
+==================================================
+12. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. whether browser attestation passed
+B. exact point where validation became unavailable
+C. exact normalized error code
+D. whether HMRC was actually contacted
+E. HMRC sandbox HTTP/status result if contacted
+F. safe missing/invalid header names
+G. whether an HMRC-approved omission is required
+H. whether DigitalOcean needs a config change/restart
+I. whether WorkRate needs a new publish
+J. exact next manual action
+
+Do not publish automatically.

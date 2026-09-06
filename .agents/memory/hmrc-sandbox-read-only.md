@@ -79,3 +79,15 @@ protection, method and path. Never persist grants, attestations, or browser
 telemetry. HMRC's v5 cumulative endpoint is documented, but configure its path,
 method, and media type only after confirming the API version enabled for the
 WorkRate HMRC application.
+
+When required fraud evidence is unavailable and no written omission approval is
+configured, return a safe normalized omission-required result with header names
+only, before obtaining an HMRC token or sending any validation request.
+
+**Why:** A generic unavailable result hid whether browser attestation had
+succeeded and made a deliberate fail-closed omission boundary look like an HMRC
+connectivity problem.
+
+**How to apply:** Distinguish attestation, omission, sandbox authentication, and
+timeout failures in the server response. Keep values redacted, and prove with a
+regression test that the omission branch performs zero outbound HMRC calls.
