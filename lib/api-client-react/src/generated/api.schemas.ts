@@ -700,6 +700,88 @@ export interface HealthStatus {
   status: string;
 }
 
+export type RuntimeConfigEnvironment = typeof RuntimeConfigEnvironment[keyof typeof RuntimeConfigEnvironment];
+
+
+export const RuntimeConfigEnvironment = {
+  development: 'development',
+  staging: 'staging',
+  production: 'production',
+} as const;
+
+export interface RuntimeConfig {
+  environment: RuntimeConfigEnvironment;
+  /** @minLength 1 */
+  buildId: string;
+}
+
+export interface ProviderEnablement {
+  stripeEnabled: boolean;
+  hmrcEnabled: boolean;
+  storageEnabled: boolean;
+  clerkEnabled: boolean;
+  aiEnabled: boolean;
+  emailEnabled: boolean;
+  vapiEnabled: boolean;
+  whatsappEnabled: boolean;
+}
+
+export type DiagnosticsEnvironment = typeof DiagnosticsEnvironment[keyof typeof DiagnosticsEnvironment];
+
+
+export const DiagnosticsEnvironment = {
+  development: 'development',
+  staging: 'staging',
+  production: 'production',
+} as const;
+
+export type DiagnosticsStripeMode = typeof DiagnosticsStripeMode[keyof typeof DiagnosticsStripeMode];
+
+
+export const DiagnosticsStripeMode = {
+  test: 'test',
+  live: 'live',
+  disabled: 'disabled',
+  unknown: 'unknown',
+} as const;
+
+export type DiagnosticsHmrcMode = typeof DiagnosticsHmrcMode[keyof typeof DiagnosticsHmrcMode];
+
+
+export const DiagnosticsHmrcMode = {
+  sandbox: 'sandbox',
+  disabled: 'disabled',
+} as const;
+
+export type DiagnosticsStorageEnvironment = typeof DiagnosticsStorageEnvironment[keyof typeof DiagnosticsStorageEnvironment];
+
+
+export const DiagnosticsStorageEnvironment = {
+  development: 'development',
+  staging: 'staging',
+  production: 'production',
+  unconfigured: 'unconfigured',
+} as const;
+
+export interface Diagnostics {
+  environment: DiagnosticsEnvironment;
+  /** @minLength 1 */
+  buildId: string;
+  /** @nullable */
+  migrationVersion: string | null;
+  stripeMode: DiagnosticsStripeMode;
+  hmrcMode: DiagnosticsHmrcMode;
+  storageEnvironment: DiagnosticsStorageEnvironment;
+  providers: ProviderEnablement;
+  apiOrigin: string;
+  /** @nullable */
+  companyId: number | null;
+  /** @nullable */
+  companyName: string | null;
+  /** @nullable */
+  latestEnquiryAt: string | null;
+}
+
 export interface ApiError {
   error: string;
 }

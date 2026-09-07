@@ -1,5 +1,6 @@
 const STRIPE_API_BASE = "https://api.stripe.com/v1";
 export const WORKRATE_STRIPE_TEST_ACCOUNT_ID = "acct_1UC1BkDeP2oLIigw";
+import { getWorkRateEnvironment } from "../../lib/runtime-environment";
 
 export class StripeApiError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
@@ -8,12 +9,21 @@ type Form = Record<string, string | number | boolean | undefined>;
 
 function stripeSecretKey(): string {
   const key = process.env.STRIPE_SECRET_KEY;
-  if (!key?.startsWith("sk_test_")) throw new Error("Stripe test-mode credentials are required.");
+  const environment = getWorkRateEnvironment();
+  const expectedPrefix = environment === "production" ? "sk_live_" : "sk_test_";
+  if (!key?.startsWith(expectedPrefix)) {
+    throw new Error(`Stripe ${environment === "production" ? "live" : "test"}-mode credentials are required.`);
+  }
   return key;
 }
 
 export function assertExpectedStripeTestAccount(input: { key: string | undefined; accountId: string | undefined; livemode: boolean | undefined }): void {
-  if (!input.key?.startsWith("sk_test_") || input.accountId !== WORKRATE_STRIPE_TEST_ACCOUNT_ID || input.livemode !== false) {
+  const environment = getWorkRateEnvironment();
+  const expectedLiveMode = environment === "production";
+  const expectedAccountId = process.env.STRIPE_EXPECTED_ACCOUNT_ID ??
+    (environment === "development" ? WORKRATE_STRIPE_TEST_ACCOUNT_ID : undefined);
+  const expectedPrefix = expectedLiveMode ? "sk_live_" : "sk_test_";
+  if (!expectedAccountId || !input.key?.startsWith(expectedPrefix) || input.accountId !== expectedAccountId || input.livemode !== expectedLiveMode) {
     throw new Error("Stripe account safety check failed.");
   }
 }

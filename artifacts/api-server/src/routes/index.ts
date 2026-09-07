@@ -21,10 +21,12 @@ import financeRouter from "./finance";
 import hmrcRouter from "./hmrc";
 import billingRouter from "./billing";
 import timelineRouter from "./timeline";
+import runtimeConfigRouter from "./runtime-config";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(runtimeConfigRouter);
 router.use(companyRouter);
 router.use(enquiriesRouter);
 router.use(attachmentsRouter);

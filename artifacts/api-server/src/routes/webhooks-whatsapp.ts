@@ -37,11 +37,16 @@ import { uploadBufferToStorage } from "../lib/storageUpload";
 import { handleEnquiryCompletion, getSystemPrompt } from "./chat";
 import { reserveMeteredFeature } from "../services/billing/authorization";
 import { finalizeUsageReservation, recordUsage, releaseUsageReservation } from "../services/billing/usage";
+import { canSendCustomerMessages } from "../lib/runtime-environment";
 
 const router: IRouter = Router();
 
 // ── GET /webhooks/whatsapp — Meta hub verification ────────────────────────────
 router.get("/webhooks/whatsapp", (req: Request, res: Response): void => {
+  if (!canSendCustomerMessages()) {
+    res.status(403).send("WhatsApp is disabled in this environment");
+    return;
+  }
   const mode      = req.query["hub.mode"]         as string | undefined;
   const token     = req.query["hub.verify_token"] as string | undefined;
   const challenge = req.query["hub.challenge"]    as string | undefined;
@@ -64,22 +69,24 @@ router.get("/webhooks/whatsapp", (req: Request, res: Response): void => {
 
 // ── POST /webhooks/whatsapp — inbound messages ────────────────────────────────
 router.post("/webhooks/whatsapp", async (req: Request, res: Response): Promise<void> => {
+  if (!canSendCustomerMessages()) {
+    res.status(403).json({ error: "WhatsApp is disabled in this environment" });
+    return;
+  }
   // ── Signature verification ────────────────────────────────────────────────
   const appSecret       = process.env.WHATSAPP_APP_SECRET;
   const sigHeader       = req.headers["x-hub-signature-256"] as string | undefined;
   const rawBody         = (req as any).rawBody as Buffer | undefined;
 
-  if (appSecret) {
-    if (!sigHeader || !rawBody) {
-      console.warn("[wa-webhook] Missing x-hub-signature-256 or rawBody — rejecting");
-      res.status(403).json({ error: "Missing signature" });
-      return;
-    }
-    if (!verifyWebhookSignature(appSecret, rawBody, sigHeader)) {
-      console.warn("[wa-webhook] Invalid signature — rejecting");
-      res.status(403).json({ error: "Invalid signature" });
-      return;
-    }
+  if (!appSecret || !sigHeader || !rawBody) {
+    console.warn("[wa-webhook] Missing webhook authentication configuration or signature — rejecting");
+    res.status(403).json({ error: "Missing webhook authentication" });
+    return;
+  }
+  if (!verifyWebhookSignature(appSecret, rawBody, sigHeader)) {
+    console.warn("[wa-webhook] Invalid signature — rejecting");
+    res.status(403).json({ error: "Invalid signature" });
+    return;
   }
 
   // Respond 200 immediately — Meta requires a fast acknowledgement and will

@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import { db, integrationsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { decryptIntegrationSecret, encryptIntegrationSecret } from "../lib/integration-secret";
+import { canSendCustomerMessages } from "../lib/runtime-environment";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -165,6 +166,9 @@ export async function sendTextMessage(
   to: string,
   text: string,
 ): Promise<void> {
+  if (!canSendCustomerMessages()) {
+    throw new Error("Customer messaging is disabled for this environment.");
+  }
   const res = await fetch(`${META_API}/${config.phoneNumberId}/messages`, {
     method: "POST",
     headers: {

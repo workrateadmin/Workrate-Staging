@@ -14,8 +14,12 @@ export type GatewayResult = {
 type GatewayIdentity = { userId: string; companyId: number; sessionId: string };
 
 function config() {
-  const url = (process.env.HMRC_GATEWAY_URL ?? process.env.HMRC_SANDBOX_GATEWAY_URL)?.trim();
-  const secret = (process.env.HMRC_GATEWAY_HMAC_SECRET ?? process.env.HMRC_SANDBOX_GATEWAY_HMAC_SECRET)?.trim();
+  // The existing generic names remain supported for deployment continuity,
+  // but startup safety pins their value to the approved sandbox gateway.
+  const url = (process.env.HMRC_GATEWAY_URL ??
+    process.env.HMRC_SANDBOX_GATEWAY_URL)?.trim();
+  const secret = (process.env.HMRC_GATEWAY_HMAC_SECRET ??
+    process.env.HMRC_SANDBOX_GATEWAY_HMAC_SECRET)?.trim();
   if (!url || !secret || secret.length < 32) {
     throw new Error("HMRC sandbox gateway is unavailable until controlled edge evidence is configured.");
   }

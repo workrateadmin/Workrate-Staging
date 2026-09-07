@@ -29,3 +29,8 @@ HMRC_OAUTH_REDIRECT_URL = "https://work-rate-manager.replit.app/api/hmrc/callbac
 
 [userenv.production]
 PROPOSAL_BASE_URL = "https://work-rate-manager.replit.app"
+
+[userenv.development]
+WORKRATE_BUILD_ID = "local-development"
+WORKRATE_ENV = "development"
+WORKRATE_STORAGE_ENV = "development"

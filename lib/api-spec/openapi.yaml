@@ -24,6 +24,8 @@ tags:
     description: Third-party integration management
   - name: invoices
     description: Standalone invoice operations
+  - name: runtime
+    description: Server-owned runtime identity and diagnostics
 paths:
   /healthz:
     get:
@@ -38,6 +40,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /runtime-config:
+    get:
+      operationId: getRuntimeConfig
+      tags: [runtime]
+      summary: Get the server-owned runtime environment and build identity
+      responses:
+        "200":
+          description: Runtime configuration
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: [no-store] }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RuntimeConfig" }
+  /diagnostics:
+    get:
+      operationId: getDiagnostics
+      tags: [runtime]
+      summary: Get safe owner diagnostics for the active deployment
+      security:
+        - ClerkAuth: []
+      responses:
+        "200":
+          description: Safe deployment diagnostics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Diagnostics" }
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+        "403":
+          description: Owner or administrator access required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
 
   # Company Profile
   /company:
@@ -2711,6 +2750,42 @@ components:
           type: string
       required:
         - status
+
+    RuntimeConfig:
+      type: object
+      required: [environment, buildId]
+      properties:
+        environment: { type: string, enum: [development, staging, production] }
+        buildId: { type: string, minLength: 1 }
+
+    ProviderEnablement:
+      type: object
+      required: [stripeEnabled, hmrcEnabled, storageEnabled, clerkEnabled, aiEnabled, emailEnabled, vapiEnabled, whatsappEnabled]
+      properties:
+        stripeEnabled: { type: boolean }
+        hmrcEnabled: { type: boolean }
+        storageEnabled: { type: boolean }
+        clerkEnabled: { type: boolean }
+        aiEnabled: { type: boolean }
+        emailEnabled: { type: boolean }
+        vapiEnabled: { type: boolean }
+        whatsappEnabled: { type: boolean }
+
+    Diagnostics:
+      type: object
+      required: [environment, buildId, migrationVersion, stripeMode, hmrcMode, storageEnvironment, providers, apiOrigin, companyId, companyName, latestEnquiryAt]
+      properties:
+        environment: { type: string, enum: [development, staging, production] }
+        buildId: { type: string, minLength: 1 }
+        migrationVersion: { type: [string, "null"] }
+        stripeMode: { type: string, enum: [test, live, disabled, unknown] }
+        hmrcMode: { type: string, enum: [sandbox, disabled] }
+        storageEnvironment: { type: string, enum: [development, staging, production, unconfigured] }
+        providers: { $ref: "#/components/schemas/ProviderEnablement" }
+        apiOrigin: { type: string }
+        companyId: { type: [number, "null"] }
+        companyName: { type: [string, "null"] }
+        latestEnquiryAt: { type: [string, "null"], format: date-time }
 
     ApiError:
       type: object

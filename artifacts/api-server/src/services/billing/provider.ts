@@ -5,6 +5,7 @@ import { canonicalEventId, checkoutIdempotencyKey, checkoutLineItems, mapStripeS
 import { trialPriceGbp } from "./pricing";
 import { grantReceptionistTopUpFromStripeSession } from "./topups";
 import { isStripeBillingReady, setStripeBillingReady } from "./readiness";
+import { getWorkRateEnvironment } from "../../lib/runtime-environment";
 
 export type PaymentSetupUnavailable = { ok: false; code: "PAYMENT_SETUP_UNAVAILABLE"; message: string };
 export type ProviderResult = PaymentSetupUnavailable | { ok: true; url?: string; status?: string };
@@ -153,7 +154,8 @@ export class StripeBillingProvider implements BillingProvider {
         await this.checkoutRepo.updateAttempt(attempt.id, { status: hosted.status ?? "expired" });
         return this.createCheckoutSession(input);
       }
-      const form: any = { mode: "subscription", customer: existing?.providerCustomerId, client_reference_id: `${input.companyId}:${input.ownerUserId}`, success_url: `${returnUrl()}?checkout=success`, cancel_url: `${returnUrl()}?checkout=cancelled`, "subscription_data[trial_period_days]": 7, "subscription_data[metadata][companyId]": input.companyId, "subscription_data[metadata][ownerUserId]": input.ownerUserId, "subscription_data[metadata][planCode]": input.planCode, "subscription_data[metadata][addOnCodes]": JSON.stringify(input.addOnCodes), "metadata[companyId]": input.companyId, "metadata[ownerUserId]": input.ownerUserId, "metadata[planCode]": input.planCode };
+      const environment = getWorkRateEnvironment();
+      const form: any = { mode: "subscription", customer: existing?.providerCustomerId, client_reference_id: `${input.companyId}:${input.ownerUserId}`, success_url: `${returnUrl()}?checkout=success`, cancel_url: `${returnUrl()}?checkout=cancelled`, "subscription_data[trial_period_days]": 7, "subscription_data[metadata][companyId]": input.companyId, "subscription_data[metadata][ownerUserId]": input.ownerUserId, "subscription_data[metadata][planCode]": input.planCode, "subscription_data[metadata][addOnCodes]": JSON.stringify(input.addOnCodes), "subscription_data[metadata][workrate_environment]": environment, "metadata[companyId]": input.companyId, "metadata[ownerUserId]": input.ownerUserId, "metadata[planCode]": input.planCode, "metadata[workrate_environment]": environment };
       checkoutLineItems(monthly, trial, addOnPrices, addOnTrialPrices).forEach((item, index) => { form[`line_items[${index}][price]`] = item.price; form[`line_items[${index}][quantity]`] = item.quantity; });
       const session: any = await stripe.post("checkout/sessions", form, {
         "Idempotency-Key": checkoutIdempotencyKey(input.companyId, attempt.attemptKey),
@@ -242,6 +244,14 @@ export class StripeBillingProvider implements BillingProvider {
     const event: any = await stripe.get(`events/${encodeURIComponent(signedId)}`);
     requireCanonicalEventId(signedId, event.id);
     const object: any = event.data.object;
+    const eventEnvironment = object?.metadata?.workrate_environment;
+    const currentEnvironment = getWorkRateEnvironment();
+    if (
+      eventEnvironment !== currentEnvironment &&
+      !(currentEnvironment === "production" && eventEnvironment === undefined)
+    ) {
+      throw new Error("Stripe webhook belongs to a different WorkRate environment.");
+    }
     // One-time top-ups have no subscription to synchronize. Their immutable
     // purchase record is the source of allocation and is updated exactly once.
     if (event.type === "checkout.session.completed" && object?.metadata?.billing_kind === "ai_receptionist_top_up") {
@@ -282,19 +292,28 @@ const webhookEventTypes = [
   "invoice.payment_failed",
   "invoice.paid",
 ] as const;
-const workRateStripeWebhookUrl = "https://work-rate-manager.replit.app/api/stripe/webhook";
+function workRateStripeWebhookUrl(): string {
+  const explicit = process.env.WORKRATE_PUBLIC_URL?.trim().replace(/\/+$/, "");
+  if (explicit) return `${explicit}/api/stripe/webhook`;
+  const developmentHost = process.env.REPLIT_DOMAINS?.split(",")[0]?.trim();
+  if (getWorkRateEnvironment() === "development" && developmentHost) {
+    return `https://${developmentHost}/api/stripe/webhook`;
+  }
+  throw new Error("WORKRATE_PUBLIC_URL is required for this environment.");
+}
 
 /** Validates and maintains the single approved test webhook endpoint. */
 export async function initializeStripeBilling(): Promise<void> {
   setStripeBillingReady(false);
   const stripe = new StripeApiClient();
   await stripe.assertTestAccount();
-  const form: Record<string, string> = { url: workRateStripeWebhookUrl };
+  const webhookUrl = workRateStripeWebhookUrl();
+  const form: Record<string, string> = { url: webhookUrl };
   webhookEventTypes.forEach((eventType, index) => {
     form[`enabled_events[${index}]`] = eventType;
   });
   const endpoints = await stripe.get<{ data: Array<{ id: string; url: string }> }>("webhook_endpoints", { limit: 100 });
-  const endpoint = endpoints.data.find((candidate) => candidate.url === workRateStripeWebhookUrl);
+  const endpoint = endpoints.data.find((candidate) => candidate.url === webhookUrl);
   if (!endpoint) throw new Error("Stripe webhook endpoint is not configured for this environment.");
   if (!process.env.STRIPE_WEBHOOK_SECRET) throw new Error("STRIPE_WEBHOOK_SECRET is required.");
   await stripe.post(`webhook_endpoints/${endpoint.id}`, form);

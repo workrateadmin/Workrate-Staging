@@ -19,6 +19,8 @@
     "test:billing": "node ./test/build-and-run-billing-tests.mjs",
     "test:timeline": "node ./test/build-and-run-timeline-tests.mjs",
     "test:job-cost-evidence": "node ./test/build-and-run-job-cost-evidence-tests.mjs",
+    "test:runtime-environment": "node ./test/build-and-run-runtime-environment-tests.mjs",
+    "test:runtime-config": "node ./test/build-and-run-runtime-config-tests.mjs",
     "test": "pnpm run test:billing",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

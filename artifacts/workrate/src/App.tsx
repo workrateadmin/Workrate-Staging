@@ -25,7 +25,7 @@ import NotFound from "./pages/not-found";
 import InvoicesPage from "./pages/invoices";
 import InvoiceEditor from "./pages/invoice-editor";
 import FinancePage from "./pages/finance";
-import { DevBanner } from "@/components/dev-banner";
+import { EnvironmentBanner } from "@/components/environment-banner";
 import OnboardingPage from "./pages/onboarding";
 import InternalProductPricingPage from "./pages/internal/product-pricing";
 
@@ -195,7 +195,12 @@ function OnboardingProtectedRoute() {
 
   if (!isLoaded) return null;
   if (!isSignedIn) return null;
-  return <OnboardingPage />;
+  return (
+    <>
+      <EnvironmentBanner />
+      <OnboardingPage />
+    </>
+  );
 }
 
 function ProtectedRoute({ component: Component }: { component: any }) {
@@ -222,9 +227,12 @@ function ProtectedRoute({ component: Component }: { component: any }) {
   if (!isSignedIn) return null;
 
   return (
-    <AppLayout>
-      <Component />
-    </AppLayout>
+    <>
+      <EnvironmentBanner />
+      <AppLayout>
+        <Component />
+      </AppLayout>
+    </>
   );
 }
 
@@ -364,7 +372,6 @@ function VisibilityRefresher() {
 export default function App() {
   return (
     <>
-      <DevBanner />
       <PwaUpdatePrompt />
       <WouterRouter base={basePath}>
         <QueryClientProvider client={queryClient}>

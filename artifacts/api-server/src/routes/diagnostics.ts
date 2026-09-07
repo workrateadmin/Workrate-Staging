@@ -1,9 +1,15 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
-import { db, enquiriesTable, companiesTable } from "@workspace/db";
+import { db, enquiriesTable, companiesTable, pool } from "@workspace/db";
+import { GetDiagnosticsResponse } from "@workspace/api-zod";
 import { eq, desc } from "drizzle-orm";
 import { isBillingAdmin } from "../services/billing/pricing";
 import { canAccessOwnerDiagnostics } from "../services/diagnostics/authorization";
+import { getRuntimeConfig } from "../lib/runtime-config";
+import {
+  canSendCustomerMessages,
+  isProductionEnvironment,
+} from "../lib/runtime-environment";
 
 const router: IRouter = Router();
 
@@ -15,6 +21,33 @@ const requireAuth = (req: any, res: any, next: any) => {
   }
   next();
 };
+
+function configured(name: string): boolean {
+  return Boolean(process.env[name]?.trim());
+}
+
+function stripeMode(): "test" | "live" | "disabled" | "unknown" {
+  const key = process.env.STRIPE_SECRET_KEY?.trim();
+  if (!key) return "disabled";
+  if (key.startsWith("sk_test_")) return "test";
+  if (key.startsWith("sk_live_")) return "live";
+  return "unknown";
+}
+
+async function getMigrationVersion(): Promise<string | null> {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query<{ name: string }>(
+      `SELECT "name" FROM "_migrations" ORDER BY "applied_at" DESC LIMIT 1`,
+    );
+    return rows[0]?.name ?? null;
+  } catch {
+    // A migration table may not exist yet; diagnostics must remain available.
+    return null;
+  } finally {
+    client.release();
+  }
+}
 
 /**
  * GET /diagnostics
@@ -39,17 +72,8 @@ router.get("/diagnostics", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  // ── Environment classification ─────────────────────────────────────────────
-  const nodeEnv = process.env.NODE_ENV ?? "unknown";
-
-  const clerkKey = process.env.CLERK_PUBLISHABLE_KEY ?? "";
-  const clerkEnv = clerkKey.startsWith("pk_live_") ? "production" : "development";
-
-  const dbUrl = process.env.DATABASE_URL ?? "";
-  const dbEnv =
-    dbUrl.includes("localhost") || dbUrl.includes("127.0.0.1")
-      ? "development"
-      : "production";
+  const runtimeConfig = getRuntimeConfig();
+  const customerCommsEnabled = canSendCustomerMessages();
 
   // ── Company row ────────────────────────────────────────────────────────────
   let company: { id: number; name: string } | null = null;
@@ -64,15 +88,43 @@ router.get("/diagnostics", requireAuth, async (req, res): Promise<void> => {
     .orderBy(desc(enquiriesTable.createdAt))
     .limit(1);
 
-  res.json({
-    environment: nodeEnv,
+  res.json(GetDiagnosticsResponse.parse({
+    environment: runtimeConfig.environment,
+    buildId: runtimeConfig.buildId,
+    migrationVersion: await getMigrationVersion(),
+    stripeMode: stripeMode(),
+    hmrcMode: configured("HMRC_SANDBOX_CLIENT_ID") &&
+      configured("HMRC_SANDBOX_CLIENT_SECRET") &&
+      configured("HMRC_OAUTH_REDIRECT_URL") &&
+      configured("HMRC_TOKEN_ENCRYPTION_KEY")
+      ? "sandbox"
+      : "disabled",
+    storageEnvironment: configured("DEFAULT_OBJECT_STORAGE_BUCKET_ID")
+      ? runtimeConfig.environment
+      : "unconfigured",
+    providers: {
+      stripeEnabled: stripeMode() === "test" || stripeMode() === "live",
+      hmrcEnabled: configured("HMRC_SANDBOX_CLIENT_ID") &&
+        configured("HMRC_SANDBOX_CLIENT_SECRET") &&
+        configured("HMRC_OAUTH_REDIRECT_URL") &&
+        configured("HMRC_TOKEN_ENCRYPTION_KEY"),
+      storageEnabled: configured("DEFAULT_OBJECT_STORAGE_BUCKET_ID"),
+      clerkEnabled: configured("CLERK_PUBLISHABLE_KEY"),
+      aiEnabled: configured("OPENAI_API_KEY"),
+      emailEnabled: configured("RESEND_API_KEY") &&
+        (isProductionEnvironment(runtimeConfig.environment) ||
+          (customerCommsEnabled &&
+            configured("WORKRATE_NON_PRODUCTION_EMAIL_ALLOWLIST"))),
+      vapiEnabled: configured("VAPI_PRIVATE_KEY") && customerCommsEnabled,
+      whatsappEnabled: configured("WHATSAPP_APP_SECRET") &&
+        configured("WHATSAPP_WEBHOOK_VERIFY_TOKEN") &&
+        customerCommsEnabled,
+    },
     apiOrigin: `${req.protocol}://${req.get("host")}`,
-    clerkEnvironment: clerkEnv,
-    dbEnvironment: dbEnv,
     companyId: company?.id ?? null,
     companyName: company?.name ?? null,
     latestEnquiryAt: latestEnquiry?.createdAt ?? null,
-  });
+  }));
 });
 
 export default router;

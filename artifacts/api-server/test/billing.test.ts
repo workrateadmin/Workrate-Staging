@@ -127,11 +127,12 @@ test("DB-backed receptionist grants snapshot minutes once and reject canonical s
           current_period_start: Math.floor(period.startsAt.getTime() / 1000),
           current_period_end: Math.floor(period.endsAt.getTime() / 1000),
         };
+        const baseMetadata = { billing_kind: "ai_receptionist_top_up", purchaseId: String(good.id), companyId: String(company.id), ownerUserId: owner, packCode: "minutes_100", workrate_environment: "development" };
         return {
           id: "cs_topup_good", mode: "payment", payment_status: "paid", payment_intent: "pi_topup_good",
           currency: "gbp", amount_total: 1200,
-          metadata: { billing_kind: "ai_receptionist_top_up", purchaseId: String(good.id), companyId: String(company.id), ownerUserId: owner, packCode: "minutes_100" },
           ...overrides,
+          metadata: { ...baseMetadata, ...((overrides.metadata as object | undefined) ?? {}) },
         };
       },
     });
@@ -640,8 +641,8 @@ test("provider webhook canonical recovery, duplicate receipt, and failed retry",
           type,
           data: {
             object: type.startsWith("customer.subscription.")
-              ? { id: "sub_9", customer: "cus_9" }
-              : { customer: "cus_9", subscription: "sub_9" },
+              ? { id: "sub_9", customer: "cus_9", metadata: { workrate_environment: "development" } }
+              : { customer: "cus_9", subscription: "sub_9", metadata: { workrate_environment: "development" } },
           },
         };
       }

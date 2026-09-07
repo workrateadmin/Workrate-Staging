@@ -3,6 +3,7 @@ import { billingReceptionistTopUpPacksTable, billingReceptionistTopUpPurchasesTa
 import { featureAccess, tenantEntitlements } from "./authorization";
 import { StripeApiClient } from "./stripeClient";
 import { isStripeBillingReady } from "./readiness";
+import { getWorkRateEnvironment } from "../../lib/runtime-environment";
 
 type StripeApi = Pick<StripeApiClient, "get" | "post">;
 const returnUrl = () => {
@@ -74,12 +75,14 @@ export async function createReceptionistTopUpCheckout(input: { companyId: number
       customerPriceGbp: pack[0].customerPriceGbp!, currency: "gbp", expiryPolicy: pack[0].expiryPolicy,
       periodStartsAt: startsAt, periodEndsAt: endsAt,
     }).returning();
+    const environment = getWorkRateEnvironment();
     const session: any = await stripe.post("checkout/sessions", {
       mode: "payment", ...(current.providerCustomerId ? { customer: current.providerCustomerId } : {}),
       success_url: `${returnUrl()}?topup=success`, cancel_url: `${returnUrl()}?topup=cancelled`,
       "line_items[0][price]": priceId, "line_items[0][quantity]": 1,
       "metadata[billing_kind]": "ai_receptionist_top_up", "metadata[purchaseId]": purchase.id,
       "metadata[companyId]": input.companyId, "metadata[ownerUserId]": input.ownerUserId, "metadata[packCode]": pack[0].code,
+      "metadata[workrate_environment]": environment,
     }, { "Idempotency-Key": `workrate-topup-${purchase.id}` });
     if (!session?.id || !session.url) throw new Error("Stripe did not return a hosted checkout URL.");
     await db.update(billingReceptionistTopUpPurchasesTable).set({ stripeCheckoutSessionId: session.id }).where(eq(billingReceptionistTopUpPurchasesTable.id, purchase.id));
@@ -94,7 +97,7 @@ export async function grantReceptionistTopUpFromStripeSession(session: any, stri
   if (!Number.isSafeInteger(purchaseId)) return "ignored" as const;
   // Fetching the session ourselves prevents signed event payload fields becoming purchase truth.
   const canonical: any = await stripe.get(`checkout/sessions/${encodeURIComponent(session.id)}`);
-  if (canonical.id !== session.id || canonical.mode !== "payment" || canonical.payment_status !== "paid") throw new Error("Canonical Checkout payment verification failed.");
+  if (canonical.id !== session.id || canonical.mode !== "payment" || canonical.payment_status !== "paid" || canonical.metadata?.workrate_environment !== getWorkRateEnvironment()) throw new Error("Canonical Checkout payment verification failed.");
   const lineItems: any = await stripe.get(`checkout/sessions/${encodeURIComponent(session.id)}/line_items`, { limit: 10 });
   const paymentIntent = typeof canonical.payment_intent === "string" ? canonical.payment_intent : canonical.payment_intent?.id;
   if (!paymentIntent) throw new Error("Paid Checkout session has no payment identity.");

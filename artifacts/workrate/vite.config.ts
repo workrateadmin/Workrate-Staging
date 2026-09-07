@@ -23,6 +23,7 @@ if (!isBuild && (Number.isNaN(port) || port <= 0)) {
 }
 
 const basePath = process.env.BASE_PATH ?? '/';
+const pwaBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
 
 export default defineConfig({
   base: basePath,
@@ -40,71 +41,14 @@ export default defineConfig({
       // component, avoiding unexpected mid-session page reloads.
       registerType: 'prompt',
       injectRegister: 'auto',
-
-      workbox: {
-        // Remove caches created by previous SW versions on activation.
-        cleanupOutdatedCaches: true,
-
-        // Take control of all open tabs immediately after activation so new
-        // content is served without waiting for a full browser restart.
-        clientsClaim: true,
-        skipWaiting: false, // only skip waiting after user confirms reload
-
-        // Disable the auto-generated NavigationRoute(createHandlerBoundToURL("index.html"))
-        // that vite-plugin-pwa adds by default. That route intercepts all navigation
-        // requests and serves precached HTML unconditionally, preventing normal browser
-        // visits from receiving updated content without a hard-refresh.
-        // Our custom NetworkFirst runtime rule (below) handles navigation instead.
-        navigateFallback: null,
-
-        runtimeCaching: [
-          // ── API calls ── never cache; always hit the network ─────────────
-          {
-            urlPattern: /\/api\//,
-            handler: 'NetworkOnly',
-          },
-
-          // ── HTML / navigation ── network-first; falls back to cache if
-          // offline so the app shell still loads ───────────────────────────
-          {
-            urlPattern: ({ request }) => request.mode === 'navigate',
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'html-cache-v1',
-              networkTimeoutSeconds: 6,
-              cacheableResponse: { statuses: [200] },
-            },
-          },
-
-          // ── Hashed JS/CSS bundles ── safe to cache long-term because Vite
-          // embeds a content hash in every filename; a new deploy = new filename
-          {
-            urlPattern: /\/assets\/.+\.(js|css)(\?.*)?$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'static-assets-v1',
-              expiration: {
-                maxEntries: 60,
-                maxAgeSeconds: 365 * 24 * 60 * 60, // 1 year
-              },
-              cacheableResponse: { statuses: [200] },
-            },
-          },
-
-          // ── Other static assets (icons, fonts, images) ─── revalidate in
-          // background; serve from cache while fresh copy is fetched ────────
-          {
-            urlPattern: /\.(png|svg|jpg|jpeg|webp|woff2?|ico)(\?.*)?$/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'media-cache-v1',
-              expiration: {
-                maxEntries: 40,
-                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-              },
-            },
-          },
-        ],
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'service-worker.ts',
+      injectManifest: {
+        // This worker intentionally performs runtime caching only. It cannot
+        // pre-cache under a build-time namespace because that namespace is
+        // authoritative only after /api/runtime-config responds.
+        injectionPoint: undefined,
       },
 
       // Web app manifest — required for "Add to Home Screen" on iOS/Android.
@@ -112,24 +56,24 @@ export default defineConfig({
         name: 'WorkRate',
         short_name: 'WorkRate',
         description: 'Manage your trades pipeline',
-        start_url: '/',
-        scope: '/',
+        start_url: pwaBasePath,
+        scope: pwaBasePath,
         display: 'standalone',
         background_color: '#ffffff',
         theme_color: '#0E1629',
         icons: [
           {
-            src: '/icon-192.png',
+            src: `${pwaBasePath}icon-192.png`,
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: '/icon-512.png',
+            src: `${pwaBasePath}icon-512.png`,
             sizes: '512x512',
             type: 'image/png',
           },
           {
-            src: '/icon-512.png',
+            src: `${pwaBasePath}icon-512.png`,
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',

@@ -1,7 +1,13 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runMigrations } from "@workspace/db/migrate";
+import { pool } from "@workspace/db";
+import { assertDatabaseEnvironment } from "@workspace/db/environment-marker";
 import { initializeStripeBilling } from "./services/billing/provider";
+import {
+  assertRuntimeEnvironmentSafety,
+  shouldRunMigrations,
+} from "./lib/runtime-environment";
 
 const rawPort = process.env["PORT"];
 
@@ -17,25 +23,43 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// Run DB migrations before accepting connections
-runMigrations()
-  .then(async () => {
-    try {
-      await initializeStripeBilling();
-    } catch (err) {
-      // Billing calls remain safely unavailable until the connector recovers;
-      // never take unrelated product functionality down for a transient sync error.
-      logger.error({ err }, "Stripe initialization failed; billing provider will remain unavailable");
+async function startServer(): Promise<void> {
+  const workRateEnvironment = assertRuntimeEnvironmentSafety();
+  const client = await pool.connect();
+
+  try {
+    await assertDatabaseEnvironment(client, workRateEnvironment);
+  } finally {
+    client.release();
+  }
+
+  if (shouldRunMigrations(workRateEnvironment)) {
+    await runMigrations();
+  } else {
+    logger.info(
+      { workRateEnvironment },
+      "Automatic database migrations are disabled for this environment",
+    );
+  }
+
+  try {
+    await initializeStripeBilling();
+  } catch (err) {
+    // Billing calls remain safely unavailable until the connector recovers;
+    // never take unrelated product functionality down for a transient sync error.
+    logger.error({ err }, "Stripe initialization failed; billing provider will remain unavailable");
+  }
+
+  app.listen(port, (err) => {
+    if (err) {
+      logger.error({ err }, "Error listening on port");
+      process.exit(1);
     }
-    app.listen(port, (err) => {
-      if (err) {
-        logger.error({ err }, "Error listening on port");
-        process.exit(1);
-      }
-      logger.info({ port }, "Server listening");
-    });
-  })
-  .catch((err) => {
-    logger.error({ err }, "Migration failed — server not started");
-    process.exit(1);
+    logger.info({ port, workRateEnvironment }, "Server listening");
   });
+}
+
+startServer().catch((err) => {
+  logger.error({ err }, "Startup safety checks failed — server not started");
+  process.exit(1);
+});

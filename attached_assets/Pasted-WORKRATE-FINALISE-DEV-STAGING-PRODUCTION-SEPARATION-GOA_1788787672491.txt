@@ -1,0 +1,416 @@
+WORKRATE — FINALISE DEV / STAGING / PRODUCTION SEPARATION
+
+GOAL:
+
+Create a safe release workflow so WorkRate development/testing is completely separated from paying-customer production.
+
+TARGET FLOW:
+
+DEV
+→ STAGING
+→ PRODUCTION
+
+IMPORTANT:
+
+Do NOT move or copy customer production data into dev/staging.
+Do NOT point dev or staging at the production database.
+Do NOT expose production secrets to non-production environments.
+Do NOT publish automatically.
+
+==================================================
+1. AUDIT CURRENT ENVIRONMENTS
+==================================================
+
+Inspect:
+
+- Replit Preview/dev environment
+- current published production environment
+- databases used by each
+- Clerk configuration
+- Stripe configuration
+- HMRC gateway configuration
+- Meta/Vapi/email/provider secrets
+- storage/GCS
+- service-worker/PWA behavior
+- current publish/deployment workflow
+
+Report what separation already exists and what is still shared.
+
+==================================================
+2. CANONICAL ENVIRONMENT VALUE
+==================================================
+
+Use one server-side variable:
+
+WORKRATE_ENV
+
+Allowed values only:
+
+development
+staging
+production
+
+Fail startup if missing or invalid.
+
+Do not infer the environment only from hostname.
+
+==================================================
+3. DATABASE ISOLATION
+==================================================
+
+Require separate databases:
+
+development → dev DB
+staging → staging DB
+production → production DB
+
+Add/verify an environment marker in each DB.
+
+If application environment and DB environment mismatch:
+FAIL STARTUP.
+
+Example:
+
+WORKRATE_ENV=development
++
+database=production
+→ HARD FAILURE
+
+==================================================
+4. STAGING ENVIRONMENT
+==================================================
+
+Create the smallest practical staging deployment.
+
+Preferred future hostname:
+
+staging.work-rate.uk
+
+Staging should:
+
+- run the same candidate code as production
+- use its own database
+- use Stripe test mode
+- use HMRC sandbox
+- use test/provider-safe integrations
+- contain fake/test business data only
+- never use real customer records
+
+If Replit provides a staging deployment URL before custom DNS, use that first.
+
+==================================================
+5. VISUAL ENVIRONMENT BANNERS
+==================================================
+
+DEVELOPMENT:
+
+“DEVELOPMENT — TEST DATA ONLY”
+
+STAGING:
+
+“STAGING — NOT CUSTOMER DATA”
+
+PRODUCTION:
+
+no environment banner
+
+The banner must be obvious and persistent on authenticated pages.
+
+==================================================
+6. STRIPE SEPARATION
+==================================================
+
+Development/staging:
+Stripe TEST keys only.
+
+Production:
+live Stripe only when explicitly activated later.
+
+If dev/staging detects a live Stripe key:
+FAIL STARTUP.
+
+Keep webhook signing secrets separate per environment.
+
+==================================================
+7. HMRC SEPARATION
+==================================================
+
+Development/staging:
+HMRC sandbox only.
+
+Production:
+do not enable production HMRC until explicitly approved.
+
+The current sandbox gateway:
+
+https://hmrc-gateway.work-rate.uk
+
+must not silently become a production HMRC route.
+
+Environment controls provider target server-side.
+
+==================================================
+8. META / SOCIAL
+==================================================
+
+Development/staging must not accidentally send real automatic messages from customer Instagram/Facebook/WhatsApp accounts.
+
+Use test/dev configuration where supported.
+
+Production provider tokens remain production-only.
+
+==================================================
+9. VAPI / PHONE
+==================================================
+
+Development/staging:
+
+- real customer phone routing disabled by default
+- explicit test phone configuration only
+
+Production mappings must not load into dev/staging.
+
+==================================================
+10. EMAIL SAFETY
+==================================================
+
+Development:
+email disabled or test-address allowlist only.
+
+Staging:
+test-address allowlist only by default.
+
+Production:
+normal customer delivery.
+
+Non-production must block recipients outside its allowlist.
+
+Do not silently redirect mail.
+
+==================================================
+11. STORAGE SEPARATION
+==================================================
+
+Separate storage by environment.
+
+Prefer separate buckets where practical.
+
+At minimum use validated namespaces:
+
+development/
+staging/
+production/
+
+Dev/staging must never write to production Finance receipt/job evidence storage.
+
+==================================================
+12. WEBHOOK ISOLATION
+==================================================
+
+Separate webhook endpoints/config where appropriate for:
+
+- Stripe
+- Vapi
+- Meta
+- HMRC
+
+Reject provider events intended for the wrong environment where the provider metadata allows validation.
+
+==================================================
+13. CLERK
+==================================================
+
+Audit current Clerk setup carefully.
+
+Important:
+
+Do NOT break existing production company ownership.
+
+Do NOT merge/delete the two current production owner identities automatically.
+
+Preferred long-term:
+
+development/staging → Clerk development/test environment
+production → Clerk live environment
+
+If migration is not ready yet:
+document the exact safe interim model.
+
+==================================================
+14. MIGRATIONS
+==================================================
+
+Formalize:
+
+1. write/test migration in DEV
+2. apply to STAGING
+3. test
+4. explicitly approve PRODUCTION migration
+
+Production migrations must never happen merely because a dev process starts.
+
+==================================================
+15. RELEASE MODEL
+==================================================
+
+Desired workflow:
+
+Build in DEV
+→ automated checks
+→ deploy exact commit/build to STAGING
+→ end-to-end test
+→ approve
+→ deploy same candidate to PRODUCTION
+
+Record where practical:
+
+- commit/build ID
+- migration version
+- deployment time
+- environment
+
+Avoid code changes between staging approval and production publish.
+
+==================================================
+16. TEST DATA
+==================================================
+
+Create safe dev/staging fixtures:
+
+- test business
+- enquiry
+- quote
+- job
+- invoice
+- finance expense/receipt
+- subscription state
+- usage state
+
+Never copy Huntley Bespoke production records into staging.
+
+==================================================
+17. PRODUCTION SAFETY
+==================================================
+
+Production must not expose:
+
+- WorkRateAppTesting
+- WorkRateVisualTesting
+- seed endpoints
+- billing simulators
+- developer shortcuts
+- test-record creation routes
+
+Unknown environments fail closed.
+
+==================================================
+18. DIAGNOSTICS
+==================================================
+
+Keep technical diagnostics for internal/admin use.
+
+Safe fields may include:
+
+- environment
+- build ID
+- migration version
+- Stripe mode
+- HMRC mode
+- storage environment
+- provider environment state
+
+Do not expose secrets.
+
+==================================================
+19. PWA / CACHE
+==================================================
+
+Ensure service-worker caches cannot leak or reuse state across dev/staging/production.
+
+Keep /api/* NetworkOnly behavior.
+
+Include environment/build version in cache invalidation strategy.
+
+==================================================
+20. AUTOMATED SAFETY TESTS
+==================================================
+
+Test:
+
+- dev + production DB → startup failure
+- staging + production DB → startup failure
+- dev/staging + Stripe live key → startup failure
+- dev/staging + production HMRC → blocked
+- dev/staging + production storage → blocked
+- dev/staging email allowlist enforced
+- production test shortcuts blocked
+- frontend calls correct environment API
+- environment banners correct
+- cross-environment webhook mismatch rejected where possible
+
+==================================================
+21. STAGING SMOKE TEST
+==================================================
+
+Once staging exists, test:
+
+- sign in
+- onboarding
+- enquiry
+- quote
+- proposal
+- deposit
+- job
+- schedule
+- invoice
+- receipt upload
+- Finance
+- billing with Stripe test mode
+- usage limits
+- integrations
+- HMRC sandbox preparation
+
+Confirm:
+
+NO production customer data visible
+NO production external messages/calls sent
+
+==================================================
+22. BEFORE IMPLEMENTATION REPORT
+==================================================
+
+First report:
+
+A. current environment separation already present
+B. what is still shared
+C. safest staging deployment method in Replit
+D. staging DB plan
+E. Clerk constraint
+F. provider secrets that need separate staging values
+G. whether DNS is required now
+H. smallest safe implementation plan
+
+Then implement everything that can safely be done in-repo.
+
+==================================================
+23. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. final environment architecture
+B. WORKRATE_ENV behavior
+C. database isolation
+D. staging deployment status
+E. Stripe isolation
+F. HMRC isolation
+G. Meta/Vapi/email isolation
+H. storage isolation
+I. banners
+J. migration workflow
+K. release workflow
+L. tests passed
+M. remaining manual setup
+N. whether one publish is required
+
+Do not publish automatically.

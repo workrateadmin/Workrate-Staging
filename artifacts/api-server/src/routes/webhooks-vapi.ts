@@ -17,6 +17,7 @@ import {
 import { extractEmailWithFallback, isValidEmailAddress } from "../services/vapi-email";
 import { reserveMeteredFeature } from "../services/billing/authorization";
 import { finalizeUsageReservation, recordUsage, releaseUsageReservation, upsertVapiProviderCost } from "../services/billing/usage";
+import { canSendCustomerMessages } from "../lib/runtime-environment";
 
 const EMAIL_NEEDS_CONFIRMATION_NOTE = "Email needs confirmation — the transcript did not contain one clearly confirmed email address.";
 
@@ -289,6 +290,11 @@ async function processCompletedCall(call: VapiCallData, ownerUserId: string) {
 // Vapi delivers server events as POSTs. Configure a per-tenant Custom Credential
 // in Vapi to send the secret saved in that tenant's Vapi integration settings.
 router.post("/webhooks/vapi", async (req: Request, res: Response): Promise<void> => {
+  if (!canSendCustomerMessages()) {
+    req.log.warn("Rejected Vapi webhook because customer calls are disabled in this environment");
+    res.status(403).json({ error: "Customer calls are disabled in this environment" });
+    return;
+  }
   const call = extractVapiCallData(req.body);
   if (!call) {
     req.log.warn("Rejected Vapi webhook without a call identity");

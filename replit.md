@@ -1,6 +1,6 @@
-# [Project name]
+# WorkRate
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+WorkRate helps trade businesses manage enquiries, quotes, jobs, invoices, and finance.
 
 ## Run & Operate
 
@@ -9,6 +9,8 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `pnpm --filter @workspace/scripts run init:environment -- <environment>` — explicitly initialize/verify a database marker
+- `WORKRATE_ENV=development pnpm --filter @workspace/scripts run seed:synthetic-workrate -- --owner <id>` — safe synthetic fixture (development/staging only)
 - Required env: `DATABASE_URL` — Postgres connection string
 
 ## Stack
@@ -20,25 +22,26 @@ _Replace the heading above with the project's name, and this line with one sente
 - API codegen: Orval (from OpenAPI spec)
 - Build: esbuild (CJS bundle)
 
-## Where things live
+## Release environments
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- Use separate development, staging, and production databases and secrets.
+- Set exact `WORKRATE_ENV`; staging/production also require an immutable `WORKRATE_BUILD_ID`.
+- Initialize the matching DB marker before startup. Staging and production never run startup migrations; use Replit Publish schema promotion.
+- The generated staging publish URL is tested before DNS. See `docs/workrate-environment-release.md` for the full DEV → STAGING → PRODUCTION, Clerk interim model, fixture, and rollback runbook.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The database environment marker is immutable and checked at startup to prevent cross-environment connections.
+- Production schema changes are promoted by Replit Publish, not application startup.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
-
-## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
+Enquiries, customer communications, quotes/invoices, jobs, finance, and subscription usage for trade businesses.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Never use `db push` or run migrations against staging/production.
+- Never copy production data or secrets into another environment.
 
 ## Pointers
 

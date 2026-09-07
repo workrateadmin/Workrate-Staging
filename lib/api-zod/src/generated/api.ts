@@ -18,6 +18,48 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Get the server-owned runtime environment and build identity
+ */
+
+
+
+export const GetRuntimeConfigResponse = zod.object({
+  "environment": zod.enum(['development', 'staging', 'production']),
+  "buildId": zod.string().min(1)
+})
+
+
+/**
+ * @summary Get safe owner diagnostics for the active deployment
+ */
+
+
+
+export const GetDiagnosticsResponse = zod.object({
+  "environment": zod.enum(['development', 'staging', 'production']),
+  "buildId": zod.string().min(1),
+  "migrationVersion": zod.string().nullable(),
+  "stripeMode": zod.enum(['test', 'live', 'disabled', 'unknown']),
+  "hmrcMode": zod.enum(['sandbox', 'disabled']),
+  "storageEnvironment": zod.enum(['development', 'staging', 'production', 'unconfigured']),
+  "providers": zod.object({
+  "stripeEnabled": zod.boolean(),
+  "hmrcEnabled": zod.boolean(),
+  "storageEnabled": zod.boolean(),
+  "clerkEnabled": zod.boolean(),
+  "aiEnabled": zod.boolean(),
+  "emailEnabled": zod.boolean(),
+  "vapiEnabled": zod.boolean(),
+  "whatsappEnabled": zod.boolean()
+}),
+  "apiOrigin": zod.string(),
+  "companyId": zod.number().nullable(),
+  "companyName": zod.string().nullable(),
+  "latestEnquiryAt": zod.coerce.date().nullable()
+})
+
+
+/**
  * @summary Get company profile
  */
 export const GetCompanyResponse = zod.object({

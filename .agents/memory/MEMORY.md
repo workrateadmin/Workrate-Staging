@@ -28,3 +28,4 @@
 - [WorkRate timeline boundaries](workrate-timeline-boundaries.md) — timelines are enquiry-scoped and derived only from explicit links; never infer customer identity or historical events
 - [Actual-job evidence trust boundary](workrate-job-evidence.md) — completion evidence is core tenant data; readiness is completeness, and only confirmed linked costs enter history
 - [HMRC gateway Caddy evidence](hmrc-gateway-caddy-evidence.md) — Caddy v2 must use canonical remote host/port placeholders or live browser attestation fails safely with HTTP 400
+- [WorkRate environment isolation](workrate-environment-isolation.md) — runtime identity is explicit; DB markers are out-of-band and immutable; staging/production never migrate at startup

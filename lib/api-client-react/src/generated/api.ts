@@ -44,6 +44,7 @@ import type {
   DashboardStats,
   DemoCompleteRequest,
   DemoMessageRequest,
+  Diagnostics,
   Enquiry,
   EnquiryAttachment,
   EnquiryInput,
@@ -122,6 +123,7 @@ import type {
   ReceptionistTopUpPackList,
   RecordProposalView200,
   RecordWidgetHeartbeat202,
+  RuntimeConfig,
   TimelinePage,
   UpdateInternalBillingCatalogItemBody,
   UploadEnquiryAttachmentBody,
@@ -227,6 +229,160 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetRuntimeConfigUrl = () => {
+
+
+
+
+  return `/api/runtime-config`
+}
+
+/**
+ * @summary Get the server-owned runtime environment and build identity
+ */
+export const getRuntimeConfig = async ( options?: Parameters<typeof customFetch>[1]): Promise<RuntimeConfig> => {
+
+  return customFetch<RuntimeConfig>(getGetRuntimeConfigUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRuntimeConfigQueryKey = () => {
+    return [
+    `/api/runtime-config`
+    ] as const;
+    }
+
+
+export const getGetRuntimeConfigQueryOptions = <TData = Awaited<ReturnType<typeof getRuntimeConfig>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRuntimeConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRuntimeConfigQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRuntimeConfig>>> = ({ signal }) => getRuntimeConfig({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRuntimeConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRuntimeConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getRuntimeConfig>>>
+export type GetRuntimeConfigQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the server-owned runtime environment and build identity
+ */
+
+export function useGetRuntimeConfig<TData = Awaited<ReturnType<typeof getRuntimeConfig>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRuntimeConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRuntimeConfigQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDiagnosticsUrl = () => {
+
+
+
+
+  return `/api/diagnostics`
+}
+
+/**
+ * @summary Get safe owner diagnostics for the active deployment
+ */
+export const getDiagnostics = async ( options?: Parameters<typeof customFetch>[1]): Promise<Diagnostics> => {
+
+  return customFetch<Diagnostics>(getGetDiagnosticsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDiagnosticsQueryKey = () => {
+    return [
+    `/api/diagnostics`
+    ] as const;
+    }
+
+
+export const getGetDiagnosticsQueryOptions = <TData = Awaited<ReturnType<typeof getDiagnostics>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDiagnostics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDiagnosticsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDiagnostics>>> = ({ signal }) => getDiagnostics({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDiagnostics>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDiagnosticsQueryResult = NonNullable<Awaited<ReturnType<typeof getDiagnostics>>>
+export type GetDiagnosticsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get safe owner diagnostics for the active deployment
+ */
+
+export function useGetDiagnostics<TData = Awaited<ReturnType<typeof getDiagnostics>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDiagnostics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDiagnosticsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

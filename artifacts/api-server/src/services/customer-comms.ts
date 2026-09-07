@@ -10,6 +10,7 @@
 import { db, enquiriesTable, quotesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { renderInvoicePdf, renderQuotePdf } from "./invoice-pdf";
+import { canSendCustomerEmail } from "../lib/runtime-environment";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,6 +61,12 @@ async function sendViaResend(opts: {
   html: string;
   attachments?: Array<{ filename: string; content: Buffer }>;
 }): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+  if (!canSendCustomerEmail(opts.to)) {
+    return {
+      ok: false,
+      error: "Customer email delivery is disabled for this environment or recipient.",
+    };
+  }
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     return { ok: false, error: "RESEND_API_KEY not configured" };

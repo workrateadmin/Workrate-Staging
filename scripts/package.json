@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "init:environment": "tsx ./src/init-workrate-environment.ts",
+    "seed:synthetic-workrate": "tsx ./src/seed-synthetic-workrate.ts",
     "seed:stripe-billing": "tsx ./src/seed-stripe-billing-catalog.ts",
     "seed:stripe-receptionist-top-ups": "tsx ./src/seed-stripe-receptionist-top-ups.ts",
+    "test:synthetic-fixture-guard": "tsx --test ./test/synthetic-fixture-guard.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
