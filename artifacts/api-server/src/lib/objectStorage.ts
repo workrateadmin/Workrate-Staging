@@ -9,6 +9,13 @@ import {
   ObjectPermission,
   setObjectAclPolicy,
 } from './objectAcl';
+import {
+  assertStorageFileBelongsToEnvironment,
+  objectPathForNewObject,
+  requireStorageEnvironmentConfig,
+  resolvePublicObjectPaths,
+  resolvePrivateObjectPath,
+} from './storage-environment';
 
 const REPLIT_SIDECAR_ENDPOINT = 'http://127.0.0.1:1106';
 
@@ -42,42 +49,22 @@ export class ObjectStorageService {
   constructor() {}
 
   getPublicObjectSearchPaths(): Array<string> {
-    const pathsStr = process.env.PUBLIC_OBJECT_SEARCH_PATHS || '';
-    const paths = Array.from(
-      new Set(
-        pathsStr
-          .split(',')
-          .map((path) => path.trim())
-          .filter((path) => path.length > 0),
-      ),
+    const config = requireStorageEnvironmentConfig();
+    return config.publicRoots.map(
+      (root) => `/${root.bucketId}/${root.objectPrefix}/${config.environment}`,
     );
-    if (paths.length === 0) {
-      throw new Error(
-        "PUBLIC_OBJECT_SEARCH_PATHS not set. Create a bucket in 'Object Storage' " +
-          'tool and set PUBLIC_OBJECT_SEARCH_PATHS env var (comma-separated paths).',
-      );
-    }
-    return paths;
   }
 
   getPrivateObjectDir(): string {
-    const dir = process.env.PRIVATE_OBJECT_DIR || '';
-    if (!dir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          'tool and set PRIVATE_OBJECT_DIR env var.',
-      );
-    }
-    return dir;
+    const config = requireStorageEnvironmentConfig();
+    return `/${config.bucketId}/${config.environmentObjectPrefix}`;
   }
 
   async searchPublicObject(filePath: string): Promise<File | null> {
-    for (const searchPath of this.getPublicObjectSearchPaths()) {
-      const fullPath = `${searchPath}/${filePath}`;
-
-      const { bucketName, objectName } = parseObjectPath(fullPath);
-      const bucket = objectStorageClient.bucket(bucketName);
-      const file = bucket.file(objectName);
+    const config = requireStorageEnvironmentConfig();
+    for (const resolved of resolvePublicObjectPaths(filePath, config)) {
+      const bucket = objectStorageClient.bucket(resolved.bucketId);
+      const file = bucket.file(resolved.objectName);
 
       const [exists] = await file.exists();
       if (exists) {
@@ -92,6 +79,12 @@ export class ObjectStorageService {
     file: File,
     cacheTtlSec: number = 3600,
   ): Promise<Response> {
+    const config = requireStorageEnvironmentConfig();
+    assertStorageFileBelongsToEnvironment(
+      file.bucket.name,
+      file.name,
+      config,
+    );
     const [metadata] = await file.getMetadata();
     const aclPolicy = await getObjectAclPolicy(file);
     const isPublic = aclPolicy?.visibility === 'public';
@@ -134,24 +127,14 @@ export class ObjectStorageService {
   }
 
   async getObjectEntityFile(objectPath: string): Promise<File> {
-    if (!objectPath.startsWith('/objects/')) {
+    let resolved;
+    try {
+      resolved = resolvePrivateObjectPath(objectPath);
+    } catch {
       throw new ObjectNotFoundError();
     }
-
-    const parts = objectPath.slice(1).split('/');
-    if (parts.length < 2) {
-      throw new ObjectNotFoundError();
-    }
-
-    const entityId = parts.slice(1).join('/');
-    let entityDir = this.getPrivateObjectDir();
-    if (!entityDir.endsWith('/')) {
-      entityDir = `${entityDir}/`;
-    }
-    const objectEntityPath = `${entityDir}${entityId}`;
-    const { bucketName, objectName } = parseObjectPath(objectEntityPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const objectFile = bucket.file(objectName);
+    const bucket = objectStorageClient.bucket(resolved.bucketId);
+    const objectFile = bucket.file(resolved.objectName);
     const [exists] = await objectFile.exists();
     if (!exists) {
       throw new ObjectNotFoundError();
@@ -165,19 +148,18 @@ export class ObjectStorageService {
     }
 
     const url = new URL(rawPath);
-    const rawObjectPath = url.pathname;
-
-    let objectEntityDir = this.getPrivateObjectDir();
-    if (!objectEntityDir.endsWith('/')) {
-      objectEntityDir = `${objectEntityDir}/`;
+    const config = requireStorageEnvironmentConfig();
+    const { bucketName, objectName } = parseObjectPath(url.pathname);
+    if (bucketName !== config.bucketId) throw new ObjectNotFoundError();
+    const prefix = `${config.environmentObjectPrefix}/`;
+    if (!objectName.startsWith(prefix)) {
+      const legacyPrefix = `${config.privateRoot.objectPrefix}/`;
+      if (!config.legacyReadsAllowed || !objectName.startsWith(legacyPrefix)) {
+        throw new ObjectNotFoundError();
+      }
+      return `/objects/${objectName.slice(config.privateRoot.objectPrefix.length + 1)}`;
     }
-
-    if (!rawObjectPath.startsWith(objectEntityDir)) {
-      return rawObjectPath;
-    }
-
-    const entityId = rawObjectPath.slice(objectEntityDir.length);
-    return `/objects/${entityId}`;
+    return objectPathForNewObject(objectName.slice(prefix.length), config);
   }
 
   async trySetObjectEntityAclPolicy(

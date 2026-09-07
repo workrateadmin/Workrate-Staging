@@ -53,6 +53,10 @@ test("accepts only canonical uploaded image paths as invoice logos", () => {
     true,
   );
   assert.equal(
+    isAllowedInvoiceLogoObjectPath("/objects/development/uploads/a3b13f30-aa5a-4220-9b70-c1583b7deb46.png"),
+    true,
+  );
+  assert.equal(
     isAllowedInvoiceLogoObjectPath("/objects/finance/a3b13f30-aa5a-4220-9b70-c1583b7deb46.png"),
     false,
   );

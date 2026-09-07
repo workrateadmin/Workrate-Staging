@@ -1,0 +1,515 @@
+WORKRATE — CREATE A SAFE STAGING ENVIRONMENT END TO END
+
+GOAL:
+
+Create a completely separate WorkRate staging environment so the release flow becomes:
+
+DEVELOPMENT
+→ STAGING
+→ PRODUCTION
+
+IMPORTANT:
+
+The staging environment must contain the SAME CODEBASE as WorkRate, but must NOT contain:
+
+- production customer data
+- production database contents
+- production secrets
+- production Stripe live credentials
+- production Meta/Vapi customer mappings
+- production email delivery permissions
+- production file storage
+- production Clerk users
+- production HMRC production credentials
+
+Do NOT modify the current production WorkRate deployment.
+Do NOT publish to production.
+Do NOT copy Huntley Bespoke production data into staging.
+
+==================================================
+1. GUIDE ME THROUGH REPLIT UI
+==================================================
+
+I have NOT yet created the separate “WorkRate Staging” Replit project.
+
+Guide me from the current Replit dashboard through creation of the staging project.
+
+IMPORTANT:
+
+Give me ONE MANUAL ACTION AT A TIME.
+
+Do not assume I can see buttons/options that may not exist in the current Replit UI.
+
+If the current Replit product does not support a separate project/deployment in the way previously assumed, inspect the current available Replit deployment/project model and tell me the correct supported method.
+
+Desired project name:
+
+WorkRate Staging
+
+Do not configure anything automatically until the empty staging project/environment exists.
+
+==================================================
+2. CODE ONLY — NO DATA
+==================================================
+
+Once the staging project exists:
+
+copy/import the current WorkRate CODEBASE only.
+
+Do NOT clone/copy:
+
+- production database
+- production uploaded files
+- production Clerk identities
+- production secrets
+- production environment variables
+- production webhook signing secrets
+- production provider tokens
+
+Use source/code only.
+
+==================================================
+3. SET AUTHORITATIVE ENVIRONMENT
+==================================================
+
+Configure:
+
+WORKRATE_ENV=staging
+
+The staging app must fail startup if:
+
+- WORKRATE_ENV is missing
+- WORKRATE_ENV is invalid
+- database marker is not staging
+
+The staging UI must permanently show:
+
+“STAGING — NOT CUSTOMER DATA”
+
+==================================================
+4. CREATE SEPARATE STAGING DATABASE
+==================================================
+
+Create a completely separate empty staging database.
+
+Do NOT restore or clone production.
+
+Initialize only the schema/migrations.
+
+Mark the database environment explicitly as:
+
+staging
+
+Verify:
+
+WORKRATE_ENV=staging
++
+DB environment marker=staging
+
+Anything else must fail startup.
+
+==================================================
+5. APPLY MIGRATIONS SAFELY
+==================================================
+
+Apply the current WorkRate schema to the staging DB only.
+
+Use the explicit staging migration path introduced by the environment-separation work.
+
+Do NOT enable automatic production/staging migrations at app startup.
+
+Report the migration version applied.
+
+==================================================
+6. CREATE SYNTHETIC STAGING DATA
+==================================================
+
+Use the guarded staging fixture tooling already added.
+
+Create only fake test data such as:
+
+- staging trade business
+- fake customer
+- enquiry
+- quote
+- job
+- invoice
+- expense
+- receipt metadata
+- subscription state
+- usage state
+
+Clearly label test records.
+
+Never copy real Huntley Bespoke/customer records.
+
+==================================================
+7. CLERK STAGING AUTH
+==================================================
+
+Use the safe interim Clerk model already identified:
+
+STAGING:
+use Clerk development/test environment with staging-only test users
+
+PRODUCTION:
+leave existing Clerk production users untouched
+
+Do NOT:
+
+- merge production identities
+- delete production users
+- reassign company ownership
+- copy production Clerk metadata into staging
+
+Create/use a dedicated staging test owner.
+
+==================================================
+8. STRIPE STAGING
+==================================================
+
+Staging must use Stripe TEST mode only.
+
+Configure only:
+
+- Stripe test secret key
+- staging/test webhook secret
+- test price/product configuration as required
+
+Do NOT use:
+
+- sk_live_
+- pk_live_
+- live webhook secret
+- live Stripe customer/subscription records
+
+Verify the staging app rejects live Stripe credentials.
+
+==================================================
+9. HMRC STAGING
+==================================================
+
+Staging must remain HMRC SANDBOX ONLY.
+
+Use:
+
+https://hmrc-gateway.work-rate.uk
+
+only if the current gateway architecture explicitly supports staging safely.
+
+Otherwise configure a separate staging-safe gateway mapping.
+
+Do NOT contact HMRC production.
+
+Do NOT add:
+
+HMRC_FRAUD_APPROVED_OMISSIONS
+
+unless HMRC has given written approval.
+
+MTD sandbox testing only.
+
+==================================================
+10. EMAIL SAFETY
+==================================================
+
+Staging email must be:
+
+OFF by default
+
+or
+
+restricted to an explicit allowlist of test addresses.
+
+Do not let staging email real customers.
+
+If a recipient is outside the staging allowlist:
+
+BLOCK SEND.
+
+Do not silently redirect it.
+
+==================================================
+11. VAPI / PHONE SAFETY
+==================================================
+
+Staging must NOT receive or send real customer calls by default.
+
+Use either:
+
+- explicit test phone IDs
+or
+- disable telephony completely until deliberately configured
+
+Do not load production customer phone mappings.
+
+==================================================
+12. META / WHATSAPP / INSTAGRAM SAFETY
+==================================================
+
+Staging must not process production Meta customer messages.
+
+Use:
+
+- development/test Meta configuration
+or
+- integrations disabled until explicitly configured
+
+Inbound production WhatsApp/Instagram/Facebook traffic must be rejected before customer-data processing.
+
+==================================================
+13. STORAGE ISOLATION
+==================================================
+
+DO NOT let staging read/write the production file bucket.
+
+This is critical.
+
+Implement the existing Task #97 requirement:
+
+“Prevent any test environment from reaching the production file bucket.”
+
+Preferred:
+
+separate staging storage bucket.
+
+If a separate bucket is not practical yet:
+
+use independently validated staging storage identity and fail startup if production storage is detected.
+
+Do NOT rely solely on a folder prefix if production credentials still permit access to the production bucket.
+
+Staging must not be able to:
+
+- read production receipts
+- read production job evidence
+- read production documents
+- overwrite production objects
+- enumerate production objects
+
+==================================================
+14. WEBHOOKS
+==================================================
+
+Create staging-specific webhook configuration for providers used in staging.
+
+At minimum assess:
+
+- Stripe
+- Vapi
+- Meta
+- HMRC
+
+Do not reuse production signing secrets where separation is supported.
+
+Provider events belonging to production must not be processed by staging.
+
+==================================================
+15. STAGING URL
+==================================================
+
+Use Replit’s generated staging deployment URL first.
+
+Do NOT require custom DNS to finish the staging environment.
+
+Once staging is fully healthy, document the optional future DNS:
+
+staging.work-rate.uk
+
+Do not change DNS now unless required.
+
+==================================================
+16. PWA / CACHE
+==================================================
+
+Verify staging uses environment/build-specific caches.
+
+Staging must not reuse production PWA cache identity.
+
+Keep:
+
+/api/* = NetworkOnly
+
+Ensure production/staging navigation assets cannot become mixed.
+
+==================================================
+17. TEST SHORTCUTS
+==================================================
+
+STAGING:
+
+WorkRateAppTesting / WorkRateVisualTesting may only be enabled if:
+
+WORKRATE_ENABLE_TEST_SHORTCUTS=true
+
+Otherwise disabled.
+
+PRODUCTION:
+
+must always remain disabled.
+
+Browser parameters/headers must not bypass this.
+
+==================================================
+18. DIAGNOSTICS
+==================================================
+
+On staging, internal diagnostics should show safe values:
+
+- Environment: staging
+- Build ID
+- DB environment: staging
+- migration version
+- Stripe: test
+- HMRC: sandbox
+- email: staging/allowlist
+- Vapi/Meta enablement
+- storage environment
+
+Do NOT expose secrets.
+
+==================================================
+19. RELEASE IDENTIFIER
+==================================================
+
+Record the staging release candidate identity:
+
+- commit/build ID
+- environment
+- migration version
+- deployment timestamp
+
+The eventual production release should deploy the same approved candidate without unrelated code changes.
+
+==================================================
+20. STAGING SMOKE TEST
+==================================================
+
+Run a complete staging smoke test:
+
+AUTH
+- staging test owner sign-in
+
+ONBOARDING
+- complete onboarding
+
+ENQUIRIES
+- create test enquiry
+
+QUOTE
+- create/send TEST quote
+- do not send to real external recipient
+
+PROPOSAL
+- view/accept test proposal
+
+JOB
+- convert test job
+
+SCHEDULE
+- create schedule entry
+
+INVOICE
+- create test invoice
+
+FINANCE
+- create expense
+- test receipt handling
+- verify no production files accessible
+
+BILLING
+- Stripe test Checkout
+- subscription/test entitlement
+- usage metering
+- top-up test mode
+
+INTEGRATIONS
+- confirm non-production provider guards
+
+HMRC
+- sandbox only
+- no production filing
+
+==================================================
+21. PROVE PRODUCTION ISOLATION
+==================================================
+
+Explicitly verify:
+
+- staging cannot query production database
+- staging cannot see Huntley Bespoke production records
+- staging cannot access production storage
+- staging cannot use live Stripe
+- staging cannot send production email
+- staging cannot process production WhatsApp traffic
+- staging cannot route real production Vapi calls
+- staging cannot contact HMRC production
+
+==================================================
+22. DO NOT TOUCH PRODUCTION
+==================================================
+
+During this task:
+
+Do NOT:
+
+- mutate production database
+- apply production migrations
+- publish production
+- change production Clerk ownership
+- replace production secrets
+- change production Stripe mode
+- change production webhooks
+- move customer files
+- copy production data into staging
+
+==================================================
+23. MANUAL ACTIONS
+==================================================
+
+If I need to perform something manually in Replit:
+
+give me ONE ACTION AT A TIME.
+
+For example:
+
+“Click Create App.”
+
+Wait for me.
+
+Then:
+
+“Choose Import from GitHub.”
+
+Wait for me.
+
+Do not give me a long UI checklist unless I explicitly ask.
+
+==================================================
+24. COMPLETION REPORT
+==================================================
+
+When finished, report:
+
+A. staging Replit project/deployment created
+B. staging URL
+C. WORKRATE_ENV
+D. staging DB status
+E. DB marker
+F. migration version
+G. Clerk staging model
+H. Stripe test status
+I. HMRC sandbox status
+J. email safety
+K. Vapi/Meta safety
+L. storage isolation
+M. webhook isolation
+N. environment banner
+O. PWA/cache isolation
+P. synthetic fixtures
+Q. smoke-test results
+R. proof production data is inaccessible
+S. remaining manual tasks
+T. whether production is now safe to receive the current release candidate
+
+Do NOT publish production automatically.

@@ -33,7 +33,10 @@ import {
   downloadMedia,
   type WABusiness,
 } from "../services/whatsapp";
-import { uploadBufferToStorage } from "../lib/storageUpload";
+import {
+  storageServingUrlFromRuntime,
+  uploadBufferToStorage,
+} from "../lib/storageUpload";
 import { handleEnquiryCompletion, getSystemPrompt } from "./chat";
 import { reserveMeteredFeature } from "../services/billing/authorization";
 import { finalizeUsageReservation, recordUsage, releaseUsageReservation } from "../services/billing/usage";
@@ -307,7 +310,7 @@ async function handleMedia(
     const ext      = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "bin";
 
     const { objectPath } = await uploadBufferToStorage(buffer, mimeType);
-    const url = buildStorageUrl(objectPath);
+    const url = storageServingUrlFromRuntime(objectPath);
 
     await db.insert(enquiryAttachmentsTable).values({
       enquiryId,
@@ -488,18 +491,6 @@ async function findActiveWhatsAppEnquiry(
     .limit(1);
 
   return enquiry ?? null;
-}
-
-/**
- * Build a full HTTPS URL for a GCS object path.
- * Meta webhooks always hit the production server, so we use the production base.
- */
-function buildStorageUrl(objectPath: string): string {
-  const base =
-    process.env.NODE_ENV === "production"
-      ? "https://work-rate-manager.replit.app"
-      : `http://localhost:${process.env.PORT ?? "8080"}`;
-  return `${base}/api/storage${objectPath}`;
 }
 
 export default router;

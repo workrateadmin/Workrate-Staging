@@ -8,6 +8,8 @@ import {
   assertRuntimeEnvironmentSafety,
   shouldRunMigrations,
 } from "./lib/runtime-environment";
+import { getStorageEnvironmentConfig } from "./lib/storage-environment";
+import { assertConfiguredStorageBucketEnvironment } from "./lib/storage-bucket-runtime";
 
 const rawPort = process.env["PORT"];
 
@@ -25,6 +27,10 @@ if (Number.isNaN(port) || port <= 0) {
 
 async function startServer(): Promise<void> {
   const workRateEnvironment = assertRuntimeEnvironmentSafety();
+  const storageConfig = getStorageEnvironmentConfig();
+  if (storageConfig) {
+    await assertConfiguredStorageBucketEnvironment(storageConfig);
+  }
   const client = await pool.connect();
 
   try {

@@ -42,6 +42,10 @@ export const GetDiagnosticsResponse = zod.object({
   "stripeMode": zod.enum(['test', 'live', 'disabled', 'unknown']),
   "hmrcMode": zod.enum(['sandbox', 'disabled']),
   "storageEnvironment": zod.enum(['development', 'staging', 'production', 'unconfigured']),
+  "storageObjectPathPrefix": zod.string().nullable(),
+  "storageBucketFingerprint": zod.string().nullable(),
+  "storageLegacyReadsAllowed": zod.boolean(),
+  "storageBindingVerified": zod.boolean(),
   "providers": zod.object({
   "stripeEnabled": zod.boolean(),
   "hmrcEnabled": zod.boolean(),

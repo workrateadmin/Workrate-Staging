@@ -2773,7 +2773,7 @@ components:
 
     Diagnostics:
       type: object
-      required: [environment, buildId, migrationVersion, stripeMode, hmrcMode, storageEnvironment, providers, apiOrigin, companyId, companyName, latestEnquiryAt]
+      required: [environment, buildId, migrationVersion, stripeMode, hmrcMode, storageEnvironment, storageObjectPathPrefix, storageBucketFingerprint, storageLegacyReadsAllowed, storageBindingVerified, providers, apiOrigin, companyId, companyName, latestEnquiryAt]
       properties:
         environment: { type: string, enum: [development, staging, production] }
         buildId: { type: string, minLength: 1 }
@@ -2781,6 +2781,10 @@ components:
         stripeMode: { type: string, enum: [test, live, disabled, unknown] }
         hmrcMode: { type: string, enum: [sandbox, disabled] }
         storageEnvironment: { type: string, enum: [development, staging, production, unconfigured] }
+        storageObjectPathPrefix: { type: [string, "null"] }
+        storageBucketFingerprint: { type: [string, "null"] }
+        storageLegacyReadsAllowed: { type: boolean }
+        storageBindingVerified: { type: boolean }
         providers: { $ref: "#/components/schemas/ProviderEnablement" }
         apiOrigin: { type: string }
         companyId: { type: [number, "null"] }

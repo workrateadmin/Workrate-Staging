@@ -40,6 +40,24 @@ in development/staging. Replit-managed Clerk has separate development and
 production stores; use the development/test store with staging-only test users
 for the staging interim. Never use production Clerk identities in staging.
 
+Object storage must set `WORKRATE_STORAGE_ENV` to the same exact value as
+`WORKRATE_ENV`. WorkRate writes beneath an environment-derived physical prefix
+and rejects reads carrying another environment prefix. Historical unprefixed
+object paths are readable only in production for migration compatibility; new
+writes are always scoped.
+
+Each physical bucket must also contain its immutable environment marker before
+the API starts:
+
+```sh
+pnpm --filter @workspace/scripts run init:storage-environment
+# Production additionally requires: -- --confirm-production
+```
+
+The marker records the environment and a non-secret bucket fingerprint. Startup
+fails if the marker is missing, copied from another bucket, or belongs to a
+different environment.
+
 ## Rollback
 
 Record the previously healthy immutable build ID before each publish. To roll

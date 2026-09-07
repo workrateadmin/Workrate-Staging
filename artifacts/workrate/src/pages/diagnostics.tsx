@@ -10,7 +10,11 @@ import {
   useValidateHmrcSandboxFraudHeaders,
   getGetHmrcSandboxGatewayStatusQueryKey,
 } from "@workspace/api-client-react";
-import type { HmrcFraudValidationStatus, HmrcGatewayStatus } from "@workspace/api-client-react";
+import type {
+  Diagnostics,
+  HmrcFraudValidationStatus,
+  HmrcGatewayStatus,
+} from "@workspace/api-client-react";
 import { acquireHmrcGatewayAttestation } from "@/lib/hmrc-browser";
 import {
   Activity,
@@ -37,18 +41,8 @@ import {
 
 // ── WorkRate system diagnostics ────────────────────────────────────────────
 
-interface DiagnosticsData {
-  environment: string;
-  apiOrigin: string;
-  clerkEnvironment: string;
-  dbEnvironment: string;
-  companyId: number | null;
-  companyName: string | null;
-  latestEnquiryAt: string | null;
-}
-
 function useDiagnostics() {
-  return useQuery<DiagnosticsData>({
+  return useQuery<Diagnostics>({
     queryKey: ["diagnostics"],
     queryFn: async () => {
       const res = await fetch("/api/diagnostics", { credentials: "include" });
@@ -421,16 +415,44 @@ export default function DiagnosticsPage() {
           mono: true,
         },
         {
-          label: "Clerk Environment",
-          icon: Server,
-          value: data.clerkEnvironment,
-          ok: data.clerkEnvironment === "production",
+          label: "Build ID",
+          icon: Cpu,
+          value: data.buildId,
+          mono: true,
         },
         {
-          label: "Database Environment",
+          label: "Storage Environment",
           icon: Database,
-          value: data.dbEnvironment,
-          ok: data.dbEnvironment === "production",
+          value: data.storageEnvironment,
+          ok: data.storageEnvironment === data.environment,
+        },
+        {
+          label: "Storage Path Prefix",
+          icon: Layers,
+          value: data.storageObjectPathPrefix,
+          ok: Boolean(data.storageObjectPathPrefix),
+          mono: true,
+        },
+        {
+          label: "Storage Bucket Fingerprint",
+          icon: ShieldCheck,
+          value: data.storageBucketFingerprint,
+          ok: Boolean(data.storageBucketFingerprint),
+          mono: true,
+        },
+        {
+          label: "Storage Binding",
+          icon: ShieldCheck,
+          value: data.storageBindingVerified ? "Verified" : "Not verified",
+          ok: data.storageBindingVerified,
+        },
+        {
+          label: "Legacy Storage Reads",
+          icon: ShieldAlert,
+          value: data.storageLegacyReadsAllowed ? "Production compatibility only" : "Blocked",
+          ok: data.environment === "production"
+            ? data.storageLegacyReadsAllowed
+            : !data.storageLegacyReadsAllowed,
         },
         {
           label: "Company ID",
@@ -457,8 +479,9 @@ export default function DiagnosticsPage() {
 
   const allGreen =
     data?.environment === "production" &&
-    data?.clerkEnvironment === "production" &&
-    data?.dbEnvironment === "production" &&
+    data?.storageEnvironment === "production" &&
+    Boolean(data?.storageObjectPathPrefix) &&
+    Boolean(data?.storageBucketFingerprint) &&
     data?.apiOrigin?.includes("work-rate-manager");
 
   return (

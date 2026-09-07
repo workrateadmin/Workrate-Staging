@@ -1,25 +1,20 @@
 ---
-name: WorkRate object storage migration
-description: GCS migration for upload persistence; why, what changed, how it works end-to-end
+name: WorkRate object storage boundary
+description: Durable GCS storage plus physical and logical environment isolation
 ---
 
 ## Rule
-All customer photos and generated concept PNGs must go through Replit Object Storage (GCS-backed). Never store production uploads on local disk only.
+All durable uploads must use Replit Object Storage, and every physical bucket must be explicitly bound to exactly one WorkRate environment before API startup.
 
 **Why:** Production runs on autoscale. The `uploads/` local dir is ephemeral — wiped on every container restart or instance change. URLs stored in the DB become dead links. The React SPA catch-all serves index.html for missing `/uploads/*` paths, returning HTTP 200 with 1360 bytes of HTML — a silent false-positive that masks the 404.
 
-**How to apply:**
-- `uploadBufferToStorage(buffer, contentType)` in `artifacts/api-server/src/lib/storageUpload.ts` → returns `{ objectPath }` (e.g. `/objects/uploads/{uuid}.jpg`)
-- `storageServingUrl(req, objectPath)` → constructs full HTTPS URL using `req.protocol` (trust proxy is set, so this is `https` in production)
-- `downloadBufferFromStorage(objectPath)` → fetches from GCS for server-side reads
-- `isStorageUrl(url)` / `parseObjectPath(url)` → detect and extract objectPath from full serving URLs
-- GCS serving: `GET /api/storage/objects/*` route in `routes/storage.ts`, registered in `routes/index.ts`
-- Legacy local disk URLs (`/uploads/...`) still handled by `isStorageUrl()` → false → local disk fallback (for old dev records)
+**Why:** Local files disappear on autoscale restarts. Prefixes alone are also insufficient isolation: a test deployment accidentally configured with the production bucket still has physical credentials for that bucket.
 
-**Path convention:**
-- `PRIVATE_OBJECT_DIR` = `/replit-objstore-{uuid}/private`
-- GCS objectName = `private/uploads/{uuid}.ext` (strip bucket from dir prefix)
-- objectPath returned = `/objects/uploads/{uuid}.ext`
-- Retrieval: `getObjectEntityFile("/objects/uploads/{uuid}.ext")` reconstructs `PRIVATE_OBJECT_DIR/uploads/{uuid}.ext` ✓
+**How to apply:**
+- Require the bucket’s immutable marker to match the authoritative runtime environment and actual bucket fingerprint before listening.
+- Derive every new physical key and logical object path from that environment; never accept an environment supplied by a request.
+- Development and staging reject cross-environment and unprefixed paths. Production alone may read unprefixed legacy objects during migration.
+- Initialize a new bucket deliberately; startup must never self-label an unmarked bucket.
+- Keep storage origins runtime-aware. Never select a production URL with `NODE_ENV` or a hardcoded host.
 
 **trust proxy:** `app.set("trust proxy", true)` added to `artifacts/api-server/src/app.ts` — required for `req.protocol` to return `https` behind Replit's reverse proxy.

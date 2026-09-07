@@ -7,45 +7,17 @@
  */
 import { randomUUID } from "crypto";
 import { objectStorageClient } from "./objectStorage";
-
-// ── Path helpers ──────────────────────────────────────────────────────────────
-
-function getBucketId(): string {
-  const id = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-  if (!id) throw new Error("DEFAULT_OBJECT_STORAGE_BUCKET_ID not set — run setupObjectStorage()");
-  return id;
-}
-
-function getPrivateObjectDir(): string {
-  const dir = process.env.PRIVATE_OBJECT_DIR;
-  if (!dir) throw new Error("PRIVATE_OBJECT_DIR not set — run setupObjectStorage()");
-  return dir;
-}
-
-/**
- * Maps a GCS object name (within the private object dir) to the
- * `/objects/<entityId>` path the serving route expects.
- *
- * PRIVATE_OBJECT_DIR = "/{bucketId}/private"
- * GCS objectName = "private/uploads/{uuid}.png"
- * entityId = "uploads/{uuid}.png"  ← strip the leading "private/" prefix
- * objectPath = "/objects/uploads/{uuid}.png"
- */
-function gcsObjectNameToObjectPath(gcsObjectName: string): string {
-  const dir = getPrivateObjectDir(); // e.g. "/bucket/private"
-  // Strip bucket component from dir: "/bucket/private" → "private"
-  const dirWithinBucket = dir.replace(/^\/[^/]+\//, "");
-  // Strip that prefix from the object name: "private/uploads/uuid.png" → "uploads/uuid.png"
-  const entityId = gcsObjectName.startsWith(dirWithinBucket + "/")
-    ? gcsObjectName.slice(dirWithinBucket.length + 1)
-    : gcsObjectName;
-  return `/objects/${entityId}`;
-}
+import {
+  objectPathForNewObject,
+  requireStorageEnvironmentConfig,
+  resolvePrivateObjectPath,
+} from "./storage-environment";
+import { getWorkRateEnvironment } from "./runtime-environment";
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export interface StorageUploadResult {
-  /** e.g. "/objects/uploads/{uuid}.png" — pass to `storageServingUrl()` */
+  /** e.g. "/objects/development/uploads/{uuid}.png" */
   objectPath: string;
 }
 
@@ -58,8 +30,7 @@ export async function uploadBufferToStorage(
   contentType: string,
   namespace = "uploads",
 ): Promise<StorageUploadResult> {
-  const bucketId = getBucketId();
-  const privateDir = getPrivateObjectDir();
+  const storage = requireStorageEnvironmentConfig();
 
   const ext = contentType === "image/png" ? "png"
     : (contentType === "image/jpeg" || contentType === "image/jpg") ? "jpg"
@@ -74,39 +45,29 @@ export async function uploadBufferToStorage(
     : "bin";
 
   const uuid = randomUUID();
-  // Strip bucket from PRIVATE_OBJECT_DIR to get the within-bucket dir prefix
-  const dirWithinBucket = privateDir.replace(/^\/[^/]+\//, ""); // "private"
   // Namespaces let sensitive domains opt out of the generic storage serving
   // route while preserving the existing upload path for normal app assets.
   const safeNamespace = /^[a-z0-9_-]+$/i.test(namespace) ? namespace : "uploads";
-  const gcsObjectName = `${dirWithinBucket}/${safeNamespace}/${uuid}.${ext}`;
+  const relativePath = `${safeNamespace}/${uuid}.${ext}`;
+  const gcsObjectName = `${storage.environmentObjectPrefix}/${relativePath}`;
 
-  const bucket = objectStorageClient.bucket(bucketId);
+  const bucket = objectStorageClient.bucket(storage.bucketId);
   const file = bucket.file(gcsObjectName);
   await file.save(buffer, { contentType, resumable: false });
 
-  const objectPath = gcsObjectNameToObjectPath(gcsObjectName);
+  const objectPath = objectPathForNewObject(relativePath, storage);
   return { objectPath };
 }
 
 /**
  * Download an object from storage into a Buffer.
- * @param objectPath - the `/objects/...` path returned by uploadBufferToStorage
+ * @param objectPath - the environment-scoped path returned by uploadBufferToStorage
  */
 export async function downloadBufferFromStorage(objectPath: string): Promise<Buffer> {
-  const bucketId = getBucketId();
-  const privateDir = getPrivateObjectDir();
+  const resolved = resolvePrivateObjectPath(objectPath);
 
-  if (!objectPath.startsWith("/objects/")) {
-    throw new Error(`Invalid objectPath: must start with /objects/ (got "${objectPath}")`);
-  }
-
-  const entityId = objectPath.slice("/objects/".length); // "uploads/{uuid}.png"
-  const dirWithinBucket = privateDir.replace(/^\/[^/]+\//, ""); // "private"
-  const gcsObjectName = `${dirWithinBucket}/${entityId}`; // "private/uploads/{uuid}.png"
-
-  const bucket = objectStorageClient.bucket(bucketId);
-  const file = bucket.file(gcsObjectName);
+  const bucket = objectStorageClient.bucket(resolved.bucketId);
+  const file = bucket.file(resolved.objectName);
   const [buffer] = await file.download();
   return buffer;
 }
@@ -123,8 +84,21 @@ export function storageServingUrl(
   req: { protocol: string; get: (header: string) => string | undefined },
   objectPath: string,
 ): string {
+  resolvePrivateObjectPath(objectPath);
   const host = req.get("host") ?? "localhost";
   return `${req.protocol}://${host}/api/storage${objectPath}`;
+}
+
+export function storageServingUrlFromRuntime(objectPath: string): string {
+  resolvePrivateObjectPath(objectPath);
+  const explicit = process.env.WORKRATE_PUBLIC_URL?.trim().replace(/\/+$/, "");
+  if (explicit) return `${explicit}/api/storage${objectPath}`;
+
+  const developmentHost = process.env.REPLIT_DOMAINS?.split(",")[0]?.trim();
+  if (getWorkRateEnvironment() === "development" && developmentHost) {
+    return `https://${developmentHost}/api/storage${objectPath}`;
+  }
+  throw new Error("WORKRATE_PUBLIC_URL is required to create storage URLs.");
 }
 
 /**
@@ -140,8 +114,14 @@ export function isStorageUrl(url: string): boolean {
  * storage serving URL or a bare objectPath.
  */
 export function parseObjectPath(url: string): string {
-  if (url.startsWith("/objects/")) return url;
+  if (url.startsWith("/objects/")) {
+    resolvePrivateObjectPath(url);
+    return url;
+  }
   const match = url.match(/\/api\/storage(\/objects\/.*)/);
-  if (match) return match[1];
+  if (match?.[1]) {
+    resolvePrivateObjectPath(match[1]);
+    return match[1];
+  }
   throw new Error(`Cannot parse objectPath from URL: "${url}"`);
 }

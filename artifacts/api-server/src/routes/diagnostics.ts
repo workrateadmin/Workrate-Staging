@@ -10,6 +10,8 @@ import {
   canSendCustomerMessages,
   isProductionEnvironment,
 } from "../lib/runtime-environment";
+import { getStorageEnvironmentConfig } from "../lib/storage-environment";
+import { getVerifiedStorageBucketBinding } from "../lib/storage-bucket-runtime";
 
 const router: IRouter = Router();
 
@@ -74,6 +76,10 @@ router.get("/diagnostics", requireAuth, async (req, res): Promise<void> => {
 
   const runtimeConfig = getRuntimeConfig();
   const customerCommsEnabled = canSendCustomerMessages();
+  const storageConfig = getStorageEnvironmentConfig();
+  const storageBinding = storageConfig
+    ? getVerifiedStorageBucketBinding()
+    : null;
 
   // ── Company row ────────────────────────────────────────────────────────────
   let company: { id: number; name: string } | null = null;
@@ -102,13 +108,17 @@ router.get("/diagnostics", requireAuth, async (req, res): Promise<void> => {
     storageEnvironment: configured("DEFAULT_OBJECT_STORAGE_BUCKET_ID")
       ? runtimeConfig.environment
       : "unconfigured",
+    storageObjectPathPrefix: storageConfig?.objectPathPrefix ?? null,
+    storageBucketFingerprint: storageConfig?.bucketFingerprint ?? null,
+    storageLegacyReadsAllowed: storageConfig?.legacyReadsAllowed ?? false,
+    storageBindingVerified: storageBinding !== null,
     providers: {
       stripeEnabled: stripeMode() === "test" || stripeMode() === "live",
       hmrcEnabled: configured("HMRC_SANDBOX_CLIENT_ID") &&
         configured("HMRC_SANDBOX_CLIENT_SECRET") &&
         configured("HMRC_OAUTH_REDIRECT_URL") &&
         configured("HMRC_TOKEN_ENCRYPTION_KEY"),
-      storageEnabled: configured("DEFAULT_OBJECT_STORAGE_BUCKET_ID"),
+      storageEnabled: storageConfig !== null,
       clerkEnabled: configured("CLERK_PUBLISHABLE_KEY"),
       aiEnabled: configured("OPENAI_API_KEY"),
       emailEnabled: configured("RESEND_API_KEY") &&

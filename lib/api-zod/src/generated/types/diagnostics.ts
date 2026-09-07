@@ -20,6 +20,12 @@ export interface Diagnostics {
   stripeMode: DiagnosticsStripeMode;
   hmrcMode: DiagnosticsHmrcMode;
   storageEnvironment: DiagnosticsStorageEnvironment;
+  /** @nullable */
+  storageObjectPathPrefix: string | null;
+  /** @nullable */
+  storageBucketFingerprint: string | null;
+  storageLegacyReadsAllowed: boolean;
+  storageBindingVerified: boolean;
   providers: ProviderEnablement;
   apiOrigin: string;
   /** @nullable */

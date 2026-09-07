@@ -8,6 +8,18 @@ import {
   shouldRunMigrations,
 } from "../src/lib/runtime-environment";
 import { assertDatabaseEnvironment } from "@workspace/db/environment-marker";
+import {
+  getStorageEnvironmentConfig,
+  objectPathForNewObject,
+  resolvePrivateObjectPath,
+  resolvePublicObjectPaths,
+} from "../src/lib/storage-environment";
+import {
+  assertStorageBucketEnvironment,
+  initializeStorageBucketEnvironment,
+  STORAGE_BUCKET_MARKER_OBJECT,
+  type StorageBucketMarkerStore,
+} from "../src/lib/storage-bucket-binding";
 
 test("WORKRATE_ENV is required and limited to known deployment environments", () => {
   assert.throws(() => getWorkRateEnvironment({}), /WORKRATE_ENV must be one of/);
@@ -123,5 +135,136 @@ test("storage and HMRC configuration must match the declared environment", () =>
       HMRC_GATEWAY_URL: "https://production-hmrc.example",
     }),
     /approved sandbox gateway origin/,
+  );
+});
+
+const developmentStorageEnvironment = {
+  WORKRATE_ENV: "development",
+  WORKRATE_STORAGE_ENV: "development",
+  DEFAULT_OBJECT_STORAGE_BUCKET_ID: "shared-bucket",
+  PRIVATE_OBJECT_DIR: "/shared-bucket/private",
+  PUBLIC_OBJECT_SEARCH_PATHS: "/shared-bucket/public",
+} as const;
+
+test("storage writes always receive an environment-derived physical prefix", () => {
+  const config = getStorageEnvironmentConfig(developmentStorageEnvironment);
+  assert.ok(config);
+  assert.equal(config.environmentObjectPrefix, "private/development");
+  assert.equal(
+    objectPathForNewObject("uploads/example.png", config),
+    "/objects/development/uploads/example.png",
+  );
+  assert.deepEqual(
+    resolvePrivateObjectPath("/objects/development/uploads/example.png", config),
+    {
+      bucketId: "shared-bucket",
+      objectName: "private/development/uploads/example.png",
+      legacy: false,
+    },
+  );
+  assert.deepEqual(resolvePublicObjectPaths("logo.png", config), [{
+    bucketId: "shared-bucket",
+    objectName: "public/development/logo.png",
+    legacy: false,
+  }]);
+});
+
+test("test environments cannot read another environment or unscoped legacy objects", () => {
+  const config = getStorageEnvironmentConfig(developmentStorageEnvironment);
+  assert.ok(config);
+  assert.throws(
+    () => resolvePrivateObjectPath("/objects/production/uploads/example.png", config),
+    /Cross-environment object access denied/,
+  );
+  assert.throws(
+    () => resolvePrivateObjectPath("/objects/staging/uploads/example.png", config),
+    /Cross-environment object access denied/,
+  );
+  assert.throws(
+    () => resolvePrivateObjectPath("/objects/uploads/example.png", config),
+    /allowed only in production/,
+  );
+  assert.throws(
+    () => resolvePrivateObjectPath("/objects/development/../production/example.png", config),
+    /invalid object path/,
+  );
+});
+
+test("storage roots are bound to the configured bucket", () => {
+  assert.throws(
+    () => getStorageEnvironmentConfig({
+      ...developmentStorageEnvironment,
+      PRIVATE_OBJECT_DIR: "/production-bucket/private",
+    }),
+    /must use DEFAULT_OBJECT_STORAGE_BUCKET_ID/,
+  );
+});
+
+function memoryMarkerStore(): StorageBucketMarkerStore & {
+  objects: Map<string, Buffer>;
+} {
+  const objects = new Map<string, Buffer>();
+  return {
+    objects,
+    async read(bucketId, objectName) {
+      return objects.get(`${bucketId}/${objectName}`) ?? null;
+    },
+    async write(bucketId, objectName, content) {
+      const key = `${bucketId}/${objectName}`;
+      if (objects.has(key)) throw new Error("marker already exists");
+      objects.set(key, content);
+    },
+  };
+}
+
+test("bucket marker initialization is immutable and environment-bound", async () => {
+  const config = getStorageEnvironmentConfig(developmentStorageEnvironment);
+  assert.ok(config);
+  const store = memoryMarkerStore();
+
+  const initialized = await initializeStorageBucketEnvironment(config, store);
+  assert.equal(initialized.environment, "development");
+  assert.ok(store.objects.has(
+    `shared-bucket/${STORAGE_BUCKET_MARKER_OBJECT}`,
+  ));
+  assert.deepEqual(
+    await assertStorageBucketEnvironment(config, store),
+    initialized,
+  );
+
+  const productionConfig = getStorageEnvironmentConfig({
+    ...developmentStorageEnvironment,
+    WORKRATE_ENV: "production",
+    WORKRATE_STORAGE_ENV: "production",
+  });
+  assert.ok(productionConfig);
+  await assert.rejects(
+    assertStorageBucketEnvironment(productionConfig, store),
+    /bucket is marked "development"/,
+  );
+});
+
+test("a copied bucket marker fails when the physical bucket identity changes", async () => {
+  const source = getStorageEnvironmentConfig(developmentStorageEnvironment);
+  const target = getStorageEnvironmentConfig({
+    ...developmentStorageEnvironment,
+    DEFAULT_OBJECT_STORAGE_BUCKET_ID: "other-bucket",
+    PRIVATE_OBJECT_DIR: "/other-bucket/private",
+    PUBLIC_OBJECT_SEARCH_PATHS: "/other-bucket/public",
+  });
+  assert.ok(source);
+  assert.ok(target);
+  const store = memoryMarkerStore();
+  const sourceStore = memoryMarkerStore();
+  await initializeStorageBucketEnvironment(source, sourceStore);
+  store.objects.set(
+    `other-bucket/${STORAGE_BUCKET_MARKER_OBJECT}`,
+    sourceStore.objects.get(
+      `shared-bucket/${STORAGE_BUCKET_MARKER_OBJECT}`,
+    )!,
+  );
+  await assert.rejects(
+    assertStorageBucketEnvironment(target, store),
+    /Storage bucket environment mismatch/,
   );
 });
