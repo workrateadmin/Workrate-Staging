@@ -7,6 +7,7 @@
     "hello": "tsx ./src/hello.ts",
     "init:environment": "tsx ./src/init-workrate-environment.ts",
     "init:storage-environment": "tsx ../artifacts/api-server/src/scripts/init-storage-environment.ts",
+    "verify:release-storage": "tsx ../artifacts/api-server/src/scripts/verify-release-storage.ts",
     "seed:synthetic-workrate": "tsx ./src/seed-synthetic-workrate.ts",
     "seed:stripe-billing": "tsx ./src/seed-stripe-billing-catalog.ts",
     "seed:stripe-receptionist-top-ups": "tsx ./src/seed-stripe-receptionist-top-ups.ts",

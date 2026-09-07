@@ -20,6 +20,7 @@ import {
   STORAGE_BUCKET_MARKER_OBJECT,
   type StorageBucketMarkerStore,
 } from "../src/lib/storage-bucket-binding";
+import { validateReleaseStorage } from "../src/lib/release-storage-validation";
 
 test("WORKRATE_ENV is required and limited to known deployment environments", () => {
   assert.throws(() => getWorkRateEnvironment({}), /WORKRATE_ENV must be one of/);
@@ -265,6 +266,322 @@ test("a copied bucket marker fails when the physical bucket identity changes", a
   );
   await assert.rejects(
     assertStorageBucketEnvironment(target, store),
-    /Storage bucket environment mismatch/,
+    /Storage bucket identity mismatch/,
+  );
+});
+
+test("release validation classifies a real copied marker as a bucket identity mismatch", async () => {
+  const sourceVariables = releaseEnvironment("development");
+  const targetVariables = {
+    ...sourceVariables,
+    DEFAULT_OBJECT_STORAGE_BUCKET_ID: "replacement-development-bucket",
+    PRIVATE_OBJECT_DIR: "/replacement-development-bucket/private",
+    PUBLIC_OBJECT_SEARCH_PATHS: "/replacement-development-bucket/public",
+  };
+  const source = getStorageEnvironmentConfig(sourceVariables);
+  const target = getStorageEnvironmentConfig(targetVariables);
+  assert.ok(source);
+  assert.ok(target);
+  const sourceStore = memoryMarkerStore();
+  const targetStore = memoryMarkerStore();
+  await initializeStorageBucketEnvironment(source, sourceStore);
+  targetStore.objects.set(
+    `replacement-development-bucket/${STORAGE_BUCKET_MARKER_OBJECT}`,
+    sourceStore.objects.get(
+      `development-bucket/${STORAGE_BUCKET_MARKER_OBJECT}`,
+    )!,
+  );
+
+  const result = await validateReleaseStorage({
+    verifyBucket: (config) => assertStorageBucketEnvironment(config, targetStore),
+    async readDatabaseMarker() {
+      return { environment: "development", rowCount: 1 };
+    },
+  }, targetVariables);
+  assert.equal(result.status, "fail");
+  assert.equal(result.code, "BUCKET_IDENTITY_MISMATCH");
+});
+
+function releaseEnvironment(
+  environment: "development" | "staging" | "production",
+): Record<string, string> {
+  const variables: Record<string, string> = {
+    WORKRATE_ENV: environment,
+    WORKRATE_STORAGE_ENV: environment,
+    DEFAULT_OBJECT_STORAGE_BUCKET_ID: `${environment}-bucket`,
+    PRIVATE_OBJECT_DIR: `/${environment}-bucket/private`,
+    PUBLIC_OBJECT_SEARCH_PATHS: `/${environment}-bucket/public`,
+    WORKRATE_BUILD_ID:
+      environment === "development" ? "local-development" : `release-${environment}`,
+  };
+  const config = getStorageEnvironmentConfig(variables);
+  assert.ok(config);
+  if (environment !== "development") {
+    variables.WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT =
+      config.bucketFingerprint;
+  }
+  return variables;
+}
+
+function passingReleaseDependencies(
+  variables: Record<string, string>,
+  overrides: Partial<{
+    storageMarker: "development" | "staging" | "production";
+    bucketFingerprint: string;
+    databaseFailure: Error;
+    databaseMarker: string | null;
+    databaseRowCount: number;
+    bucketFailure: Error;
+  }> = {},
+) {
+  const config = getStorageEnvironmentConfig(variables);
+  assert.ok(config);
+  return {
+    now: () => new Date("2026-09-07T12:00:00.000Z"),
+    async verifyBucket() {
+      if (overrides.bucketFailure) throw overrides.bucketFailure;
+      if (
+        overrides.storageMarker &&
+        overrides.storageMarker !== config.environment
+      ) {
+        throw new Error(
+          `Storage bucket environment mismatch: bucket is marked "${overrides.storageMarker}" but WORKRATE_ENV is "${config.environment}".`,
+        );
+      }
+      if (
+        overrides.bucketFingerprint &&
+        overrides.bucketFingerprint !== config.bucketFingerprint
+      ) {
+        throw new Error("Storage bucket identity mismatch.");
+      }
+      return {
+        schemaVersion: 1 as const,
+        environment: config.environment,
+        bucketFingerprint: config.bucketFingerprint,
+      };
+    },
+    async readDatabaseMarker() {
+      if (overrides.databaseFailure) throw overrides.databaseFailure;
+      return {
+        environment: overrides.databaseMarker === undefined
+          ? config.environment
+          : overrides.databaseMarker,
+        rowCount: overrides.databaseRowCount ?? 1,
+      };
+    },
+  };
+}
+
+for (const environment of ["development", "staging", "production"] as const) {
+  test(`${environment} release storage validation passes for its bound bucket`, async () => {
+    const variables = releaseEnvironment(environment);
+    const result = await validateReleaseStorage(
+      passingReleaseDependencies(variables),
+      variables,
+    );
+    assert.equal(result.status, "pass");
+    assert.equal(result.environment, environment);
+    assert.equal(result.databaseMarker, environment);
+    assert.equal(result.storageMarker, environment);
+  });
+}
+
+test("release validation rejects cross-environment buckets in both directions", async () => {
+  for (const [environment, marker] of [
+    ["development", "production"],
+    ["staging", "production"],
+    ["production", "staging"],
+    ["production", "development"],
+  ] as const) {
+    const variables = releaseEnvironment(environment);
+    const result = await validateReleaseStorage(
+      passingReleaseDependencies(variables, { storageMarker: marker }),
+      variables,
+    );
+    assert.equal(result.status, "fail");
+    assert.equal(result.code, "BUCKET_ENVIRONMENT_MISMATCH");
+  }
+});
+
+test("release validation rejects missing, malformed, and unverified bucket bindings", async () => {
+  const variables = releaseEnvironment("staging");
+  for (const bucketFailure of [
+    new Error("Storage bucket environment marker is missing."),
+    new Error("Storage bucket environment marker is invalid JSON."),
+  ]) {
+    const result = await validateReleaseStorage(
+      passingReleaseDependencies(variables, { bucketFailure }),
+      variables,
+    );
+    assert.equal(result.status, "fail");
+  }
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(variables, {
+        bucketFailure: new Error("Storage bucket environment marker is missing."),
+      }),
+      variables,
+    )).code,
+    "BUCKET_MARKER_MISSING",
+  );
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(variables, {
+        bucketFailure: new Error("Storage bucket environment marker has an invalid shape."),
+      }),
+      variables,
+    )).code,
+    "BUCKET_MARKER_INVALID",
+  );
+  const unverified = await validateReleaseStorage(
+    passingReleaseDependencies(variables, {
+      bucketFailure: new Error("Storage credentials unavailable"),
+    }),
+    variables,
+  );
+  assert.equal(unverified.code, "STORAGE_BINDING_UNVERIFIED");
+});
+
+test("release validation requires and matches staging/production fingerprint pins", async () => {
+  const missing = releaseEnvironment("staging");
+  delete missing.WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT;
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(missing),
+      missing,
+    )).code,
+    "BUCKET_EXPECTED_FINGERPRINT_MISSING",
+  );
+
+  const wrong = releaseEnvironment("production");
+  wrong.WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT = "000000000000";
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(wrong),
+      wrong,
+    )).code,
+    "BUCKET_IDENTITY_MISMATCH",
+  );
+});
+
+test("release validation rejects malformed namespaces, unknown environments, and DB mismatches", async () => {
+  const malformed = releaseEnvironment("staging");
+  malformed.PRIVATE_OBJECT_DIR = "/staging-bucket/private/../production";
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(releaseEnvironment("staging")),
+      malformed,
+    )).code,
+    "STORAGE_CONFIGURATION_INVALID",
+  );
+
+  const unknown = { ...releaseEnvironment("development"), WORKRATE_ENV: "test" };
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(releaseEnvironment("development")),
+      unknown,
+    )).code,
+    "UNKNOWN_ENVIRONMENT",
+  );
+
+  const production = releaseEnvironment("production");
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(production, {
+        databaseMarker: "staging",
+      }),
+      production,
+    )).databaseMarker,
+    "staging",
+  );
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(production, {
+        databaseMarker: "staging",
+      }),
+      production,
+    )).code,
+    "DATABASE_ENVIRONMENT_MISMATCH",
+  );
+});
+
+test("release validation reports missing and invalid database markers precisely", async () => {
+  const staging = releaseEnvironment("staging");
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(staging, {
+        databaseMarker: null,
+        databaseRowCount: 0,
+      }),
+      staging,
+    )).code,
+    "DATABASE_MARKER_MISSING",
+  );
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(staging, {
+        databaseMarker: "staging",
+        databaseRowCount: 2,
+      }),
+      staging,
+    )).code,
+    "DATABASE_MARKER_INVALID",
+  );
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(staging, {
+        databaseMarker: "preview",
+      }),
+      staging,
+    )).code,
+    "DATABASE_MARKER_INVALID",
+  );
+});
+
+test("release validation rejects missing build IDs and unsafe provider modes", async () => {
+  const missingBuild = releaseEnvironment("staging");
+  delete missingBuild.WORKRATE_BUILD_ID;
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(releaseEnvironment("staging")),
+      missingBuild,
+    )).code,
+    "BUILD_ID_MISSING",
+  );
+
+  const liveStripe = {
+    ...releaseEnvironment("staging"),
+    STRIPE_SECRET_KEY: "sk_live_not-a-real-key",
+  };
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(releaseEnvironment("staging")),
+      liveStripe,
+    )).status,
+    "fail",
+  );
+});
+
+test("legacy compatibility is blocked in test environments and remains production-bucket scoped", () => {
+  for (const environment of ["development", "staging"] as const) {
+    const config = getStorageEnvironmentConfig(releaseEnvironment(environment));
+    assert.ok(config);
+    assert.equal(config.legacyReadsAllowed, false);
+    assert.throws(
+      () => resolvePrivateObjectPath("/objects/uploads/legacy.png", config),
+      /allowed only in production/,
+    );
+  }
+
+  const production = getStorageEnvironmentConfig(releaseEnvironment("production"));
+  assert.ok(production);
+  assert.equal(production.legacyReadsAllowed, true);
+  assert.deepEqual(
+    resolvePrivateObjectPath("/objects/uploads/legacy.png", production),
+    {
+      bucketId: "production-bucket",
+      objectName: "private/uploads/legacy.png",
+      legacy: true,
+    },
   );
 });

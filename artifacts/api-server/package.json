@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
+    "prebuild": "pnpm --filter @workspace/scripts run verify:release-storage",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "test:hmrc-security": "node ./test/build-and-run-hmrc-security-tests.mjs",

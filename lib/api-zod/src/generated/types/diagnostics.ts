@@ -5,9 +5,13 @@
  * WorkRate API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DiagnosticsDatabaseEnvironmentMarker } from './diagnosticsDatabaseEnvironmentMarker';
 import type { DiagnosticsEnvironment } from './diagnosticsEnvironment';
 import type { DiagnosticsHmrcMode } from './diagnosticsHmrcMode';
+import type { DiagnosticsReleaseStorageStatus } from './diagnosticsReleaseStorageStatus';
+import type { DiagnosticsStorageBucketFingerprintStatus } from './diagnosticsStorageBucketFingerprintStatus';
 import type { DiagnosticsStorageEnvironment } from './diagnosticsStorageEnvironment';
+import type { DiagnosticsStorageEnvironmentMarker } from './diagnosticsStorageEnvironmentMarker';
 import type { DiagnosticsStripeMode } from './diagnosticsStripeMode';
 import type { ProviderEnablement } from './providerEnablement';
 
@@ -26,6 +30,15 @@ export interface Diagnostics {
   storageBucketFingerprint: string | null;
   storageLegacyReadsAllowed: boolean;
   storageBindingVerified: boolean;
+  /** @nullable */
+  databaseEnvironmentMarker: DiagnosticsDatabaseEnvironmentMarker;
+  /** @nullable */
+  storageEnvironmentMarker: DiagnosticsStorageEnvironmentMarker;
+  storageBucketFingerprintStatus: DiagnosticsStorageBucketFingerprintStatus;
+  releaseStorageStatus: DiagnosticsReleaseStorageStatus;
+  /** @nullable */
+  releaseStorageFailureCode: string | null;
+  releaseStorageVerifiedAt: Date;
   providers: ProviderEnablement;
   apiOrigin: string;
   /** @nullable */

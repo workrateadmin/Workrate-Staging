@@ -5,11 +5,9 @@ import { pool } from "@workspace/db";
 import { assertDatabaseEnvironment } from "@workspace/db/environment-marker";
 import { initializeStripeBilling } from "./services/billing/provider";
 import {
-  assertRuntimeEnvironmentSafety,
   shouldRunMigrations,
 } from "./lib/runtime-environment";
-import { getStorageEnvironmentConfig } from "./lib/storage-environment";
-import { assertConfiguredStorageBucketEnvironment } from "./lib/storage-bucket-runtime";
+import { verifyConfiguredReleaseStorage } from "./lib/release-storage-runtime";
 
 const rawPort = process.env["PORT"];
 
@@ -26,13 +24,14 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function startServer(): Promise<void> {
-  const workRateEnvironment = assertRuntimeEnvironmentSafety();
-  const storageConfig = getStorageEnvironmentConfig();
-  if (storageConfig) {
-    await assertConfiguredStorageBucketEnvironment(storageConfig);
+  const releaseStorage = await verifyConfiguredReleaseStorage();
+  if (releaseStorage.status !== "pass" || !releaseStorage.environment) {
+    throw new Error(
+      `${releaseStorage.code ?? "STORAGE_BINDING_UNVERIFIED"}: ${releaseStorage.message}`,
+    );
   }
+  const workRateEnvironment = releaseStorage.environment;
   const client = await pool.connect();
-
   try {
     await assertDatabaseEnvironment(client, workRateEnvironment);
   } finally {

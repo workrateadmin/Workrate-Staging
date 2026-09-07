@@ -61,12 +61,14 @@ export async function assertStorageBucketEnvironment(
   }
   const actual = parseBinding(content);
   const expected = expectedBinding(config);
-  if (
-    actual.environment !== expected.environment ||
-    actual.bucketFingerprint !== expected.bucketFingerprint
-  ) {
+  if (actual.environment !== expected.environment) {
     throw new Error(
       `Storage bucket environment mismatch: bucket is marked "${actual.environment}" but WORKRATE_ENV is "${expected.environment}".`,
+    );
+  }
+  if (actual.bucketFingerprint !== expected.bucketFingerprint) {
+    throw new Error(
+      "Storage bucket identity mismatch: marker fingerprint does not match the configured bucket.",
     );
   }
   return actual;

@@ -763,6 +763,47 @@ export const DiagnosticsStorageEnvironment = {
   unconfigured: 'unconfigured',
 } as const;
 
+/**
+ * @nullable
+ */
+export type DiagnosticsDatabaseEnvironmentMarker = typeof DiagnosticsDatabaseEnvironmentMarker[keyof typeof DiagnosticsDatabaseEnvironmentMarker] | null;
+
+
+export const DiagnosticsDatabaseEnvironmentMarker = {
+  development: 'development',
+  staging: 'staging',
+  production: 'production',
+} as const;
+
+/**
+ * @nullable
+ */
+export type DiagnosticsStorageEnvironmentMarker = typeof DiagnosticsStorageEnvironmentMarker[keyof typeof DiagnosticsStorageEnvironmentMarker] | null;
+
+
+export const DiagnosticsStorageEnvironmentMarker = {
+  development: 'development',
+  staging: 'staging',
+  production: 'production',
+} as const;
+
+export type DiagnosticsStorageBucketFingerprintStatus = typeof DiagnosticsStorageBucketFingerprintStatus[keyof typeof DiagnosticsStorageBucketFingerprintStatus];
+
+
+export const DiagnosticsStorageBucketFingerprintStatus = {
+  matched: 'matched',
+  'development-unpinned': 'development-unpinned',
+  invalid: 'invalid',
+} as const;
+
+export type DiagnosticsReleaseStorageStatus = typeof DiagnosticsReleaseStorageStatus[keyof typeof DiagnosticsReleaseStorageStatus];
+
+
+export const DiagnosticsReleaseStorageStatus = {
+  pass: 'pass',
+  fail: 'fail',
+} as const;
+
 export interface Diagnostics {
   environment: DiagnosticsEnvironment;
   /** @minLength 1 */
@@ -778,6 +819,15 @@ export interface Diagnostics {
   storageBucketFingerprint: string | null;
   storageLegacyReadsAllowed: boolean;
   storageBindingVerified: boolean;
+  /** @nullable */
+  databaseEnvironmentMarker: DiagnosticsDatabaseEnvironmentMarker;
+  /** @nullable */
+  storageEnvironmentMarker: DiagnosticsStorageEnvironmentMarker;
+  storageBucketFingerprintStatus: DiagnosticsStorageBucketFingerprintStatus;
+  releaseStorageStatus: DiagnosticsReleaseStorageStatus;
+  /** @nullable */
+  releaseStorageFailureCode: string | null;
+  releaseStorageVerifiedAt: string;
   providers: ProviderEnablement;
   apiOrigin: string;
   /** @nullable */

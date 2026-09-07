@@ -447,6 +447,41 @@ export default function DiagnosticsPage() {
           ok: data.storageBindingVerified,
         },
         {
+          label: "Database Marker",
+          icon: Database,
+          value: data.databaseEnvironmentMarker,
+          ok: data.databaseEnvironmentMarker === data.environment,
+        },
+        {
+          label: "Storage Marker",
+          icon: Database,
+          value: data.storageEnvironmentMarker,
+          ok: data.storageEnvironmentMarker === data.environment,
+        },
+        {
+          label: "Bucket Identity Pin",
+          icon: ShieldCheck,
+          value: data.storageBucketFingerprintStatus.replaceAll("-", " "),
+          ok: data.storageBucketFingerprintStatus !== "invalid",
+        },
+        {
+          label: "Release Storage Check",
+          icon: ShieldCheck,
+          value: data.releaseStorageFailureCode
+            ? `${data.releaseStorageStatus.toUpperCase()} — ${data.releaseStorageFailureCode}`
+            : data.releaseStorageStatus.toUpperCase(),
+          ok: data.releaseStorageStatus === "pass",
+        },
+        {
+          label: "Last Storage Verification",
+          icon: Clock,
+          value: new Date(data.releaseStorageVerifiedAt).toLocaleString("en-GB", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          }),
+          ok: data.releaseStorageStatus === "pass",
+        },
+        {
           label: "Legacy Storage Reads",
           icon: ShieldAlert,
           value: data.storageLegacyReadsAllowed ? "Production compatibility only" : "Blocked",
@@ -482,6 +517,7 @@ export default function DiagnosticsPage() {
     data?.storageEnvironment === "production" &&
     Boolean(data?.storageObjectPathPrefix) &&
     Boolean(data?.storageBucketFingerprint) &&
+    data?.releaseStorageStatus === "pass" &&
     data?.apiOrigin?.includes("work-rate-manager");
 
   return (

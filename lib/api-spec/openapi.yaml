@@ -2773,7 +2773,7 @@ components:
 
     Diagnostics:
       type: object
-      required: [environment, buildId, migrationVersion, stripeMode, hmrcMode, storageEnvironment, storageObjectPathPrefix, storageBucketFingerprint, storageLegacyReadsAllowed, storageBindingVerified, providers, apiOrigin, companyId, companyName, latestEnquiryAt]
+      required: [environment, buildId, migrationVersion, stripeMode, hmrcMode, storageEnvironment, storageObjectPathPrefix, storageBucketFingerprint, storageLegacyReadsAllowed, storageBindingVerified, databaseEnvironmentMarker, storageEnvironmentMarker, storageBucketFingerprintStatus, releaseStorageStatus, releaseStorageFailureCode, releaseStorageVerifiedAt, providers, apiOrigin, companyId, companyName, latestEnquiryAt]
       properties:
         environment: { type: string, enum: [development, staging, production] }
         buildId: { type: string, minLength: 1 }
@@ -2785,6 +2785,20 @@ components:
         storageBucketFingerprint: { type: [string, "null"] }
         storageLegacyReadsAllowed: { type: boolean }
         storageBindingVerified: { type: boolean }
+        databaseEnvironmentMarker:
+          type: [string, "null"]
+          enum: [development, staging, production, null]
+        storageEnvironmentMarker:
+          type: [string, "null"]
+          enum: [development, staging, production, null]
+        storageBucketFingerprintStatus:
+          type: string
+          enum: [matched, development-unpinned, invalid]
+        releaseStorageStatus:
+          type: string
+          enum: [pass, fail]
+        releaseStorageFailureCode: { type: [string, "null"] }
+        releaseStorageVerifiedAt: { type: string, format: date-time }
         providers: { $ref: "#/components/schemas/ProviderEnablement" }
         apiOrigin: { type: string }
         companyId: { type: [number, "null"] }

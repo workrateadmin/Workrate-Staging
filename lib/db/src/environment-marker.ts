@@ -14,6 +14,27 @@ interface DatabaseClient {
   query(query: string, values?: readonly unknown[]): Promise<QueryResult>;
 }
 
+export interface DatabaseEnvironmentMarkerRead {
+  environment: string | null;
+  rowCount: number;
+}
+
+/**
+ * Reads the environment marker without opening a transaction or taking a lock.
+ * Intended for pre-release checks that may use read-only database credentials.
+ */
+export async function readDatabaseEnvironmentMarker(
+  client: DatabaseClient,
+): Promise<DatabaseEnvironmentMarkerRead> {
+  const marker = await client.query(
+    `SELECT "environment" FROM "_workrate_environment" WHERE "singleton" = true`,
+  );
+  return {
+    environment: marker.rows[0]?.environment ?? null,
+    rowCount: marker.rows.length,
+  };
+}
+
 /**
  * Verifies the deployment environment recorded directly in the database.
  * Marker creation is deliberately out-of-band: an application pointed at an

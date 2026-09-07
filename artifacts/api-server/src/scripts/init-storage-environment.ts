@@ -1,5 +1,6 @@
 import { requireStorageEnvironmentConfig } from "../lib/storage-environment";
 import { initializeConfiguredStorageBucketEnvironment } from "../lib/storage-bucket-runtime";
+import { assertPinnedBucketIdentity } from "../lib/release-storage-validation";
 
 const environments = ["development", "staging", "production"] as const;
 
@@ -21,6 +22,7 @@ async function main(): Promise<void> {
   }
 
   const config = requireStorageEnvironmentConfig();
+  assertPinnedBucketIdentity(config, process.env);
   const binding = await initializeConfiguredStorageBucketEnvironment(config);
   process.stdout.write(
     `Storage bucket marker verified for ${binding.environment} (${binding.bucketFingerprint}).\n`,

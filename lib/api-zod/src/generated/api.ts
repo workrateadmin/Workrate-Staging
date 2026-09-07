@@ -46,6 +46,12 @@ export const GetDiagnosticsResponse = zod.object({
   "storageBucketFingerprint": zod.string().nullable(),
   "storageLegacyReadsAllowed": zod.boolean(),
   "storageBindingVerified": zod.boolean(),
+  "databaseEnvironmentMarker": zod.union([zod.literal('development'),zod.literal('staging'),zod.literal('production'),zod.literal(null)]).nullable(),
+  "storageEnvironmentMarker": zod.union([zod.literal('development'),zod.literal('staging'),zod.literal('production'),zod.literal(null)]).nullable(),
+  "storageBucketFingerprintStatus": zod.enum(['matched', 'development-unpinned', 'invalid']),
+  "releaseStorageStatus": zod.enum(['pass', 'fail']),
+  "releaseStorageFailureCode": zod.string().nullable(),
+  "releaseStorageVerifiedAt": zod.coerce.date(),
   "providers": zod.object({
   "stripeEnabled": zod.boolean(),
   "hmrcEnabled": zod.boolean(),

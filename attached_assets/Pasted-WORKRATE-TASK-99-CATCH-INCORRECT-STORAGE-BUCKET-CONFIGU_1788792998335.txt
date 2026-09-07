@@ -1,0 +1,317 @@
+WORKRATE — TASK #99
+CATCH INCORRECT STORAGE / BUCKET CONFIGURATION BEFORE RELEASES GO LIVE
+
+GOAL:
+
+Prevent development, staging, or production from ever being deployed with the wrong storage bucket, wrong environment marker, wrong storage identity, or unsafe legacy-path compatibility.
+
+The system must fail BEFORE release goes live if storage configuration does not match the intended WorkRate environment.
+
+IMPORTANT:
+
+Task #97 is complete and must be preserved.
+
+Existing protections include:
+
+- Environment-prefixed object paths
+- Dev/staging rejection of production, cross-environment, malformed, and legacy-unprefixed paths
+- Production-only compatibility for legacy unprefixed reads
+- Immutable bucket environment marker checked before API startup
+- Bucket identity fingerprint and binding status in owner diagnostics
+- Development bucket initialized and verified
+- Environment-aware WhatsApp storage URLs
+
+Do NOT weaken these controls.
+Do NOT mutate production storage.
+Do NOT publish automatically.
+
+==================================================
+1. AUDIT CURRENT RELEASE-TIME STORAGE CHECKS
+==================================================
+
+Inspect:
+
+- startup storage guard
+- bucket marker validation
+- bucket fingerprint/binding logic
+- WORKRATE_ENV
+- staging/production deployment config
+- release scripts/runbooks
+- diagnostics
+- build/deploy hooks available in Replit
+
+Identify which storage mistakes are currently detected only AFTER deployment/startup rather than BEFORE release promotion.
+
+==================================================
+2. CREATE A PRE-RELEASE STORAGE VALIDATOR
+==================================================
+
+Add a reusable pre-release command/script.
+
+Suggested command:
+
+pnpm verify:release-storage
+
+or equivalent.
+
+Inputs should come only from trusted environment configuration.
+
+Validate:
+
+- WORKRATE_ENV is valid
+- configured bucket exists
+- bucket environment marker exists
+- marker matches WORKRATE_ENV
+- bucket identity fingerprint matches configured expected identity where required
+- storage namespace matches environment
+- production compatibility mode is disabled outside production
+- dev/staging cannot resolve production namespace
+- staging cannot resolve development namespace
+- production cannot accidentally target staging/development bucket
+- required storage credentials are present
+- storage credentials can access ONLY the expected bucket/resources where technically verifiable
+
+Fail non-zero on any mismatch.
+
+==================================================
+3. FAIL CLOSED
+==================================================
+
+Release validation must hard fail for:
+
+development + production bucket
+staging + production bucket
+production + staging bucket
+production + development bucket
+missing bucket marker
+invalid marker
+unexpected bucket fingerprint
+legacy compatibility enabled outside production
+unknown environment
+malformed namespace
+unverified binding
+
+Do not downgrade these to warnings.
+
+==================================================
+4. RELEASE PIPELINE INTEGRATION
+==================================================
+
+Wire the validator into the documented release flow.
+
+Desired:
+
+DEV
+→ tests
+→ verify environment
+→ verify storage
+→ migrate staging
+→ deploy staging
+→ smoke test
+→ verify release candidate
+→ explicit production promotion
+→ verify production environment/storage
+→ production deploy
+
+Where Replit allows pre-deploy checks, integrate it there.
+
+If Replit does not provide a hard pre-publish hook, provide a required release command/checklist that must pass before Publish.
+
+Do not claim an automated block exists if Replit cannot enforce one.
+
+==================================================
+5. PRODUCTION PRE-PUBLISH CHECK
+==================================================
+
+Create a production-safe verification mode that can inspect metadata without modifying objects.
+
+It should verify:
+
+- WORKRATE_ENV=production
+- DB marker=production
+- bucket marker=production
+- expected bucket fingerprint
+- expected storage namespace
+- no staging/test storage configuration
+- provider environment compatibility
+- immutable build/release ID present
+
+This must be read-only.
+
+==================================================
+6. STAGING PRE-PUBLISH CHECK
+==================================================
+
+Verify:
+
+- WORKRATE_ENV=staging
+- DB marker=staging
+- bucket marker=staging
+- staging-only storage identity
+- no production bucket access
+- no production file listing
+- no production legacy-path access
+- test/provider guards enabled
+
+==================================================
+7. DEVELOPMENT CHECK
+==================================================
+
+Verify:
+
+- WORKRATE_ENV=development
+- DB marker=development
+- bucket marker=development
+- production storage inaccessible
+- staging storage inaccessible where isolation requires it
+
+==================================================
+8. BUCKET IDENTITY PINNING
+==================================================
+
+Use the Task #97 bucket identity fingerprint.
+
+For staging/production, require an expected fingerprint/configured binding where appropriate.
+
+Do not allow:
+
+“bucket name looks right”
+
+to count as proof.
+
+Use the actual verified bucket identity mechanism already created.
+
+==================================================
+9. LEGACY PATH COMPATIBILITY
+==================================================
+
+Preserve current rule:
+
+legacy unprefixed reads may exist ONLY in production.
+
+Add pre-release validation that fails if:
+
+- legacy compatibility is active in staging
+- legacy compatibility is active in development
+- production legacy compatibility unexpectedly points outside the production bucket
+
+Do NOT remove production legacy support in this task.
+
+That belongs to Task #98.
+
+==================================================
+10. DIAGNOSTICS / RELEASE STATUS
+==================================================
+
+Add a safe internal release-readiness section.
+
+Show:
+
+- Environment
+- DB marker
+- Storage environment marker
+- Bucket binding: VERIFIED / INVALID
+- Bucket fingerprint status
+- Legacy compatibility mode
+- Release storage check: PASS / FAIL
+- Last verification timestamp
+- Build ID
+
+Do NOT expose:
+- bucket credentials
+- service account keys
+- signed URLs
+- secrets
+
+==================================================
+11. HUMAN-READABLE FAILURES
+==================================================
+
+When validation fails, return clear safe messages such as:
+
+STORAGE_ENVIRONMENT_MISMATCH
+BUCKET_MARKER_MISSING
+BUCKET_IDENTITY_MISMATCH
+LEGACY_STORAGE_NOT_ALLOWED
+STORAGE_BINDING_UNVERIFIED
+PRODUCTION_STORAGE_ACCESS_FROM_NON_PRODUCTION
+
+Include remediation guidance without printing secrets.
+
+==================================================
+12. AUTOMATED TESTS
+==================================================
+
+Add tests for:
+
+- development + development bucket → PASS
+- staging + staging bucket → PASS
+- production + production bucket → PASS
+- development + production bucket → FAIL
+- staging + production bucket → FAIL
+- production + staging bucket → FAIL
+- missing marker → FAIL
+- wrong marker → FAIL
+- wrong fingerprint → FAIL
+- legacy compatibility in staging → FAIL
+- malformed storage prefix → FAIL
+- unknown environment → FAIL
+- unverified binding → FAIL
+
+Preserve Task #97 tests.
+
+==================================================
+13. NO PRODUCTION MUTATION
+==================================================
+
+During this task:
+
+Do NOT:
+- write to production storage
+- delete legacy objects
+- rename/move customer files
+- alter production bucket marker
+- rotate production credentials
+- publish production
+
+Read-only production metadata verification only if safely available.
+
+==================================================
+14. DOCUMENT RELEASE PROCEDURE
+==================================================
+
+Update:
+
+docs/workrate-environment-release.md
+
+Add an explicit release gate:
+
+“DO NOT PUBLISH unless release-storage verification passes.”
+
+Document commands for:
+
+development
+staging
+production
+
+Keep it short and operational.
+
+==================================================
+15. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. pre-release validator added
+B. environments validated
+C. bucket identity validation
+D. release pipeline integration
+E. legacy compatibility guard
+F. diagnostics/readiness status
+G. tests passed
+H. any Replit limitation preventing hard pre-publish enforcement
+I. whether staging setup is still incomplete
+J. whether production can safely receive the next release candidate
+K. whether Task #98 should now be done immediately or can wait until after beta
+
+Do not publish automatically.

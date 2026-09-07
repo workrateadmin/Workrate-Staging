@@ -23,15 +23,27 @@ data into development or staging.
 
 ## DEV → STAGING → PRODUCTION
 
-1. Apply and validate schema changes in **development** only.
-2. Publish a staging build with a new exact `WORKRATE_BUILD_ID`. Replit generates
+**DO NOT PUBLISH unless `pnpm verify:release-storage` passes in the exact
+deployment environment being promoted.** The API `prebuild` runs this same
+read-only check, and `.replit` makes it the first explicit deployment build
+step. A failed validation exits non-zero and blocks that publish.
+
+1. Apply and validate schema changes in **development** only, then run
+   `pnpm verify:release-storage`.
+2. In staging, set `WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT` to the
+   independently approved fingerprint recorded when the staging bucket was
+   provisioned, then run `pnpm verify:release-storage`. Never generate or replace
+   this pin from the deployment's currently configured bucket during release.
+3. Publish a staging build with a new exact `WORKRATE_BUILD_ID`. Replit generates
    the staging publish URL first; exercise it before adding/changing DNS.
-3. Use Replit's Publish schema-diff/promotion UI to promote the reviewed schema
+4. Use Replit's Publish schema-diff/promotion UI to promote the reviewed schema
    to staging/production. Do not run `db push`, embedded migrations, or any
    startup DDL in staging or production. Their startup migrations are disabled.
-4. Validate the generated staging URL with staging-only credentials and then
-   publish the same reviewed build ID to production through Replit. Attach DNS
-   only after the generated URL is healthy.
+5. Validate the generated staging URL with staging-only credentials. In the
+   production deployment, use its independently provisioned expected bucket
+   fingerprint and run the same read-only verification before publishing the
+   exact reviewed build ID.
+6. Publish through Replit and attach DNS only after the generated URL is healthy.
 
 Keep separate Replit secrets per deployment: distinct `DATABASE_URL`, Clerk
 keys, Stripe test/live keys, webhook signing secrets, object-storage namespace,
@@ -57,6 +69,14 @@ pnpm --filter @workspace/scripts run init:storage-environment
 The marker records the environment and a non-secret bucket fingerprint. Startup
 fails if the marker is missing, copied from another bucket, or belongs to a
 different environment.
+
+`verify:release-storage` reads only configuration, the DB marker, and the fixed
+bucket marker. It never lists, reads, copies, or modifies customer objects. It
+also verifies namespace isolation, production-only legacy compatibility,
+provider/environment guards, and the immutable build ID. A successful marker
+read proves access to the intended bucket, but Replit's build cannot prove that
+the underlying service identity lacks IAM access to every other bucket; keep
+deployment identities and bucket IAM separate as an independent control.
 
 ## Rollback
 

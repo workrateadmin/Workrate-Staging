@@ -12,6 +12,7 @@ import {
 } from "../lib/runtime-environment";
 import { getStorageEnvironmentConfig } from "../lib/storage-environment";
 import { getVerifiedStorageBucketBinding } from "../lib/storage-bucket-runtime";
+import { getLatestReleaseStorageVerification } from "../lib/release-storage-runtime";
 
 const router: IRouter = Router();
 
@@ -80,6 +81,7 @@ router.get("/diagnostics", requireAuth, async (req, res): Promise<void> => {
   const storageBinding = storageConfig
     ? getVerifiedStorageBucketBinding()
     : null;
+  const releaseStorage = getLatestReleaseStorageVerification();
 
   // ── Company row ────────────────────────────────────────────────────────────
   let company: { id: number; name: string } | null = null;
@@ -112,6 +114,12 @@ router.get("/diagnostics", requireAuth, async (req, res): Promise<void> => {
     storageBucketFingerprint: storageConfig?.bucketFingerprint ?? null,
     storageLegacyReadsAllowed: storageConfig?.legacyReadsAllowed ?? false,
     storageBindingVerified: storageBinding !== null,
+    databaseEnvironmentMarker: releaseStorage.databaseMarker,
+    storageEnvironmentMarker: releaseStorage.storageMarker,
+    storageBucketFingerprintStatus: releaseStorage.bucketFingerprintStatus,
+    releaseStorageStatus: releaseStorage.status,
+    releaseStorageFailureCode: releaseStorage.code,
+    releaseStorageVerifiedAt: releaseStorage.checkedAt,
     providers: {
       stripeEnabled: stripeMode() === "test" || stripeMode() === "live",
       hmrcEnabled: configured("HMRC_SANDBOX_CLIENT_ID") &&
