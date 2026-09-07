@@ -1,0 +1,438 @@
+WORKRATE — COMPLETE THE REAL STAGING ENVIRONMENT
+
+GOAL:
+
+Finish the actual WorkRate staging environment using the environment and storage safeguards already implemented in Tasks #96, #97, and #99.
+
+Do NOT redesign the environment system.
+Do NOT weaken any existing guards.
+Do NOT publish production.
+Do NOT copy production data or production files.
+
+The goal is to make STAGING genuinely usable and independently verified.
+
+==================================================
+1. CURRENT EXPECTED STATE
+==================================================
+
+Existing repository safeguards now include:
+
+- WORKRATE_ENV enforcement
+- immutable DB environment marker
+- explicit staging/production migration flow
+- environment-aware storage paths
+- immutable bucket environment marker
+- storage bucket identity fingerprinting
+- independently provisioned expected fingerprint for staging/production
+- pnpm verify:release-storage
+- deployment build hard gate
+- startup verification
+- staging/production provider guards
+- environment banners
+- PWA/cache isolation
+- synthetic fixture tooling
+
+Preserve all of these.
+
+==================================================
+2. DETERMINE WHETHER STAGING PROJECT EXISTS
+==================================================
+
+First inspect current Replit project/deployment state.
+
+Determine whether:
+
+A. a separate WorkRate Staging project already exists
+B. a staging deployment exists inside the current project
+C. neither exists yet
+
+Do not assume.
+
+Report the safest supported Replit staging architecture using the current Replit product.
+
+If manual action is required:
+give me ONE manual action at a time.
+
+Do not give me a long UI checklist.
+
+==================================================
+3. STAGING ENVIRONMENT
+==================================================
+
+The completed staging environment must use:
+
+WORKRATE_ENV=staging
+
+and show:
+
+STAGING — NOT CUSTOMER DATA
+
+It must not reuse the production runtime environment.
+
+==================================================
+4. STAGING DATABASE
+==================================================
+
+Create/use a completely separate staging database.
+
+Requirements:
+
+- empty of production customer data
+- same current schema
+- DB environment marker = staging
+- migrations applied deliberately
+- no automatic startup migrations
+- no production DB credentials
+
+Verify:
+
+WORKRATE_ENV=staging
+DB marker=staging
+
+Any mismatch must fail closed.
+
+==================================================
+5. STAGING STORAGE BUCKET
+==================================================
+
+Create/use a separate staging storage bucket.
+
+Do NOT reuse the production bucket.
+
+Requirements:
+
+- immutable storage environment marker = staging
+- separate bucket identity
+- no production customer files
+- staging path prefix rules preserved
+- legacy unprefixed reads disabled
+- production bucket inaccessible from staging where IAM allows this to be enforced
+
+Do not copy production receipts, PDFs, evidence, attachments, or documents.
+
+==================================================
+6. INDEPENDENT STORAGE FINGERPRINT PIN
+==================================================
+
+Provision the staging expected fingerprint independently.
+
+Configure:
+
+WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT
+
+with the approved fingerprint for the staging bucket.
+
+IMPORTANT:
+
+Do not generate the expected value by blindly accepting whichever bucket happens to be configured.
+
+The staging bucket must first be deliberately identified as the intended staging bucket.
+
+Then pin that verified identity.
+
+==================================================
+7. RUN RELEASE STORAGE VALIDATION
+==================================================
+
+Run:
+
+pnpm verify:release-storage
+
+for staging.
+
+Required result:
+
+PASS
+
+Verify:
+
+- WORKRATE_ENV=staging
+- DB marker=staging
+- bucket marker=staging
+- bucket fingerprint matches expected pin
+- legacy compatibility disabled
+- storage binding verified
+- no production namespace
+- no malformed paths
+- immutable build/release ID present where required
+
+Do not continue to deployment if this fails.
+
+==================================================
+8. CLERK
+==================================================
+
+Use the previously approved interim staging model:
+
+- Clerk development/test environment
+- staging-only test user(s)
+
+Do NOT:
+
+- copy production Clerk users
+- merge production identities
+- change Huntley Bespoke production ownership
+- reuse production customer accounts
+
+==================================================
+9. STRIPE
+==================================================
+
+Staging must use Stripe TEST mode only.
+
+Configure:
+
+- Stripe test secret
+- staging/test webhook secret
+- test products/prices as needed
+
+Verify:
+
+- live Stripe keys rejected
+- staging cannot create live charges
+- staging does not use production customers/subscriptions
+
+==================================================
+10. EMAIL
+==================================================
+
+Staging email must be either:
+
+- disabled
+or
+- restricted to an exact test-recipient allowlist
+
+Prefer allowlisted email so quote/invoice flows can be tested.
+
+Recipients outside the allowlist must be blocked.
+
+Do not silently redirect email.
+
+==================================================
+11. VAPI
+==================================================
+
+Staging must not use real production customer call routing.
+
+Use:
+
+- explicit staging/test assistant/phone mapping
+or
+- keep telephony disabled
+
+Do not load production number mappings.
+
+==================================================
+12. META / WHATSAPP / INSTAGRAM
+==================================================
+
+Staging must not process production Meta traffic.
+
+Use development/test configuration where available.
+
+Otherwise keep Meta channels disabled.
+
+Production WhatsApp/Instagram/Facebook webhooks must not be processed by staging.
+
+==================================================
+13. HMRC
+==================================================
+
+Staging must remain sandbox-only.
+
+Do not contact HMRC production.
+
+Use the existing sandbox architecture only if the current gateway can safely distinguish staging traffic.
+
+Do not populate HMRC_FRAUD_APPROVED_OMISSIONS unless written HMRC approval exists.
+
+==================================================
+14. SYNTHETIC STAGING DATA
+==================================================
+
+Run the guarded staging fixture tool.
+
+Create fake examples only:
+
+- test business
+- test owner
+- enquiry
+- quote
+- proposal
+- job
+- schedule item
+- invoice
+- expense
+- receipt metadata
+- subscription
+- usage records
+
+Clearly label them as staging/test data.
+
+Never copy Huntley Bespoke production records.
+
+==================================================
+15. STAGING DEPLOYMENT
+==================================================
+
+Deploy staging only after:
+
+- DB marker verified
+- bucket marker verified
+- fingerprint pin verified
+- pnpm verify:release-storage PASS
+- required test secrets configured
+
+Use the generated Replit staging URL first.
+
+Do not require staging.work-rate.uk yet.
+
+Do not touch production.
+
+==================================================
+16. STAGING SMOKE TEST
+==================================================
+
+Run a full staging smoke test:
+
+AUTH
+- staging test sign-in
+
+ONBOARDING
+- create test trade business
+
+ENQUIRY
+- create enquiry
+
+QUOTE
+- create quote
+
+PROPOSAL
+- open/accept test proposal
+
+DEPOSIT
+- Stripe test mode only
+
+JOB
+- convert to job
+
+SCHEDULE
+- create schedule entry
+
+INVOICE
+- create invoice/PDF
+
+FINANCE
+- add expense
+- test receipt storage
+
+STORAGE
+- upload/read staging file
+- prove production files are not accessible
+
+BILLING
+- test subscription
+- usage
+- top-ups
+
+EMAIL
+- send only to allowed test recipient
+
+HMRC
+- sandbox only
+
+INTEGRATIONS
+- verify production integrations remain blocked
+
+==================================================
+17. PRODUCTION ISOLATION TEST
+==================================================
+
+Explicitly verify staging cannot:
+
+- query production DB
+- see Huntley Bespoke records
+- read production bucket objects
+- use production legacy paths
+- use Stripe live mode
+- email real customers
+- process production Meta traffic
+- route production Vapi calls
+- contact HMRC production
+
+Where underlying IAM cannot mathematically prove zero access to all other buckets, state that limitation honestly.
+
+==================================================
+18. RELEASE CANDIDATE RECORD
+==================================================
+
+Record:
+
+- staging URL
+- build ID / commit
+- migration version
+- DB marker
+- bucket marker
+- bucket fingerprint status
+- deployment timestamp
+- smoke test result
+
+This becomes the candidate eventually promoted to production.
+
+==================================================
+19. DO NOT TOUCH PRODUCTION
+==================================================
+
+Do NOT:
+
+- publish production
+- mutate production DB
+- mutate production storage
+- rotate production secrets
+- change production Stripe setup
+- change production Clerk ownership
+- change production webhooks
+- copy customer data/files
+
+==================================================
+20. MANUAL ACTION RULE
+==================================================
+
+If anything requires me to use the Replit UI, cloud provider UI, or secrets screen:
+
+give me exactly ONE action.
+
+Wait for my response.
+
+Then give the next action.
+
+Do not dump multiple manual setup steps at once.
+
+==================================================
+21. COMPLETION REPORT
+==================================================
+
+When finished report:
+
+A. staging architecture used
+B. staging URL
+C. WORKRATE_ENV
+D. DB marker/status
+E. migration version
+F. storage bucket status
+G. bucket marker
+H. fingerprint pin status
+I. release-storage verification result
+J. Clerk setup
+K. Stripe test status
+L. email safety
+M. Vapi safety
+N. Meta safety
+O. HMRC sandbox status
+P. synthetic fixture status
+Q. smoke-test results
+R. production isolation proof
+S. remaining manual limitations
+T. whether staging is now ready to approve as a production release candidate
+
+Do not publish production automatically.
