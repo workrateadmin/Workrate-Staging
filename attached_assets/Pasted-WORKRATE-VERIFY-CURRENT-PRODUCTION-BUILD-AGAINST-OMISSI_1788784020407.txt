@@ -1,0 +1,78 @@
+WORKRATE — VERIFY CURRENT PRODUCTION BUILD AGAINST OMISSION-AWARE HMRC GATEWAY
+
+CURRENT STATE:
+
+The corrected omission-aware HMRC gateway has now been manually deployed to DigitalOcean and is healthy.
+
+Gateway:
+https://hmrc-gateway.work-rate.uk
+
+Health:
+HTTP 200
+environment=sandbox
+publicIp=67.207.68.112
+ready=true
+
+The corrected gateway archive SHA-256 matched:
+452ef099b82171fe89f796600e9027dc2a95f6ea95725f99fa4fae05a9d86047
+
+The gateway was built on the Droplet and hmrc-gateway is active.
+
+IMPORTANT:
+
+I have already republished WorkRate twice since then.
+Do NOT tell me to publish again unless the current production build is definitely missing required WorkRate-side changes.
+
+GOAL:
+
+Determine whether the currently published WorkRate build already contains the omission-aware HMRC diagnostics/error handling from your previous implementation.
+
+Expected omission-aware behaviour is:
+
+- normalized code: APPROVED_OMISSION_REQUIRED
+- message: “Additional fraud-prevention evidence requires HMRC approval.”
+- Gov-Client-Multi-Factor → OMISSION_REQUIRED
+- Gov-Vendor-License-IDs → OMISSION_REQUIRED
+
+==================================================
+1. VERIFY CURRENT CODE
+==================================================
+
+Inspect the current WorkRate codebase and confirm whether it already contains:
+
+- APPROVED_OMISSION_REQUIRED
+- safe propagation of gateway fraud_data_unavailable / omission-required response
+- structured header issue rendering
+- plain-English omission-required message
+- no generic fallback if safe omission details exist
+
+==================================================
+2. VERIFY CURRENT PUBLISHED BUILD
+==================================================
+
+Determine whether the currently published deployment corresponds to the code containing those changes.
+
+Do not guess from timestamp alone.
+
+==================================================
+3. LIVE CHECK
+==================================================
+
+Using the current production diagnostics result, determine whether the published app is actually receiving the new omission-aware gateway response.
+
+Do NOT contact HMRC production.
+Do NOT submit a quarterly update.
+
+==================================================
+4. REPORT ONLY
+==================================================
+
+Report:
+
+A. omission-aware WorkRate code present: YES/NO
+B. current production build contains it: YES/NO/UNVERIFIED
+C. gateway redeploy confirmed: YES
+D. one more WorkRate publish required: YES/NO
+E. exact next action
+
+Do not publish automatically.
