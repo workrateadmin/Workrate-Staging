@@ -1,0 +1,102 @@
+WORKRATE — MOVE PRODUCTION RESOURCE IDENTITY CHECK TO AUTHORITATIVE STARTUP GATE
+
+The read-only diagnosis is accepted.
+
+Proven constraint:
+
+Production artifact BUILD receives the workspace Replit App Storage binding:
+fingerprint 6c3db9401c73
+
+The published production RUNTIME is where Production app storage configuration becomes authoritative.
+
+Therefore production storage/database identity must not be hard-required during artifact build.
+
+IMPLEMENT ONLY THIS ARCHITECTURAL CORRECTION.
+
+GOAL:
+
+Keep WorkRate fail-closed, but validate resources at the environment boundary where they can actually be proven.
+
+1. BUILD-TIME VALIDATION
+
+Update verify:release-storage/build integration so the production artifact build does NOT fail because the workspace App Storage bucket differs from the pinned production bucket.
+
+Build-time checks should still validate everything that is genuinely knowable at build time, including:
+- WORKRATE_ENV
+- immutable WORKRATE_BUILD_ID
+- expected fingerprint format/presence
+- provider mode compatibility that is available during build
+- dangerous environment mismatches
+- configuration/schema correctness
+
+Do NOT pretend the production storage bucket or production DB identity can be verified during build if Replit does not expose those resources there.
+
+2. STARTUP VALIDATION — AUTHORITATIVE
+
+Before the API binds/listens on its HTTP port in production:
+
+- require production storage configuration
+- calculate actual runtime storage bucket fingerprint
+- compare to:
+  e3a50e5234b4
+
+- require and validate the fixed production storage environment marker
+- require and validate the production database environment marker
+- validate existing production provider/environment safeguards
+
+If any required check fails:
+
+- log a safe structured failure
+- do NOT start listening
+- exit non-zero
+- deployment health must fail
+
+3. DO NOT WEAKEN SAFETY
+
+Do NOT:
+- remove production bucket fingerprint validation
+- remove storage marker validation
+- remove database marker validation
+- allow production to self-mark resources
+- accept legacy/cross-environment resources silently
+- mutate production DB/storage during validation
+- change production secrets
+- change .replit objectStorage bucket
+- publish automatically
+
+4. DIAGNOSTICS
+
+Keep safe diagnostics showing:
+- build-time verification PASS/FAIL
+- runtime storage fingerprint status
+- storage marker status
+- database marker status
+- environment
+- build ID
+- startup gate PASS/FAIL
+
+Never expose credentials or full sensitive storage paths.
+
+5. TESTS
+
+Add/adjust tests proving:
+
+- production build succeeds when workspace build bucket differs from production pin
+- production startup fails if runtime bucket fingerprint is wrong
+- production startup fails if storage marker is wrong/missing
+- production startup fails if DB marker is wrong/missing
+- production startup passes only when all production runtime identities are correct
+- development/staging protections remain unchanged
+- API never listens before production startup gate passes
+
+Run focused release/runtime tests, API/scripts typechecks and diff check.
+
+Do not publish.
+
+Report:
+- exact files changed
+- old versus new validation flow
+- test results
+- whether ONE controlled production Publish attempt is appropriate
+
+Stop before publishing.

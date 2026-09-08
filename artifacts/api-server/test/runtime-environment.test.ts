@@ -20,7 +20,14 @@ import {
   STORAGE_BUCKET_MARKER_OBJECT,
   type StorageBucketMarkerStore,
 } from "../src/lib/storage-bucket-binding";
-import { validateReleaseStorage } from "../src/lib/release-storage-validation";
+import {
+  validateReleaseBuildConfiguration,
+  validateReleaseStorage,
+} from "../src/lib/release-storage-validation";
+import {
+  runAfterStartupResourceIdentityGate,
+  StartupResourceIdentityGateError,
+} from "../src/lib/startup-resource-identity-gate";
 
 test("WORKRATE_ENV is required and limited to known deployment environments", () => {
   assert.throws(() => getWorkRateEnvironment({}), /WORKRATE_ENV must be one of/);
@@ -371,6 +378,126 @@ function passingReleaseDependencies(
     },
   };
 }
+
+test("production build defers workspace bucket identity to startup", async () => {
+  const variables = releaseEnvironment("production");
+  variables.DEFAULT_OBJECT_STORAGE_BUCKET_ID = "workspace-build-bucket";
+  variables.PRIVATE_OBJECT_DIR = "/workspace-build-bucket/private";
+  variables.PUBLIC_OBJECT_SEARCH_PATHS = "/workspace-build-bucket/public";
+
+  const result = await validateReleaseBuildConfiguration(
+    variables,
+    () => new Date("2026-09-08T16:00:00.000Z"),
+  );
+
+  assert.equal(result.status, "pass");
+  assert.equal(result.environment, "production");
+  assert.equal(result.bucketFingerprintStatus, "deferred-to-startup");
+  assert.equal(result.storageMarker, null);
+  assert.equal(result.databaseMarker, null);
+});
+
+test("production build still requires a valid expected fingerprint and immutable build ID", async () => {
+  const missingBuildId = releaseEnvironment("production");
+  delete missingBuildId.WORKRATE_BUILD_ID;
+  assert.equal(
+    (await validateReleaseBuildConfiguration(missingBuildId)).code,
+    "BUILD_ID_MISSING",
+  );
+
+  const malformedFingerprint = releaseEnvironment("production");
+  malformedFingerprint.WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT = "wrong";
+  assert.equal(
+    (await validateReleaseBuildConfiguration(malformedFingerprint)).code,
+    "BUCKET_IDENTITY_MISMATCH",
+  );
+});
+
+test("production build retains provider and storage configuration safeguards", async () => {
+  const unsafeProvider = releaseEnvironment("production");
+  unsafeProvider.HMRC_PRODUCTION_GATEWAY_URL = "https://hmrc.example";
+  assert.equal(
+    (await validateReleaseBuildConfiguration(unsafeProvider)).status,
+    "fail",
+  );
+
+  const malformedStorage = releaseEnvironment("production");
+  malformedStorage.PRIVATE_OBJECT_DIR = "/another-bucket/private";
+  assert.equal(
+    (await validateReleaseBuildConfiguration(malformedStorage)).code,
+    "STORAGE_CONFIGURATION_INVALID",
+  );
+});
+
+test("production startup rejects every incorrect runtime resource identity", async () => {
+  const production = releaseEnvironment("production");
+  const cases = [
+    passingReleaseDependencies(production, {
+      storageMarker: "staging",
+    }),
+    passingReleaseDependencies(production, {
+      bucketFailure: new Error("Storage bucket environment marker is missing."),
+    }),
+    passingReleaseDependencies(production, {
+      databaseMarker: "staging",
+    }),
+    passingReleaseDependencies(production, {
+      databaseMarker: null,
+      databaseRowCount: 0,
+    }),
+  ];
+
+  for (const dependencies of cases) {
+    const result = await validateReleaseStorage(dependencies, production);
+    assert.equal(result.status, "fail");
+  }
+
+  const wrongFingerprint = {
+    ...production,
+    WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT: "000000000000",
+  };
+  assert.equal(
+    (await validateReleaseStorage(
+      passingReleaseDependencies(production),
+      wrongFingerprint,
+    )).code,
+    "BUCKET_IDENTITY_MISMATCH",
+  );
+});
+
+test("startup never invokes listening work before the identity gate passes", async () => {
+  const production = releaseEnvironment("production");
+  const failed = await validateReleaseStorage(
+    passingReleaseDependencies(production, {
+      databaseMarker: "staging",
+    }),
+    production,
+  );
+  let listenInvoked = false;
+
+  await assert.rejects(
+    runAfterStartupResourceIdentityGate(
+      async () => failed,
+      async () => {
+        listenInvoked = true;
+      },
+    ),
+    StartupResourceIdentityGateError,
+  );
+  assert.equal(listenInvoked, false);
+
+  const passed = await validateReleaseStorage(
+    passingReleaseDependencies(production),
+    production,
+  );
+  await runAfterStartupResourceIdentityGate(
+    async () => passed,
+    async () => {
+      listenInvoked = true;
+    },
+  );
+  assert.equal(listenInvoked, true);
+});
 
 for (const environment of ["development", "staging", "production"] as const) {
   test(`${environment} release storage validation passes for its bound bucket`, async () => {

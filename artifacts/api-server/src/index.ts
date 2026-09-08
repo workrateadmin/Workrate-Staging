@@ -7,7 +7,13 @@ import { initializeStripeBilling } from "./services/billing/provider";
 import {
   shouldRunMigrations,
 } from "./lib/runtime-environment";
-import { verifyConfiguredReleaseStorage } from "./lib/release-storage-runtime";
+import {
+  verifyConfiguredReleaseStorage,
+} from "./lib/release-storage-runtime";
+import {
+  runAfterStartupResourceIdentityGate,
+  StartupResourceIdentityGateError,
+} from "./lib/startup-resource-identity-gate";
 
 const rawPort = process.env["PORT"];
 
@@ -24,47 +30,74 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function startServer(): Promise<void> {
-  const releaseStorage = await verifyConfiguredReleaseStorage();
-  if (releaseStorage.status !== "pass" || !releaseStorage.environment) {
-    throw new Error(
-      `${releaseStorage.code ?? "STORAGE_BINDING_UNVERIFIED"}: ${releaseStorage.message}`,
-    );
-  }
-  const workRateEnvironment = releaseStorage.environment;
-  const client = await pool.connect();
-  try {
-    await assertDatabaseEnvironment(client, workRateEnvironment);
-  } finally {
-    client.release();
-  }
+  await runAfterStartupResourceIdentityGate(
+    verifyConfiguredReleaseStorage,
+    async (releaseStorage) => {
+      const workRateEnvironment = releaseStorage.environment!;
+      logger.info(
+        {
+          startupGate: "PASS",
+          environment: workRateEnvironment,
+          buildId: releaseStorage.buildId,
+          bucketFingerprintStatus: releaseStorage.bucketFingerprintStatus,
+          storageMarker: releaseStorage.storageMarker,
+          databaseMarker: releaseStorage.databaseMarker,
+        },
+        "Startup resource identity gate passed",
+      );
+      const client = await pool.connect();
+      try {
+        await assertDatabaseEnvironment(client, workRateEnvironment);
+      } finally {
+        client.release();
+      }
 
-  if (shouldRunMigrations(workRateEnvironment)) {
-    await runMigrations();
-  } else {
-    logger.info(
-      { workRateEnvironment },
-      "Automatic database migrations are disabled for this environment",
-    );
-  }
+      if (shouldRunMigrations(workRateEnvironment)) {
+        await runMigrations();
+      } else {
+        logger.info(
+          { workRateEnvironment },
+          "Automatic database migrations are disabled for this environment",
+        );
+      }
 
-  try {
-    await initializeStripeBilling();
-  } catch (err) {
-    // Billing calls remain safely unavailable until the connector recovers;
-    // never take unrelated product functionality down for a transient sync error.
-    logger.error({ err }, "Stripe initialization failed; billing provider will remain unavailable");
-  }
+      try {
+        await initializeStripeBilling();
+      } catch (err) {
+        // Billing calls remain safely unavailable until the connector recovers;
+        // never take unrelated product functionality down for a transient sync error.
+        logger.error({ err }, "Stripe initialization failed; billing provider will remain unavailable");
+      }
 
-  app.listen(port, (err) => {
-    if (err) {
-      logger.error({ err }, "Error listening on port");
-      process.exit(1);
-    }
-    logger.info({ port, workRateEnvironment }, "Server listening");
-  });
+      app.listen(port, (err) => {
+        if (err) {
+          logger.error({ err }, "Error listening on port");
+          process.exit(1);
+        }
+        logger.info({ port, workRateEnvironment }, "Server listening");
+      });
+    },
+  );
 }
 
 startServer().catch((err) => {
-  logger.error({ err }, "Startup safety checks failed — server not started");
+  if (err instanceof StartupResourceIdentityGateError) {
+    const releaseStorage = err.verification;
+    logger.error(
+      {
+        startupGate: "FAIL",
+        environment: releaseStorage.environment,
+        buildId: releaseStorage.buildId,
+        bucketFingerprint: releaseStorage.bucketFingerprint,
+        bucketFingerprintStatus: releaseStorage.bucketFingerprintStatus,
+        storageMarker: releaseStorage.storageMarker,
+        databaseMarker: releaseStorage.databaseMarker,
+        code: releaseStorage.code,
+      },
+      "Production startup resource identity gate failed",
+    );
+  } else {
+    logger.error({ err }, "Startup safety checks failed — server not started");
+  }
   process.exit(1);
 });

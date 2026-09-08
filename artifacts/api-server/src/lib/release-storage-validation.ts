@@ -36,7 +36,11 @@ export interface ReleaseStorageVerification {
   databaseMarker: WorkRateEnvironment | null;
   storageMarker: WorkRateEnvironment | null;
   bucketFingerprint: string | null;
-  bucketFingerprintStatus: "matched" | "development-unpinned" | "invalid";
+  bucketFingerprintStatus:
+    | "matched"
+    | "development-unpinned"
+    | "deferred-to-startup"
+    | "invalid";
   legacyCompatibility: "production-only" | "blocked";
   code: ReleaseStorageFailureCode | null;
   message: string;
@@ -76,26 +80,99 @@ function requireBuildId(
   return buildId || "local-development";
 }
 
-export function assertPinnedBucketIdentity(
-  config: StorageEnvironmentConfig,
+function requireExpectedBucketFingerprint(
+  environment: WorkRateEnvironment,
   environmentVariables: EnvironmentVariables,
-): "matched" | "development-unpinned" {
+): string | null {
   const expected =
     environmentVariables["WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT"]?.trim();
-  if (!expected && config.environment !== "development") {
+  if (!expected && environment !== "development") {
     throw new ReleaseCheckFailure(
       "BUCKET_EXPECTED_FINGERPRINT_MISSING",
       "Set the expected storage bucket fingerprint for staging or production.",
     );
   }
+  if (expected && !/^[a-f0-9]{12}$/.test(expected)) {
+    throw new ReleaseCheckFailure(
+      "BUCKET_IDENTITY_MISMATCH",
+      "The expected storage bucket fingerprint is malformed.",
+    );
+  }
+  return expected || null;
+}
+
+export function assertPinnedBucketIdentity(
+  config: StorageEnvironmentConfig,
+  environmentVariables: EnvironmentVariables,
+): "matched" | "development-unpinned" {
+  const expected = requireExpectedBucketFingerprint(
+    config.environment,
+    environmentVariables,
+  );
   if (!expected) return "development-unpinned";
-  if (!/^[a-f0-9]{12}$/.test(expected) || expected !== config.bucketFingerprint) {
+  if (expected !== config.bucketFingerprint) {
     throw new ReleaseCheckFailure(
       "BUCKET_IDENTITY_MISMATCH",
       "Configured storage bucket does not match the pinned bucket identity.",
     );
   }
   return "matched";
+}
+
+export async function validateReleaseBuildConfiguration(
+  environmentVariables: EnvironmentVariables = process.env,
+  now: () => Date = () => new Date(),
+): Promise<ReleaseStorageVerification> {
+  const checkedAt = now().toISOString();
+  let environment: WorkRateEnvironment | null = null;
+  let buildId: string | null = null;
+  let config: StorageEnvironmentConfig | null = null;
+
+  try {
+    environment = assertRuntimeEnvironmentSafety(environmentVariables);
+    buildId = requireBuildId(environment, environmentVariables);
+    requireExpectedBucketFingerprint(environment, environmentVariables);
+    config = getStorageEnvironmentConfig(environmentVariables);
+    if (!config) {
+      throw new ReleaseCheckFailure(
+        "STORAGE_CONFIGURATION_INVALID",
+        "Object storage build configuration is missing.",
+      );
+    }
+    assertPathIsolation(config);
+
+    return {
+      status: "pass",
+      checkedAt,
+      environment,
+      buildId,
+      databaseMarker: null,
+      storageMarker: null,
+      bucketFingerprint: config.bucketFingerprint,
+      bucketFingerprintStatus: "deferred-to-startup",
+      legacyCompatibility:
+        config.environment === "production" ? "production-only" : "blocked",
+      code: null,
+      message:
+        "Build configuration verification passed; production resource identity is deferred to the authoritative startup gate.",
+    };
+  } catch (error) {
+    const code = failureCodeFor(error);
+    return {
+      status: "fail",
+      checkedAt,
+      environment,
+      buildId,
+      databaseMarker: null,
+      storageMarker: null,
+      bucketFingerprint: config?.bucketFingerprint ?? null,
+      bucketFingerprintStatus: "invalid",
+      legacyCompatibility:
+        config?.environment === "production" ? "production-only" : "blocked",
+      code,
+      message: safeFailureMessage(code),
+    };
+  }
 }
 
 function assertPathIsolation(config: StorageEnvironmentConfig): void {

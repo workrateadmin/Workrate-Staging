@@ -1,9 +1,16 @@
 import { pool } from "@workspace/db";
-import { verifyConfiguredReleaseStorage } from "../lib/release-storage-runtime";
+import {
+  verifyConfiguredReleaseBuild,
+  verifyConfiguredReleaseStorage,
+} from "../lib/release-storage-runtime";
 
 async function main(): Promise<void> {
-  const result = await verifyConfiguredReleaseStorage();
+  const buildTimeOnly = process.env.WORKRATE_ENV === "production";
+  const result = buildTimeOnly
+    ? await verifyConfiguredReleaseBuild()
+    : await verifyConfiguredReleaseStorage();
   const summary = {
+    verificationPhase: buildTimeOnly ? "build" : "full-resource",
     status: result.status.toUpperCase(),
     code: result.code,
     environment: result.environment,

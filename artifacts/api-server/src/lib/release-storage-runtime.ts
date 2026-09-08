@@ -2,6 +2,7 @@ import { pool } from "@workspace/db";
 import { readDatabaseEnvironmentMarker } from "@workspace/db/environment-marker";
 import { assertConfiguredStorageBucketEnvironment } from "./storage-bucket-runtime";
 import {
+  validateReleaseBuildConfiguration,
   validateReleaseStorage,
   type ReleaseStorageVerification,
 } from "./release-storage-validation";
@@ -21,6 +22,10 @@ export async function verifyConfiguredReleaseStorage(): Promise<ReleaseStorageVe
     },
   });
   return latestVerification;
+}
+
+export async function verifyConfiguredReleaseBuild(): Promise<ReleaseStorageVerification> {
+  return validateReleaseBuildConfiguration();
 }
 
 export function getLatestReleaseStorageVerification(): ReleaseStorageVerification {
