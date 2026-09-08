@@ -14,3 +14,9 @@ Use `singleton IS TRUE`, not a bare boolean expression, for the database marker'
 **Why:** PostgreSQL normalizes equality-to-true checks to a bare boolean expression, and Replit's publish diff generator can malformed that introspection as a nested `CHECK (CHECK (...))`.
 
 **How to apply:** Keep the out-of-band initializer and development constraint in the explicit `IS TRUE` form before validating the development-to-production schema diff.
+
+Production publishing overrides for App Storage can take precedence over the bucket selected in the App Storage Production view.
+
+**Why:** A release gate correctly rejected a deployment whose expected fingerprint matched the independently verified Production bucket, but whose publishing-level storage paths still targeted another bucket.
+
+**How to apply:** When bucket identity fails, inspect the presence and scope of all three production storage overrides together. Align the bucket ID and both storage-root bucket segments while preserving their path suffixes; never accept the deployment's current bucket merely because it is configured.
