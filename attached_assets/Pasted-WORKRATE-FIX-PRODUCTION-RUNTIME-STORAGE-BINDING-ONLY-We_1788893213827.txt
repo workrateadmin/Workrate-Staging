@@ -1,0 +1,79 @@
+WORKRATE — FIX PRODUCTION RUNTIME STORAGE BINDING ONLY
+
+We now have definitive runtime evidence.
+
+Latest production runtime reached:
+
+BOOT_STAGE_1
+BOOT_STAGE_2
+BOOT_STAGE_3
+
+Then failed with:
+
+Production startup resource identity gate failed
+Code: BUCKET_IDENTITY_MISMATCH
+Environment: production
+Build ID: c5daec0a60749b4c7758ab8b3c5b2761e2abbc36
+Runtime bucket fingerprint: 6c3db9401c73
+Bucket fingerprint status: invalid
+Storage marker: null
+Database marker: null
+
+Expected production bucket fingerprint:
+e3a50e5234b4
+
+Approved production bucket:
+repl-default-bucket-38a3dfb4-3859-4ed5-837e-20715c304142
+
+The runtime is still receiving the workspace/dev App Storage bucket:
+
+replit-objstore-fc3ca7d9-86c2-4ebd-841a-5791efa5879e
+fingerprint:
+6c3db9401c73
+
+DO NOT:
+- weaken or remove the startup gate
+- change the expected production fingerprint
+- relabel the dev bucket as production
+- change database configuration
+- touch Stripe/HMRC/provider logic
+- publish automatically
+- refactor unrelated code
+
+GOAL:
+
+Fix only the Replit production runtime storage binding so the API runtime receives the approved production bucket.
+
+Investigate exactly how DEFAULT_OBJECT_STORAGE_BUCKET_ID / PRIVATE_OBJECT_DIR / PUBLIC_OBJECT_SEARCH_PATHS are injected into the production AUTOSCALE runtime.
+
+Determine whether the binding is controlled by:
+- .replit [objectStorage]
+- Replit App Storage resource attachment
+- deployment resource binding
+- production environment configuration
+- another Replit-managed mechanism
+
+Then make the MINIMAL correct configuration change required so production runtime resolves to:
+
+repl-default-bucket-38a3dfb4-3859-4ed5-837e-20715c304142
+
+Do not spoof or override the fingerprint in application code.
+
+After the change, verify without publishing if possible:
+
+- resolved production runtime bucket ID
+- expected fingerprint e3a50e5234b4
+- dev still resolves to its own dev bucket
+- no cross-environment storage sharing introduced
+- startup gate remains unchanged
+
+Report:
+
+1. ROOT CAUSE
+2. EXACT CONFIGURATION CHANGE MADE
+3. PRODUCTION BUCKET AFTER CHANGE
+4. DEV BUCKET AFTER CHANGE
+5. STARTUP GATE CHANGED: YES/NO
+6. READY FOR ONE CONTROLLED PUBLISH: YES/NO
+
+Stop before publishing.
