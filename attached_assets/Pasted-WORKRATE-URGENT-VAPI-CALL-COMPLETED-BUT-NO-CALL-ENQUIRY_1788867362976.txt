@@ -1,0 +1,239 @@
+WORKRATE — URGENT: VAPI CALL COMPLETED BUT NO CALL / ENQUIRY LOG APPEARED IN APP
+
+A real test call was just made to the Huntley Bespoke AI receptionist.
+
+RESULT:
+- Caller successfully got through
+- AI answered the call
+- AI asked/answered the expected questions
+- Conversation completed successfully
+
+PROBLEM:
+- No call log appeared in WorkRate
+- No enquiry appeared
+- No transcript/summary is visible
+- No obvious record exists in the app
+
+This is a real production-path test.
+
+Please investigate the Vapi → WorkRate ingestion path end to end.
+
+IMPORTANT:
+Do not change or delete production customer data.
+Do not rotate secrets unless absolutely necessary.
+Do not publish automatically.
+Do not assume Vapi failed just because WorkRate has no record — the call itself worked.
+
+==================================================
+1. TRACE THE REAL CALL
+==================================================
+
+Find the most recent Vapi call for the Huntley Bespoke phone number/tenant.
+
+Check:
+
+- call ID
+- assistant ID
+- phone number ID
+- tenant/company mapping
+- call started timestamp
+- call ended timestamp
+- webhook events received
+- transcript availability
+- summary availability
+- Vapi call status
+- any provider-side delivery errors
+
+Do not expose secrets.
+
+==================================================
+2. CHECK WEBHOOK DELIVERY
+==================================================
+
+Inspect the Vapi webhook endpoint and recent production logs.
+
+Determine whether WorkRate received:
+
+- call-start event
+- status updates
+- end-of-call report
+- transcript
+- summary
+- cost event/data
+
+For each relevant event report:
+
+- received YES/NO
+- HTTP status returned
+- whether signature/HMAC verification passed
+- whether idempotency accepted/rejected it
+- whether tenant resolution succeeded
+- whether DB write succeeded
+- any exception/error code
+
+==================================================
+3. CHECK TENANT MAPPING
+==================================================
+
+Verify the real Huntley Bespoke number still maps to the correct production company.
+
+Check the mapping using stable identifiers such as:
+
+- Vapi phone resource ID
+- assistant ID
+- called number
+- company/tenant ID
+
+Do not rely on display names alone.
+
+Confirm no staging/development environment guard is now incorrectly rejecting legitimate production Vapi traffic after the recent environment-separation changes.
+
+==================================================
+4. CHECK RECENT ENVIRONMENT CHANGES
+==================================================
+
+We recently added strong DEV / STAGING / PRODUCTION separation.
+
+Audit whether any new guard has accidentally blocked production Vapi ingestion.
+
+Specifically inspect:
+
+- WORKRATE_ENV checks
+- non-production communication guards
+- webhook environment validation
+- production webhook URL validation
+- provider enablement
+- runtime-config/provider state
+- HMAC environment metadata
+- storage/environment URL changes
+- any new fail-closed logic introduced by Tasks #97 or #99
+
+Production Vapi traffic must still be accepted by production.
+
+==================================================
+5. CHECK WEBHOOK ENDPOINT CONFIGURATION
+==================================================
+
+Verify the Vapi assistant/phone number is configured to send to the CURRENT production WorkRate webhook URL.
+
+Confirm:
+
+- exact configured URL
+- route exists in current production build
+- no stale staging/dev URL
+- no old Replit domain
+- no changed path
+- HTTPS reachable
+- expected auth/signature headers match
+
+Do not change it until the mismatch is proven.
+
+==================================================
+6. DATABASE TRACE
+==================================================
+
+Search production DB safely for the actual call ID / phone number / timestamp.
+
+Check whether:
+
+- call record exists but UI query missed it
+- enquiry exists but is hidden by status/filter
+- transcript record exists without enquiry link
+- tenant_id/company_id is wrong
+- record was inserted then rejected/rolled back
+- duplicate/idempotency logic swallowed it
+- call was linked to the wrong enquiry
+
+Report exact finding.
+
+Do not mutate records yet unless repair is clearly safe.
+
+==================================================
+7. UI VS INGESTION
+==================================================
+
+Determine whether this is:
+
+A. Vapi never sent the event
+B. webhook delivery failed
+C. signature/HMAC rejected
+D. tenant mapping failed
+E. DB insert failed
+F. DB record exists but UI query/filter is wrong
+G. environment guard incorrectly rejected production traffic
+H. other
+
+Do not just say “webhook issue”.
+
+Identify the precise failure point.
+
+==================================================
+8. SAFE REPAIR
+==================================================
+
+Once root cause is proven:
+
+apply the smallest safe fix.
+
+Requirements:
+
+- preserve existing production Vapi call routing
+- preserve multi-tenant isolation
+- preserve HMAC/signature validation
+- preserve idempotency
+- preserve environment safety
+- do not weaken security just to make the webhook work
+
+If the completed call can be safely backfilled from Vapi using the real call ID, do so only after confirming tenant ownership and idempotency.
+
+==================================================
+9. REGRESSION TEST
+==================================================
+
+After fixing, run tests for:
+
+- valid production Vapi call → accepted
+- wrong tenant → rejected
+- invalid signature → rejected
+- duplicate event → idempotent
+- development/staging production traffic → rejected
+- production legitimate traffic → accepted
+- transcript/summary → stored
+- enquiry/call log → visible in UI
+
+==================================================
+10. LIVE VERIFICATION PLAN
+==================================================
+
+Before asking me to make another real phone call, first confirm:
+
+- production webhook is reachable
+- tenant mapping is correct
+- production environment accepts legitimate Vapi events
+- test/synthetic webhook creates the expected call/enquiry record
+
+Only then tell me whether one real test call is needed.
+
+==================================================
+11. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. real call found in Vapi: YES/NO
+B. call ID
+C. webhook sent by Vapi: YES/NO
+D. webhook received by WorkRate: YES/NO
+E. HTTP response
+F. signature result
+G. tenant mapping result
+H. DB write result
+I. UI visibility result
+J. root cause
+K. fix applied
+L. whether the missing real call was safely recovered/backfilled
+M. tests passed
+N. whether another real test call is required
+O. whether a production publish is required
+
+Do not publish automatically.

@@ -17,7 +17,7 @@ import { canonicalEventId, checkoutIdempotencyKey, checkoutLineItems, mapStripeS
 import { processRetryableReceipt } from "../src/services/billing/lifecycle";
 import { catalogAvailability, isBillingAdmin, trialPriceGbp } from "../src/services/billing/pricing";
 import { featureAccess } from "../src/services/billing/authorization";
-import { allowanceQuantity, finalizeUsageReservation, isLegacyVapiCostCoveredByCanonical, recordUsage, releaseUsageReservation, reserveUsage, summarizeProviderCosts, upsertVapiProviderCost } from "../src/services/billing/usage";
+import { allowanceQuantity, finalizeUsageReservation, isLegacyVapiCostCoveredByCanonical, recordUsage, releaseUsageReservation, reserveUsage, summarizeProviderCosts, upsertVapiProviderCost, usagePeriodForTenant } from "../src/services/billing/usage";
 import { assertExpectedStripeTestAccount, WORKRATE_STRIPE_TEST_ACCOUNT_ID } from "../src/services/billing/stripeClient";
 import { createReceptionistTopUpCheckout, grantReceptionistTopUpFromStripeSession, verifyTopUpPrice } from "../src/services/billing/topups";
 import { grantedReceptionistTopUpMinutes } from "../src/services/billing/usage";
@@ -84,6 +84,46 @@ test("paid feature authorization preserves legacy, grants selected add-ons/Compl
   assert.equal(featureAccess(resolveEntitlements({ legacyAccess: false, subscription: { status: "active", planCode: "complete", addOnCodes: [] }, plans: catalog, addOns: addOn }), "ai_receptionist"), null);
   assert.equal(featureAccess(resolveEntitlements({ legacyAccess: false, subscription: { status: "active", planCode: "complete", addOnCodes: [] }, plans: catalog, addOns: [] }), "advanced_finance_mtd"), null);
   assert.equal(featureAccess(resolveEntitlements({ legacyAccess: false, subscription: { status: "past_due", planCode: "complete", addOnCodes: [] }, plans: catalog, addOns: [] }), "advanced_finance_mtd")?.error, "PAYMENT_REQUIRED");
+});
+
+test("production usage periods allow only explicitly marked legacy tenants without Stripe periods", async () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const owner = `billing-legacy-period-${randomUUID()}`;
+  let legacyCompanyId: number | undefined;
+  let unmarkedCompanyId: number | undefined;
+  try {
+    process.env.NODE_ENV = "production";
+    const [legacyCompany] = await db.insert(companiesTable).values({
+      ownerUserId: owner,
+      name: `${owner}-legacy`,
+      legacyBilling: true,
+    }).returning();
+    legacyCompanyId = legacyCompany.id;
+    const [unmarkedCompany] = await db.insert(companiesTable).values({
+      ownerUserId: owner,
+      name: `${owner}-unmarked`,
+      legacyBilling: false,
+    }).returning();
+    unmarkedCompanyId = unmarkedCompany.id;
+
+    const period = await usagePeriodForTenant(
+      legacyCompany.id,
+      owner,
+      new Date("2026-09-08T11:28:29.588Z"),
+    );
+    assert.equal(period.startsAt.toISOString(), "2026-09-01T00:00:00.000Z");
+    assert.equal(period.endsAt.toISOString(), "2026-10-01T00:00:00.000Z");
+    assert.equal(period.isDevelopmentFallback, false);
+    await assert.rejects(
+      () => usagePeriodForTenant(unmarkedCompany.id, owner),
+      /Stripe subscription billing period is required/,
+    );
+  } finally {
+    if (legacyCompanyId) await db.delete(companiesTable).where(eq(companiesTable.id, legacyCompanyId));
+    if (unmarkedCompanyId) await db.delete(companiesTable).where(eq(companiesTable.id, unmarkedCompanyId));
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+  }
 });
 
 test("DB-backed receptionist grants snapshot minutes once and reject canonical session mismatches", async () => {

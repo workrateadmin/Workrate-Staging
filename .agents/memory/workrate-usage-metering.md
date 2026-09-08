@@ -27,6 +27,12 @@ Legacy premium access is an explicit company marker set during billing migration
 
 **How to apply:** New companies default to normal billing enforcement; preserve the marker only for accounts that existed before deliberate billing migration.
 
+Explicitly marked legacy companies without a subscription use UTC calendar usage periods for provider-cost and customer-usage ledger entries; all unmarked subscription-less production companies still fail closed.
+
+**Why:** Legacy tenants are authorized to use premium providers, so requiring a nonexistent Stripe period after a provider action can reject completion webhooks and hide otherwise valid customer records.
+
+**How to apply:** Require both matching tenant ownership and the server-controlled legacy marker, and disable the fallback as soon as any subscription row exists.
+
 AI Receptionist top-ups are one-time, webhook-authoritative grants bound to the Stripe billing period captured at Checkout.
 
 **Why:** Granting from a browser redirect, accepting client-supplied minutes, or carrying a purchase into another period can create unpaid or stale allowance.

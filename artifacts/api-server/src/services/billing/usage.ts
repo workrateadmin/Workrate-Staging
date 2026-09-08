@@ -1,5 +1,5 @@
 import { and, eq, gte, lt, sql } from "drizzle-orm";
-import { billingReceptionistTopUpPurchasesTable, billingUsageEventsTable, billingUsagePeriodsTable, billingUsageReservationsTable, billingUsageWarningsTable, companySubscriptionsTable, db } from "@workspace/db";
+import { billingReceptionistTopUpPurchasesTable, billingUsageEventsTable, billingUsagePeriodsTable, billingUsageReservationsTable, billingUsageWarningsTable, companiesTable, companySubscriptionsTable, db } from "@workspace/db";
 
 export type UsagePeriod = { id: number; startsAt: Date; endsAt: Date; isDevelopmentFallback: boolean };
 export type UsageInput = {
@@ -79,17 +79,25 @@ const monthPeriod = (now: Date) => ({
   endsAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
 });
 
-/** Stripe's stored period is authoritative. Calendar periods are development-only for unbilled legacy tenants. */
+/** Stripe's stored period is authoritative. Calendar periods are limited to development or explicitly migrated legacy tenants. */
 export async function usagePeriodForTenant(companyId: number, ownerUserId: string, now = new Date()): Promise<UsagePeriod> {
-  const [subscription] = await db.select().from(companySubscriptionsTable)
-    .where(and(eq(companySubscriptionsTable.companyId, companyId), eq(companySubscriptionsTable.ownerUserId, ownerUserId))).limit(1);
+  const [[subscription], [company]] = await Promise.all([
+    db.select().from(companySubscriptionsTable)
+      .where(and(eq(companySubscriptionsTable.companyId, companyId), eq(companySubscriptionsTable.ownerUserId, ownerUserId))).limit(1),
+    db.select({ legacyBilling: companiesTable.legacyBilling }).from(companiesTable)
+      .where(and(eq(companiesTable.id, companyId), eq(companiesTable.ownerUserId, ownerUserId))).limit(1),
+  ]);
   const stripePeriod = subscription?.provider === "stripe" && subscription.currentPeriodStartsAt && subscription.currentPeriodEndsAt
     ? { startsAt: subscription.currentPeriodStartsAt, endsAt: subscription.currentPeriodEndsAt, isDevelopmentFallback: false }
     : undefined;
-  if (!stripePeriod && process.env.NODE_ENV !== "development") {
+  const explicitLegacyPeriod = !subscription && company?.legacyBilling === true;
+  if (!stripePeriod && process.env.NODE_ENV !== "development" && !explicitLegacyPeriod) {
     throw new Error("A Stripe subscription billing period is required to meter usage.");
   }
-  const period = stripePeriod ?? { ...monthPeriod(now), isDevelopmentFallback: true };
+  const period = stripePeriod ?? {
+    ...monthPeriod(now),
+    isDevelopmentFallback: process.env.NODE_ENV === "development",
+  };
   const [stored] = await db.insert(billingUsagePeriodsTable).values({
     companyId, ownerUserId, subscriptionId: subscription?.id, startsAt: period.startsAt, endsAt: period.endsAt,
   }).onConflictDoNothing().returning();

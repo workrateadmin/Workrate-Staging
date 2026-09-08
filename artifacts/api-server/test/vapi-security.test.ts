@@ -5,7 +5,7 @@ import express from "express";
 import { randomUUID } from "node:crypto";
 import { createServer, request } from "node:http";
 import { and, eq } from "drizzle-orm";
-import { billingUsageEventsTable, billingUsageReservationsTable, companiesTable, companySubscriptionsTable, db, integrationsTable } from "@workspace/db";
+import { aiCallsTable, billingUsageEventsTable, billingUsageReservationsTable, companiesTable, companySubscriptionsTable, db, enquiriesTable, integrationsTable } from "@workspace/db";
 import vapiRouter from "../src/routes/webhooks-vapi";
 import { encryptIntegrationSecret } from "../src/lib/integration-secret";
 import {
@@ -154,10 +154,16 @@ test("canonical Vapi cost parser uses only GET data and retains numeric componen
 test("Vapi Express webhook route finalizes completed calls once and records charged failures without duration", async () => {
   const owner = `vapi-route-${randomUUID()}`;
   const secret = "route-webhook-secret";
+  const originalWorkRateEnv = process.env.WORKRATE_ENV;
+  const originalNodeEnv = process.env.NODE_ENV;
   process.env.SESSION_SECRET ??= "route-test-session-secret";
   process.env.VAPI_PRIVATE_KEY = "route-test-private-key";
+  process.env.WORKRATE_ENV = "production";
+  process.env.NODE_ENV = "production";
   let companyId: number | undefined;
   let companyBId: number | undefined;
+  let legacyCompanyId: number | undefined;
+  let legacyOwner: string | undefined;
   const app = express();
   app.use((req, _res, next) => { (req as any).log = { warn() {}, error() {}, info() {} }; next(); });
   app.use(express.json({ verify: (req, _res, buffer) => { (req as any).rawBody = buffer; } }));
@@ -182,11 +188,33 @@ test("Vapi Express webhook route finalizes completed calls once and records char
     const [companyB] = await db.insert(companiesTable).values({ ownerUserId: ownerB, name: ownerB }).returning();
     companyBId = companyB.id;
     await db.insert(integrationsTable).values({ ownerUserId: ownerB, provider: "vapi", status: "connected", config: JSON.stringify({ assistantId: `assistant-${ownerB}`, phoneNumberId: `phone-${ownerB}`, enabled: true, encryptedWebhookSecret: encryptIntegrationSecret("tenant-b-secret") }) });
+    legacyOwner = `vapi-route-legacy-${randomUUID()}`;
+    const [legacyCompany] = await db.insert(companiesTable).values({
+      ownerUserId: legacyOwner,
+      name: legacyOwner,
+      legacyBilling: true,
+    }).returning();
+    legacyCompanyId = legacyCompany.id;
+    await db.insert(integrationsTable).values({
+      ownerUserId: legacyOwner,
+      provider: "vapi",
+      status: "connected",
+      config: JSON.stringify({
+        assistantId: `assistant-${legacyOwner}`,
+        phoneNumberId: `phone-${legacyOwner}`,
+        enabled: true,
+        encryptedWebhookSecret: encryptIntegrationSecret(secret),
+      }),
+    });
     const assistantPayload = { message: { type: "assistant-request", call: { id: "route-complete", assistantId: `assistant-${owner}`, phoneNumberId: `phone-${owner}` } } };
     assert.equal((await post(assistantPayload)).status, 200);
     globalThis.fetch = async (url) => {
       const id = String(url).split("/").pop()!;
-      const canonicalOwner = id === "route-cross-tenant" ? ownerB : owner;
+      const canonicalOwner = id === "route-cross-tenant"
+        ? ownerB
+        : id === "route-legacy-complete"
+          ? legacyOwner!
+          : owner;
       return new Response(JSON.stringify({ id, assistantId: `assistant-${canonicalOwner}`, phoneNumberId: `phone-${canonicalOwner}`, status: id.includes("failed") ? "failed" : "completed", endedReason: id.includes("failed") ? "provider-error" : "customer-ended-call", startedAt: new Date(Date.now() - 10_000).toISOString(), endedAt: new Date().toISOString(), cost: 0.2 }), { status: 200 });
     };
     const end = (id: string) => ({ message: { type: "end-of-call-report", call: { id, assistantId: `assistant-${owner}`, phoneNumberId: `phone-${owner}`, status: "ended" } } });
@@ -205,10 +233,45 @@ test("Vapi Express webhook route finalizes completed calls once and records char
     assert.equal((await post(end("route-cross-tenant"))).status, 403);
     const crossRows = await db.select().from(billingUsageEventsTable).where(eq(billingUsageEventsTable.providerReference, "route-cross-tenant"));
     assert.equal(crossRows.length, 0, "cross-tenant canonical identity writes neither tenant ledger");
+    const legacyEnd = {
+      message: {
+        type: "end-of-call-report",
+        call: {
+          id: "route-legacy-complete",
+          assistantId: `assistant-${legacyOwner}`,
+          phoneNumberId: `phone-${legacyOwner}`,
+          status: "ended",
+        },
+      },
+    };
+    assert.equal((await post(legacyEnd)).status, 200);
+    assert.equal((await post(legacyEnd)).status, 200);
+    const legacyCalls = await db.select().from(aiCallsTable).where(and(
+      eq(aiCallsTable.ownerUserId, legacyOwner),
+      eq(aiCallsTable.providerCallId, "route-legacy-complete"),
+    ));
+    assert.equal(legacyCalls.length, 1);
+    assert.ok(legacyCalls[0].enquiryId);
+    assert.equal((await db.select().from(enquiriesTable).where(eq(enquiriesTable.ownerUserId, legacyOwner))).length, 1);
+    const legacyEvents = await db.select().from(billingUsageEventsTable).where(eq(
+      billingUsageEventsTable.companyId,
+      legacyCompany.id,
+    ));
+    assert.equal(legacyEvents.filter((row) => row.usageCategory === "vapi_provider_cost").length, 1);
+    assert.equal(legacyEvents.filter((row) => row.usageCategory === "ai_receptionist_seconds").length, 1);
   } finally {
     globalThis.fetch = originalFetch;
     await new Promise<void>((resolve) => server.close(() => resolve()));
     if (companyId) await db.delete(companiesTable).where(eq(companiesTable.id, companyId));
     if (companyBId) await db.delete(companiesTable).where(eq(companiesTable.id, companyBId));
+    if (legacyOwner) {
+      await db.delete(aiCallsTable).where(eq(aiCallsTable.ownerUserId, legacyOwner));
+      await db.delete(enquiriesTable).where(eq(enquiriesTable.ownerUserId, legacyOwner));
+    }
+    if (legacyCompanyId) await db.delete(companiesTable).where(eq(companiesTable.id, legacyCompanyId));
+    if (originalWorkRateEnv === undefined) delete process.env.WORKRATE_ENV;
+    else process.env.WORKRATE_ENV = originalWorkRateEnv;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
   }
 });
