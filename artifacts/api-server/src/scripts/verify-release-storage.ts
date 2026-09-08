@@ -10,6 +10,7 @@ async function main(): Promise<void> {
     buildId: result.buildId,
     databaseMarker: result.databaseMarker,
     storageMarker: result.storageMarker,
+    bucketFingerprint: result.bucketFingerprint,
     bucketFingerprintStatus: result.bucketFingerprintStatus,
     legacyCompatibility: result.legacyCompatibility,
     checkedAt: result.checkedAt,
