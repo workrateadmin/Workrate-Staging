@@ -30,7 +30,7 @@ HMRC_OAUTH_REDIRECT_URL = "https://work-rate-manager.replit.app/api/hmrc/callbac
 PROPOSAL_BASE_URL = "https://work-rate-manager.replit.app"
 WORKRATE_ENV = "production"
 WORKRATE_STORAGE_ENV = "production"
-WORKRATE_BUILD_ID = "efdb08657bcd049431984ce856ccd0281925b958"
+WORKRATE_BUILD_ID = "c5daec0a60749b4c7758ab8b3c5b2761e2abbc36"
 WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT = "e3a50e5234b4"
 
 [userenv.development]
