@@ -14,3 +14,17 @@ mtime_ms = 1788722874070
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:38a3dfb4-3859-4ed5-837e-20715c304142/0e14f30f-e885-4a4d-81cb-d5cf439eb3d3/cffb1c9c-aeed-46a2-bcf5-1bfb329d84a4"
 storage_version_token = "1788722905633260"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "hBEWrP4P-HxN0VS_Kf_6k"
+uri = "file://release-assets/production/environment-binding-v1.json"
+type = "unspecified"
+title = "Production storage environment marker"
+description = "Exact immutable marker for the approved production App Storage bucket. Upload only to .workrate/environment-binding-v1.json in the Production environment."
+logical_id = "59d6f558-36fd-47f3-8f83-d5523ca2fc4c"
+content_hash = "sha256:4f92cba8819f3ef38cc6c5d7e3b5957c74fdd50649994644700335218d9fedca"
+size = 81
+mtime_ms = 1788869920981
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:38a3dfb4-3859-4ed5-837e-20715c304142/59d6f558-36fd-47f3-8f83-d5523ca2fc4c/cb869f73-f229-4f89-bebd-677b95e883fb"
+storage_version_token = "1788869925996318"
+content_type = "application/octet-stream"

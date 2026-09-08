@@ -31,8 +31,12 @@ PROPOSAL_BASE_URL = "https://work-rate-manager.replit.app"
 WORKRATE_ENV = "production"
 WORKRATE_STORAGE_ENV = "production"
 WORKRATE_BUILD_ID = "84332c25b0aea7e32ace0330a85afc153bc9e60d"
+WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT = "e3a50e5234b4"
 
 [userenv.development]
 WORKRATE_BUILD_ID = "local-development"
 WORKRATE_ENV = "development"
 WORKRATE_STORAGE_ENV = "development"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-fc3ca7d9-86c2-4ebd-841a-5791efa5879e"
