@@ -15,6 +15,10 @@ import {
   StartupResourceIdentityGateError,
 } from "./lib/startup-resource-identity-gate";
 
+function emitBootStage(event: string, message: string): void {
+  process.stdout.write(`${JSON.stringify({ level: "info", event, message })}\n`);
+}
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
@@ -29,10 +33,14 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+emitBootStage("BOOT_STAGE_2", "imports and configuration loaded");
+
 async function startServer(): Promise<void> {
+  emitBootStage("BOOT_STAGE_3", "before startup resource gate");
   await runAfterStartupResourceIdentityGate(
     verifyConfiguredReleaseStorage,
     async (releaseStorage) => {
+      emitBootStage("BOOT_STAGE_4", "after startup resource gate");
       const workRateEnvironment = releaseStorage.environment!;
       logger.info(
         {
@@ -69,11 +77,13 @@ async function startServer(): Promise<void> {
         logger.error({ err }, "Stripe initialization failed; billing provider will remain unavailable");
       }
 
+      emitBootStage("BOOT_STAGE_5", "before server listen");
       app.listen(port, (err) => {
         if (err) {
           logger.error({ err }, "Error listening on port");
           process.exit(1);
         }
+        emitBootStage("BOOT_STAGE_6", "server listen callback reached");
         logger.info({ port, workRateEnvironment }, "Server listening");
       });
     },

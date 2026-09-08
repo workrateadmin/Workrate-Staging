@@ -125,6 +125,7 @@ import __bannerUrl from 'node:url';
 globalThis.require = __bannerCrReq(import.meta.url);
 globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
 globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
+process.stdout.write(JSON.stringify({ level: "info", event: "BOOT_STAGE_1", message: "entrypoint entered" }) + "\\n");
     `,
     },
   });
