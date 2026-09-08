@@ -27,9 +27,9 @@ async function main(): Promise<void> {
     await client.query("BEGIN");
     await client.query(`
       CREATE TABLE IF NOT EXISTS "_workrate_environment" (
-        "singleton" boolean PRIMARY KEY DEFAULT true CHECK ("singleton" = true),
+        "singleton" boolean PRIMARY KEY DEFAULT true CHECK ("singleton" IS TRUE),
         "environment" text NOT NULL CHECK ("environment" IN ('development', 'staging', 'production')),
-        "initialized_at" timestamp with time zone NOT NULL DEFAULT now()
+        "created_at" timestamp with time zone NOT NULL DEFAULT now()
       )
     `);
     const existing = await client.query<{ environment: string }>(

@@ -9,8 +9,6 @@ build = "pnpm verify:release-storage && pnpm --filter @workspace/api-server run 
 args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
-[workflows]
-runButton = "Project"
 
 [agent]
 stack = "PNPM_WORKSPACE"

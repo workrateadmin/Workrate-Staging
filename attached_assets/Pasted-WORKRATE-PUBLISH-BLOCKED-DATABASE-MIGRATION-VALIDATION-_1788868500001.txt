@@ -1,0 +1,168 @@
+WORKRATE — PUBLISH BLOCKED: DATABASE MIGRATION VALIDATION SAYS “PREVIEW NOT FOUND”
+
+I am trying to republish WorkRate.
+
+The Replit Publishing screen shows:
+
+- Development database changes detected ✅
+- Generated migrations to apply to production database ✅
+- Failed to validate database migrations ❌
+
+Expanded error:
+
+“Failed to monitor preview status: Preview not found”
+
+IMPORTANT:
+
+Do NOT publish automatically.
+Do NOT mutate the production database.
+Do NOT bypass migration validation.
+Do NOT delete or regenerate migrations blindly.
+
+Please diagnose why Replit’s migration validator cannot find the Preview environment.
+
+==================================================
+1. DETERMINE WHETHER THIS IS A MIGRATION ERROR
+==================================================
+
+Inspect the generated migrations and determine whether they are actually invalid.
+
+Report separately:
+
+A. migration generation status
+B. migration SQL/schema validity
+C. Preview environment status
+D. whether the failure occurs before migration validation actually runs
+
+The current UI error suggests Preview monitoring failed rather than the migrations themselves.
+
+==================================================
+2. CHECK CURRENT PREVIEW / DEVELOPMENT WORKFLOW
+==================================================
+
+Inspect:
+
+- current Replit Preview/development workflow
+- API workflow
+- web workflow
+- deployment configuration
+- .replit configuration
+- recent environment-separation changes
+- prebuild/release-storage validation
+- database environment marker requirements
+- WORKRATE_ENV configuration
+
+Determine why Publishing says:
+
+“Preview not found”
+
+Check whether:
+
+- Preview is stopped
+- Preview workflow no longer exists
+- publishing expects a workflow name that changed
+- deployment build configuration replaced a Preview command
+- API/web workflows are running separately but Publishing expects one Preview
+- WORKRATE_ENV/database guards prevent Preview startup
+- recent Task #99 deployment configuration affected Preview detection
+
+==================================================
+3. START / RESTORE PREVIEW SAFELY
+==================================================
+
+If Preview simply needs to be started/restored:
+
+restore the smallest correct Replit Preview/development workflow.
+
+Requirements:
+
+- Preview uses development environment only
+- Preview uses development DB only
+- WORKRATE_ENV=development
+- DB marker=development
+- no production data
+- no production storage
+- no production provider calls
+
+Do not weaken environment guards.
+
+==================================================
+4. VERIFY PREVIEW HEALTH
+==================================================
+
+Confirm Preview can start successfully.
+
+Check:
+
+- API starts
+- web starts
+- no startup environment mismatch
+- pnpm verify:release-storage passes for development
+- development DB marker passes
+- development storage marker passes
+- Preview URL responds successfully
+
+==================================================
+5. RE-RUN MIGRATION VALIDATION
+==================================================
+
+Once Preview exists and is healthy:
+
+re-run the same migration validation Replit Publishing expects.
+
+Do NOT apply the migration to production yet.
+
+Confirm:
+
+- migration parses correctly
+- migration applies cleanly to an isolated validation/preview database
+- no destructive unexpected changes
+- no production records affected
+
+==================================================
+6. REVIEW THE MIGRATIONS
+==================================================
+
+List the migrations Replit intends to promote.
+
+For each, report:
+
+- migration filename/version
+- tables/columns/indexes affected
+- whether additive or destructive
+- whether data migration occurs
+- whether rollback/risk exists
+
+Flag any DROP/DELETE/destructive change prominently.
+
+==================================================
+7. PRESERVE ENVIRONMENT SAFETY
+==================================================
+
+Do not remove:
+
+- WORKRATE_ENV validation
+- DB environment marker checks
+- storage release validator
+- prebuild release gate
+- staging/production migration separation
+
+The solution must make Replit Preview work WITH those safeguards, not around them.
+
+==================================================
+8. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. exact cause of “Preview not found”
+B. whether migrations themselves are valid
+C. whether Preview was restored
+D. development runtime status
+E. release-storage validation result
+F. migrations awaiting production
+G. destructive migration risk
+H. whether Replit Publishing should now pass migration validation
+I. whether I should press Republish again
+
+Do not publish automatically.
