@@ -1,0 +1,77 @@
+WORKRATE — FIX SELF-REFERENTIAL BUILD ID RELEASE PROCESS
+
+We have proven a release-process design flaw:
+
+1. Verified immutable source commit:
+   ecfa382c289cc779c92256a80aca878073463c27
+
+2. Production WORKRATE_BUILD_ID was correctly set to that exact commit.
+
+3. Replit records the Production environment-variable update in `.replit`.
+
+4. `.replit` is version-controlled, so committing that change produces a new Git commit ID.
+
+5. Updating WORKRATE_BUILD_ID to the new commit modifies `.replit` again.
+
+Therefore the current requirement:
+
+"working tree clean AND WORKRATE_BUILD_ID equals the commit containing that value"
+
+is mathematically self-referential and cannot converge.
+
+DO NOT:
+- publish
+- change production DB/storage
+- change storage markers
+- weaken any runtime safety checks
+- repeatedly checkpoint BUILD_ID updates
+- create another self-referential commit loop
+
+GOAL:
+
+Correct the release-candidate identity design so WORKRATE_BUILD_ID is release metadata, not source state.
+
+Preferred architecture:
+
+- Immutable source identity remains:
+  ecfa382c289cc779c92256a80aca878073463c27
+
+- WORKRATE_BUILD_ID may be injected/set to that source commit at deployment/release time.
+
+- Changes caused solely by Replit recording that environment value in `.replit` must NOT invalidate the immutable source identity.
+
+Please determine the supported implementation in this Replit project.
+
+Preferred options, in order:
+
+1. Derive WORKRATE_BUILD_ID automatically from the immutable Git commit/checkpoint during build/runtime without writing it back into version-controlled source.
+
+OR
+
+2. Store WORKRATE_BUILD_ID in deployment metadata/secrets that are not committed to Git.
+
+OR, if Replit necessarily writes Production env metadata into `.replit`:
+
+3. Change the release validator so release identity is based on the immutable application/source commit and explicitly excludes Replit-generated deployment metadata containing WORKRATE_BUILD_ID from the self-integrity comparison.
+
+Safety requirements:
+
+- A production release must still have a non-empty immutable source/build identifier.
+- Runtime diagnostics must still show the exact source release deployed.
+- Production must still fail closed for wrong environment/resource identity.
+- Do not allow arbitrary/manual mutable build IDs to bypass release checks.
+- Do not weaken bucket, storage-marker, DB-marker, provider or environment safeguards.
+
+First perform diagnosis only.
+
+Report:
+
+1. Why the current requirement is self-referential.
+2. Which supported Replit mechanism should provide immutable source identity.
+3. The smallest safe code/config change to eliminate the cycle.
+4. Whether the existing source commit
+   ecfa382c289cc779c92256a80aca878073463c27
+   can remain the release candidate.
+5. Whether the current `.replit` dirty state can be safely reverted or treated as deployment metadata.
+
+Do not implement or publish yet.
