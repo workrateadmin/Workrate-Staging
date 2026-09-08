@@ -1,0 +1,222 @@
+WORKRATE — COMPLETE PRODUCTION RELEASE PREREQUISITES WITHOUT PUBLISHING
+
+The Preview/migration issue has now been repaired.
+
+Current known state:
+
+- Development Preview is healthy
+- Development release-storage validation passes
+- Current production schema diff contains one additive migration:
+  CREATE _workrate_environment
+- No destructive production schema changes are proposed
+- Production has NOT been published or mutated
+
+However production is not release-ready because these values are not yet safely configured:
+
+WORKRATE_ENV
+WORKRATE_STORAGE_ENV
+WORKRATE_BUILD_ID
+WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT
+
+Production also does not yet contain the _workrate_environment marker table.
+
+There is an important sequencing issue:
+the production release/build gate may validate the database marker BEFORE the migration which creates that marker is applied.
+
+GOAL:
+
+Resolve all production release prerequisites safely so the next Republish can pass the environment/storage release gates without bypassing them.
+
+DO NOT publish automatically.
+DO NOT weaken or disable the release-storage validator.
+DO NOT bypass the database environment marker.
+DO NOT mutate production data unnecessarily.
+DO NOT guess the production bucket fingerprint.
+
+==================================================
+1. AUDIT PRODUCTION RELEASE ORDER
+==================================================
+
+Determine the exact Replit sequence for this project:
+
+- schema migration validation
+- production DB migration application
+- deployment build
+- prebuild
+- pnpm verify:release-storage
+- API startup
+
+Identify precisely whether the production DB marker must exist BEFORE the deployment build runs.
+
+Report the real ordering before making changes.
+
+==================================================
+2. SOLVE DB MARKER BOOTSTRAP SAFELY
+==================================================
+
+The current migration creates:
+
+_workrate_environment
+
+Production currently lacks it.
+
+Design the smallest safe bootstrap that preserves fail-closed behavior.
+
+Preferred outcome:
+
+- production marker table is created through the normal approved migration path
+- marker value is explicitly set to production
+- subsequent builds require it
+- unmarked production DBs still fail closed after bootstrap
+
+Do NOT make startup automatically self-label an unknown database.
+
+Do NOT broadly disable marker verification.
+
+If Replit's release ordering makes this impossible in one publish, propose the safest two-stage bootstrap process.
+
+==================================================
+3. PRODUCTION WORKRATE_ENV
+==================================================
+
+Configure or document exactly where to set:
+
+WORKRATE_ENV=production
+
+Do not alter development.
+
+Verify production deployment receives it.
+
+==================================================
+4. PRODUCTION STORAGE ENVIRONMENT
+==================================================
+
+Configure:
+
+WORKRATE_STORAGE_ENV=production
+
+Confirm it matches the existing production storage architecture.
+
+Do not point production at staging or development storage.
+
+==================================================
+5. PRODUCTION BUCKET FINGERPRINT
+==================================================
+
+Read the current production bucket identity using the existing read-only Task #97/#99 fingerprint mechanism.
+
+Do not mutate the bucket.
+
+Show me the safe fingerprint value or provide the exact manual step required to obtain/approve it.
+
+Then configure:
+
+WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT
+
+IMPORTANT:
+
+The expected fingerprint must come from deliberately identifying the known production bucket, not simply trusting whatever bucket happens to be configured.
+
+No production file contents need to be read.
+
+==================================================
+6. BUILD ID
+==================================================
+
+Formalize:
+
+WORKRATE_BUILD_ID
+
+It must represent the immutable release candidate/build being deployed.
+
+Prefer deriving it from:
+
+- Git commit SHA
+or
+- Replit deployment/build ID
+
+Do not use a static value such as "production".
+
+Explain how it will change automatically or be set for each release.
+
+==================================================
+7. PRODUCTION DATABASE MARKER
+==================================================
+
+Once safe release ordering is established, the production marker must be:
+
+environment=production
+
+Verify:
+
+- exactly one valid marker
+- immutable/singleton rules preserved
+- no effect on customer/business tables
+- no production customer records copied or modified
+
+==================================================
+8. READ-ONLY PRE-RELEASE VALIDATION
+==================================================
+
+Before publishing, prove the expected final state:
+
+WORKRATE_ENV=production
+DB marker=production
+WORKRATE_STORAGE_ENV=production
+storage marker=production
+bucket fingerprint=expected production fingerprint
+legacy compatibility=production only
+build ID present
+
+Run the equivalent read-only release validation wherever possible.
+
+Do not publish just to test this.
+
+==================================================
+9. CHECK CURRENT VAPI FIX
+==================================================
+
+There is also a production Vapi call-ingestion fix waiting to go live.
+
+Confirm the current release candidate includes that fix.
+
+Do not alter it.
+
+Report whether publishing this same candidate will deploy:
+
+- legacy-billing Vapi cost handling fix
+- environment separation safeguards
+- storage safeguards
+- migration repair
+
+==================================================
+10. REPLIT PUBLISHING UI
+==================================================
+
+Once prerequisites are complete, determine whether:
+
+A. I can safely press Republish
+B. I should first use a Retry validation action
+C. another manual setup step is still required
+
+Do not press Republish yourself.
+
+==================================================
+11. COMPLETION REPORT
+==================================================
+
+Report:
+
+A. exact release/migration ordering
+B. safe DB marker bootstrap solution
+C. WORKRATE_ENV production status
+D. WORKRATE_STORAGE_ENV production status
+E. production bucket fingerprint status
+F. WORKRATE_BUILD_ID strategy/status
+G. production DB marker status
+H. release-storage readiness
+I. Vapi fix included in candidate YES/NO
+J. any remaining manual action
+K. whether I can now safely press Republish
+
+Do not publish automatically.
