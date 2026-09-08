@@ -1,0 +1,52 @@
+WORKRATE — FIX PRODUCTION RELEASE STORAGE CONFIGURATION SAFELY
+
+The latest production deployment was correctly blocked by:
+
+BUCKET_IDENTITY_MISMATCH
+
+Current validator output:
+
+environment: production
+databaseMarker: null
+storageMarker: null
+bucketFingerprintStatus: invalid
+
+message:
+"The configured bucket is not the pinned bucket."
+
+DO NOT disable or weaken the release validator.
+
+DO NOT publish automatically.
+
+GOAL:
+
+Safely determine why production storage identity does not match the pinned expected production bucket, then configure the correct production release metadata without mutating customer files.
+
+Please:
+
+1. Inspect the current production storage configuration READ-ONLY.
+2. Identify:
+   - configured production bucket
+   - actual bucket identity fingerprint
+   - configured WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT
+   - production bucket environment marker status
+   - production DB environment marker status
+3. Determine whether:
+   A. the correct production bucket is configured but the expected fingerprint pin is missing/wrong
+   B. the wrong bucket is configured
+   C. the production bucket marker has not yet been initialized
+   D. the production DB marker has not yet been initialized
+4. Do NOT auto-accept the currently configured bucket merely because it is present.
+5. Do NOT derive and overwrite the expected fingerprint automatically from an unknown bucket.
+6. Show me the exact mismatch and the safest remediation.
+7. If a manual Replit secret/config action is required, give me ONE action at a time.
+8. Do not write, move, rename, or delete any production customer objects.
+9. Do not change production database contents except for the explicit immutable environment marker if we verify the correct production DB and I approve it.
+10. Do not publish until:
+   - WORKRATE_ENV=production
+   - production DB marker=production
+   - production storage marker=production
+   - expected fingerprint matches the independently verified production bucket
+   - pnpm verify:release-storage returns PASS
+
+At the end, report whether production is safe to publish.
