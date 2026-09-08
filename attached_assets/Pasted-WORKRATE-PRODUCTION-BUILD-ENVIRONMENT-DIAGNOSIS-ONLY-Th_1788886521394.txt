@@ -1,0 +1,73 @@
+WORKRATE — PRODUCTION BUILD ENVIRONMENT DIAGNOSIS ONLY
+
+The latest controlled production build proves the previous scope diagnosis was incomplete.
+
+The validator is now running from:
+
+@workspace/api-server prebuild
+
+NOT the root .replit pre-build hook.
+
+But it STILL resolves bucket fingerprint:
+
+6c3db9401c73
+
+instead of approved production fingerprint:
+
+e3a50e5234b4
+
+Therefore the API production build itself is still receiving the workspace/App Storage bucket.
+
+DO NOT:
+- publish again
+- move or weaken the validator
+- change DB/storage markers
+- change object storage configuration
+- change application logic
+- change production secrets yet
+
+GOAL:
+
+Trace exactly what values the API package prebuild receives at production BUILD TIME.
+
+Read-only diagnosis only.
+
+For these variables:
+
+DEFAULT_OBJECT_STORAGE_BUCKET_ID
+PRIVATE_OBJECT_DIR
+PUBLIC_OBJECT_SEARCH_PATHS
+WORKRATE_EXPECTED_STORAGE_BUCKET_FINGERPRINT
+
+determine:
+
+1. Which exact configuration layer supplies each value to:
+   @workspace/api-server prebuild
+
+2. Whether Replit Production app secrets are actually available during BUILD,
+   or only at RUNTIME.
+
+3. Whether .replit [objectStorage] / Replit App Storage automatically injects
+   storage values into the build and overrides same-named Production secrets.
+
+4. Show configuration precedence in order from highest to lowest for this production build.
+
+5. Using the existing fingerprint function, prove which source produces:
+   6c3db9401c73
+
+6. Explain why the Production secret values I edited are not being used by
+   @workspace/api-server prebuild.
+
+7. Identify the supported Replit architecture for validating a production
+   storage bucket when production-specific storage credentials/config are
+   unavailable during build.
+
+Do NOT implement the fix yet.
+
+Report:
+- proven root cause
+- whether Production secrets are build-time or runtime-only
+- exact winning source for the bucket
+- ONE recommended architecture/fix
+
+Stop before making changes.
