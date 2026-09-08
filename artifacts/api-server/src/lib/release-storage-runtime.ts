@@ -6,6 +6,7 @@ import {
   validateReleaseStorage,
   type ReleaseStorageVerification,
 } from "./release-storage-validation";
+import { getEmbeddedApplicationSourceId } from "./application-source-identity";
 
 let latestVerification: ReleaseStorageVerification | null = null;
 
@@ -20,12 +21,18 @@ export async function verifyConfiguredReleaseStorage(): Promise<ReleaseStorageVe
         client.release();
       }
     },
-  });
+  }, process.env, getEmbeddedApplicationSourceId());
   return latestVerification;
 }
 
-export async function verifyConfiguredReleaseBuild(): Promise<ReleaseStorageVerification> {
-  return validateReleaseBuildConfiguration();
+export async function verifyConfiguredReleaseBuild(
+  immutableSourceId: string,
+): Promise<ReleaseStorageVerification> {
+  return validateReleaseBuildConfiguration(
+    process.env,
+    () => new Date(),
+    immutableSourceId,
+  );
 }
 
 export function getLatestReleaseStorageVerification(): ReleaseStorageVerification {

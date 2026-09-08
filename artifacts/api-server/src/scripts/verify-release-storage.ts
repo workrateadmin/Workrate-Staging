@@ -3,11 +3,21 @@ import {
   verifyConfiguredReleaseBuild,
   verifyConfiguredReleaseStorage,
 } from "../lib/release-storage-runtime";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { resolveDeployableSourceIdentity } from "../../../../scripts/source-identity.mjs";
 
 async function main(): Promise<void> {
   const buildTimeOnly = process.env.WORKRATE_ENV === "production";
+  const repositoryRoot = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../../../..",
+  );
+  const immutableSourceId = buildTimeOnly
+    ? resolveDeployableSourceIdentity({ cwd: repositoryRoot })
+    : null;
   const result = buildTimeOnly
-    ? await verifyConfiguredReleaseBuild()
+    ? await verifyConfiguredReleaseBuild(immutableSourceId!)
     : await verifyConfiguredReleaseStorage();
   const summary = {
     verificationPhase: buildTimeOnly ? "build" : "full-resource",

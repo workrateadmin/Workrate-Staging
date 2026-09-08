@@ -1,0 +1,111 @@
+WORKRATE — IMPLEMENT IMMUTABLE APPLICATION SOURCE IDENTITY
+
+The diagnosis is accepted.
+
+Current verified application release candidate:
+
+ecfa382c289cc779c92256a80aca878073463c27
+
+Current HEAD:
+
+9a06e8cc65092367ed7e8024e6b66b8c08795131
+
+HEAD is deployment-metadata-only and must NOT become the application release identity.
+
+IMPLEMENT the smallest safe automatic source-identity mechanism.
+
+IMPORTANT REFINEMENT:
+
+Do NOT simply use:
+
+"latest commit touching anything except .replit"
+
+That could incorrectly treat docs, agent memory, attached briefs, or unrelated metadata as application releases.
+
+Instead define an explicit deployable-source path set based on the actual WorkRate repository structure.
+
+It should include all files whose contents can affect the built/running application, for example as applicable:
+
+- artifacts/
+- packages/
+- scripts/
+- root package.json
+- pnpm-lock.yaml
+- pnpm-workspace.yaml
+- tsconfig/build configuration
+- relevant runtime/build configuration that genuinely affects compiled application behavior
+
+Exclude deployment-only/non-application material such as:
+
+- .replit metadata containing WORKRATE_BUILD_ID
+- .agents/
+- attached briefs
+- memory files
+- documentation-only files
+- other non-deployable metadata
+
+GOAL:
+
+1. Add one shared source-identity resolver.
+
+2. During production build:
+   - use Git history to resolve the newest commit affecting the deployable-source path set
+   - require a full 40-character lowercase Git SHA
+   - fail closed if it cannot be resolved
+   - embed that SHA into the built API artifact
+
+3. Runtime diagnostics must use the embedded immutable source ID.
+
+4. Existing WORKRATE_BUILD_ID behavior:
+   - if configured, compare it against the derived embedded source ID
+   - fail if they conflict
+   - do NOT require WORKRATE_BUILD_ID to equal the metadata-only HEAD commit
+   - do NOT let a manually supplied value override the derived source identity
+
+5. Preserve all existing:
+   - production bucket fingerprint checks
+   - storage marker checks
+   - DB marker checks
+   - provider/environment checks
+   - startup-before-listen fail-closed behavior
+
+6. For the current repository history, prove that the resolver returns:
+
+ecfa382c289cc779c92256a80aca878073463c27
+
+and NOT:
+
+9a06e8cc65092367ed7e8024e6b66b8c08795131
+
+7. Add tests proving:
+   - application-code commit changes source identity
+   - .replit-only commit does NOT change source identity
+   - docs/memory/brief-only commit does NOT change source identity
+   - malformed/unavailable Git identity fails production build
+   - conflicting WORKRATE_BUILD_ID fails
+   - matching WORKRATE_BUILD_ID passes
+   - runtime diagnostics expose derived immutable source ID
+   - startup resource gates remain unchanged
+
+8. Run:
+   - focused release/runtime tests
+   - API typecheck
+   - scripts typecheck
+   - production build simulation
+   - git diff --check
+
+Do not modify production DB/storage.
+Do not change production storage configuration.
+Do not publish automatically.
+
+Report:
+
+- exact deployable-source path set
+- files changed
+- derived source ID
+- test results
+- whether current release candidate ecfa382c... remains valid
+- whether WORKRATE_BUILD_ID can now remain aligned without another self-reference cycle
+- whether ONE controlled production Publish attempt is appropriate
+
+Stop before publishing.

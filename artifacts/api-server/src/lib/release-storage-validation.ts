@@ -26,7 +26,9 @@ export type ReleaseStorageFailureCode =
   | "DATABASE_MARKER_MISSING"
   | "DATABASE_MARKER_INVALID"
   | "DATABASE_ENVIRONMENT_MISMATCH"
-  | "BUILD_ID_MISSING";
+  | "BUILD_ID_MISSING"
+  | "BUILD_ID_MISMATCH"
+  | "SOURCE_ID_INVALID";
 
 export interface ReleaseStorageVerification {
   status: "pass" | "fail";
@@ -69,15 +71,32 @@ class ReleaseCheckFailure extends Error {
 function requireBuildId(
   environment: WorkRateEnvironment,
   environmentVariables: EnvironmentVariables,
+  immutableSourceId?: string | null,
 ): string {
-  const buildId = environmentVariables["WORKRATE_BUILD_ID"]?.trim();
-  if (environment !== "development" && !buildId) {
+  const configuredBuildId = environmentVariables["WORKRATE_BUILD_ID"]?.trim();
+  if (environment === "development") {
+    return immutableSourceId || configuredBuildId || "local-development";
+  }
+  const sourceId = immutableSourceId?.trim() || configuredBuildId;
+  if (!sourceId) {
     throw new ReleaseCheckFailure(
       "BUILD_ID_MISSING",
-      "WORKRATE_BUILD_ID is required for staging and production releases.",
+      "An immutable application source ID is required for staging and production releases.",
     );
   }
-  return buildId || "local-development";
+  if (!/^[a-f0-9]{40}$/.test(sourceId)) {
+    throw new ReleaseCheckFailure(
+      "SOURCE_ID_INVALID",
+      "The immutable application source ID is malformed.",
+    );
+  }
+  if (configuredBuildId && configuredBuildId !== sourceId) {
+    throw new ReleaseCheckFailure(
+      "BUILD_ID_MISMATCH",
+      "WORKRATE_BUILD_ID conflicts with the immutable application source ID.",
+    );
+  }
+  return sourceId;
 }
 
 function requireExpectedBucketFingerprint(
@@ -122,6 +141,7 @@ export function assertPinnedBucketIdentity(
 export async function validateReleaseBuildConfiguration(
   environmentVariables: EnvironmentVariables = process.env,
   now: () => Date = () => new Date(),
+  immutableSourceId?: string | null,
 ): Promise<ReleaseStorageVerification> {
   const checkedAt = now().toISOString();
   let environment: WorkRateEnvironment | null = null;
@@ -130,7 +150,11 @@ export async function validateReleaseBuildConfiguration(
 
   try {
     environment = assertRuntimeEnvironmentSafety(environmentVariables);
-    buildId = requireBuildId(environment, environmentVariables);
+    buildId = requireBuildId(
+      environment,
+      environmentVariables,
+      immutableSourceId,
+    );
     requireExpectedBucketFingerprint(environment, environmentVariables);
     config = getStorageEnvironmentConfig(environmentVariables);
     if (!config) {
@@ -228,6 +252,9 @@ function safeFailureMessage(code: ReleaseStorageFailureCode): string {
     DATABASE_MARKER_INVALID: "The database environment marker is invalid.",
     DATABASE_ENVIRONMENT_MISMATCH: "The database marker does not match WORKRATE_ENV.",
     BUILD_ID_MISSING: "An immutable build ID is required for this release.",
+    BUILD_ID_MISMATCH:
+      "The configured build ID conflicts with the immutable application source ID.",
+    SOURCE_ID_INVALID: "The immutable application source ID is invalid.",
   };
   return messages[code];
 }
@@ -235,6 +262,7 @@ function safeFailureMessage(code: ReleaseStorageFailureCode): string {
 export async function validateReleaseStorage(
   dependencies: ReleaseStorageVerificationDependencies,
   environmentVariables: EnvironmentVariables = process.env,
+  immutableSourceId?: string | null,
 ): Promise<ReleaseStorageVerification> {
   const checkedAt = (dependencies.now ?? (() => new Date()))().toISOString();
   let environment: WorkRateEnvironment | null = null;
@@ -247,7 +275,11 @@ export async function validateReleaseStorage(
 
   try {
     environment = assertRuntimeEnvironmentSafety(environmentVariables);
-    buildId = requireBuildId(environment, environmentVariables);
+    buildId = requireBuildId(
+      environment,
+      environmentVariables,
+      immutableSourceId,
+    );
     config = getStorageEnvironmentConfig(environmentVariables);
     if (!config) {
       throw new ReleaseCheckFailure(

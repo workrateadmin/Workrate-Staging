@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { execFileSync } from "node:child_process";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import {
   assertRuntimeEnvironmentSafety,
   canSendCustomerEmail,
@@ -28,6 +37,11 @@ import {
   runAfterStartupResourceIdentityGate,
   StartupResourceIdentityGateError,
 } from "../src/lib/startup-resource-identity-gate";
+import {
+  assertFullGitSha,
+  DEPLOYABLE_SOURCE_PATHS,
+  resolveDeployableSourceIdentity,
+} from "../../../scripts/source-identity.mjs";
 
 test("WORKRATE_ENV is required and limited to known deployment environments", () => {
   assert.throws(() => getWorkRateEnvironment({}), /WORKRATE_ENV must be one of/);
@@ -318,8 +332,11 @@ function releaseEnvironment(
     DEFAULT_OBJECT_STORAGE_BUCKET_ID: `${environment}-bucket`,
     PRIVATE_OBJECT_DIR: `/${environment}-bucket/private`,
     PUBLIC_OBJECT_SEARCH_PATHS: `/${environment}-bucket/public`,
-    WORKRATE_BUILD_ID:
-      environment === "development" ? "local-development" : `release-${environment}`,
+    WORKRATE_BUILD_ID: environment === "development"
+      ? "local-development"
+      : environment === "staging"
+      ? "b".repeat(40)
+      : "c".repeat(40),
   };
   const config = getStorageEnvironmentConfig(variables);
   assert.ok(config);
@@ -329,6 +346,122 @@ function releaseEnvironment(
   }
   return variables;
 }
+
+test("deployable source identity ignores deployment and documentation metadata commits", () => {
+  const repository = mkdtempSync(path.join(tmpdir(), "workrate-source-id-"));
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: repository, encoding: "utf8" }).trim();
+  try {
+    git("init");
+    git("config", "user.name", "WorkRate Test");
+    git("config", "user.email", "workrate-test@example.invalid");
+
+    mkdirSync(path.join(repository, "artifacts"), { recursive: true });
+    writeFileSync(path.join(repository, "artifacts", "app.ts"), "export const version = 1;\n");
+    git("add", ".");
+    git("commit", "-m", "application source");
+    const firstApplicationId = git("rev-parse", "HEAD");
+    assert.equal(resolveDeployableSourceIdentity({ cwd: repository }), firstApplicationId);
+
+    writeFileSync(path.join(repository, ".replit"), "WORKRATE_BUILD_ID = \"metadata\"\n");
+    git("add", ".replit");
+    git("commit", "-m", "deployment metadata");
+    assert.notEqual(git("rev-parse", "HEAD"), firstApplicationId);
+    assert.equal(resolveDeployableSourceIdentity({ cwd: repository }), firstApplicationId);
+
+    for (const [file, content] of [
+      ["docs/release.md", "release notes\n"],
+      [".agents/memory/MEMORY.md", "agent memory\n"],
+      ["attached_assets/brief.txt", "brief\n"],
+    ]) {
+      mkdirSync(path.dirname(path.join(repository, file)), { recursive: true });
+      writeFileSync(path.join(repository, file), content);
+    }
+    git("add", ".");
+    git("commit", "-m", "non-deployable documentation");
+    assert.equal(resolveDeployableSourceIdentity({ cwd: repository }), firstApplicationId);
+
+    writeFileSync(path.join(repository, "artifacts", "app.ts"), "export const version = 2;\n");
+    git("add", "artifacts/app.ts");
+    git("commit", "-m", "application source update");
+    const secondApplicationId = git("rev-parse", "HEAD");
+    assert.notEqual(secondApplicationId, firstApplicationId);
+    assert.equal(resolveDeployableSourceIdentity({ cwd: repository }), secondApplicationId);
+  } finally {
+    rmSync(repository, { recursive: true, force: true });
+  }
+});
+
+test("source identity resolver fails closed for malformed or unavailable Git identity", () => {
+  assert.throws(
+    () => assertFullGitSha("not-a-sha"),
+    /full 40-character lowercase Git SHA/,
+  );
+  assert.throws(
+    () => resolveDeployableSourceIdentity({
+      executeGit(_file, args) {
+        if (args[0] === "status") return "";
+        throw new Error("git unavailable");
+      },
+    }),
+    /Unable to resolve immutable deployable application source identity/,
+  );
+  assert.throws(
+    () => resolveDeployableSourceIdentity({
+      executeGit(_file, args) {
+        if (args[0] === "status") return "";
+        return "ABC";
+      },
+    }),
+    /full 40-character lowercase Git SHA/,
+  );
+  assert.throws(
+    () => resolveDeployableSourceIdentity({
+      executeGit(_file, args) {
+        return args[0] === "status"
+          ? " M artifacts/app.ts"
+          : "a".repeat(40);
+      },
+    }),
+    /Deployable application source has uncommitted changes/,
+  );
+});
+
+test("deployable source path set is explicit and excludes release metadata", () => {
+  assert.deepEqual(DEPLOYABLE_SOURCE_PATHS, [
+    "artifacts",
+    "lib",
+    "scripts",
+    "services",
+    ".npmrc",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "tsconfig.json",
+    "tsconfig.base.json",
+  ]);
+});
+
+test("configured build ID must match the derived immutable source identity", async () => {
+  const production = releaseEnvironment("production");
+  const sourceId = "d".repeat(40);
+  assert.equal(
+    (await validateReleaseBuildConfiguration(
+      { ...production, WORKRATE_BUILD_ID: sourceId },
+      () => new Date(),
+      sourceId,
+    )).status,
+    "pass",
+  );
+  assert.equal(
+    (await validateReleaseBuildConfiguration(
+      production,
+      () => new Date(),
+      sourceId,
+    )).code,
+    "BUILD_ID_MISMATCH",
+  );
+});
 
 function passingReleaseDependencies(
   variables: Record<string, string>,

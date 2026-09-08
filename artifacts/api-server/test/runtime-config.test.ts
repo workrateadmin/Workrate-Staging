@@ -30,3 +30,25 @@ test("staging and production require an explicit build ID", () => {
     );
   }
 });
+
+test("runtime diagnostics use the embedded immutable source ID", () => {
+  const sourceId = "a".repeat(40);
+  assert.deepEqual(
+    getRuntimeConfig({ WORKRATE_ENV: "production" }, sourceId),
+    { environment: "production", buildId: sourceId },
+  );
+  assert.throws(
+    () => getRuntimeConfig({
+      WORKRATE_ENV: "production",
+      WORKRATE_BUILD_ID: "b".repeat(40),
+    }, sourceId),
+    /conflicts with the immutable application source ID/,
+  );
+  assert.deepEqual(
+    getRuntimeConfig({
+      WORKRATE_ENV: "production",
+      WORKRATE_BUILD_ID: sourceId,
+    }, sourceId),
+    { environment: "production", buildId: sourceId },
+  );
+});

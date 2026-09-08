@@ -2,6 +2,7 @@ import {
   getWorkRateEnvironment,
   type WorkRateEnvironment,
 } from "./runtime-environment";
+import { getEmbeddedApplicationSourceId } from "./application-source-identity";
 
 type EnvironmentVariables = Readonly<Record<string, string | undefined>>;
 
@@ -18,12 +19,25 @@ export interface RuntimeConfig {
  */
 export function getRuntimeConfig(
   environment: EnvironmentVariables = process.env,
+  immutableSourceId: string | null = getEmbeddedApplicationSourceId(),
 ): RuntimeConfig {
   const workRateEnvironment = getWorkRateEnvironment(environment);
-  const buildId = environment["WORKRATE_BUILD_ID"]?.trim();
+  const configuredBuildId = environment["WORKRATE_BUILD_ID"]?.trim();
 
-  if (buildId) {
-    return { environment: workRateEnvironment, buildId };
+  if (workRateEnvironment !== "development" && immutableSourceId) {
+    if (
+      configuredBuildId &&
+      configuredBuildId !== immutableSourceId
+    ) {
+      throw new Error(
+        "WORKRATE_BUILD_ID conflicts with the immutable application source ID.",
+      );
+    }
+    return { environment: workRateEnvironment, buildId: immutableSourceId };
+  }
+
+  if (configuredBuildId) {
+    return { environment: workRateEnvironment, buildId: configuredBuildId };
   }
 
   if (workRateEnvironment === "development") {
