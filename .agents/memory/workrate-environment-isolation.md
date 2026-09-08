@@ -26,3 +26,9 @@ Production artifact builds receive the workspace App Storage binding rather than
 **Why:** Enforcing the production bucket fingerprint during artifact build repeatedly rejected a correctly pinned production bucket using the workspace bucket fingerprint instead.
 
 **How to apply:** Keep production build validation static and fail-closed for environment, immutable build ID, pin format/presence, provider compatibility, and configuration/path safety. Treat the published API's pre-listen startup gate as authoritative for actual bucket fingerprint, storage marker, and database marker identity.
+
+Application release identity is derived from Git history over an explicit deployable-source path set; `.replit`-only checkpoints are deployment metadata and cannot change that identity.
+
+**Why:** Storing `WORKRATE_BUILD_ID` in version-controlled `.replit` created a self-reference cycle where aligning the value generated a new metadata commit and therefore another apparent ID.
+
+**How to apply:** Resolve and embed the newest clean commit affecting application/build inputs. Fail closed if Git is unavailable, malformed, or deployable paths are dirty. A configured `WORKRATE_BUILD_ID` may confirm the embedded ID but may never override it. Exclude docs, attachments, agent memory, and `.replit` from application identity.
