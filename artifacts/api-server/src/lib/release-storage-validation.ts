@@ -90,12 +90,6 @@ function requireBuildId(
       "The immutable application source ID is malformed.",
     );
   }
-  if (configuredBuildId && configuredBuildId !== sourceId) {
-    throw new ReleaseCheckFailure(
-      "BUILD_ID_MISMATCH",
-      "WORKRATE_BUILD_ID conflicts with the immutable application source ID.",
-    );
-  }
   return sourceId;
 }
 

@@ -8,12 +8,72 @@ import {
 } from "./storage-bucket-binding";
 import type { StorageEnvironmentConfig } from "./storage-environment";
 
+const STORAGE_MARKER_READ_TIMEOUT_MS = 10_000;
+
+async function readStorageMarkerOperation<T>(
+  operation: "file.exists" | "file.download",
+  read: () => Promise<T>,
+): Promise<T> {
+  const startedAt = Date.now();
+  console.info(
+    JSON.stringify({
+      level: "info",
+      event: "STORAGE_MARKER_READ_START",
+      operation,
+    }),
+  );
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      read(),
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          reject(
+            new Error(
+              `STORAGE_MARKER_READ_TIMEOUT: ${operation} exceeded ${STORAGE_MARKER_READ_TIMEOUT_MS}ms.`,
+            ),
+          );
+        }, STORAGE_MARKER_READ_TIMEOUT_MS);
+      }),
+    ]);
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event:
+          error instanceof Error &&
+          error.message.startsWith("STORAGE_MARKER_READ_TIMEOUT:")
+            ? "STORAGE_MARKER_READ_TIMEOUT"
+            : "STORAGE_MARKER_READ_FAILED",
+        operation,
+        elapsedMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+    throw error;
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+    console.info(
+      JSON.stringify({
+        level: "info",
+        event: "STORAGE_MARKER_READ_END",
+        operation,
+        elapsedMs: Date.now() - startedAt,
+      }),
+    );
+  }
+}
+
 const googleStorageMarkerStore: StorageBucketMarkerStore = {
   async read(bucketId, objectName) {
     const file = objectStorageClient.bucket(bucketId).file(objectName);
-    const [exists] = await file.exists();
+    const [exists] = await readStorageMarkerOperation("file.exists", () =>
+      file.exists(),
+    );
     if (!exists) return null;
-    const [content] = await file.download();
+    const [content] = await readStorageMarkerOperation("file.download", () =>
+      file.download(),
+    );
     return content;
   },
   async write(bucketId, objectName, content) {

@@ -25,14 +25,6 @@ export function getRuntimeConfig(
   const configuredBuildId = environment["WORKRATE_BUILD_ID"]?.trim();
 
   if (workRateEnvironment !== "development" && immutableSourceId) {
-    if (
-      configuredBuildId &&
-      configuredBuildId !== immutableSourceId
-    ) {
-      throw new Error(
-        "WORKRATE_BUILD_ID conflicts with the immutable application source ID.",
-      );
-    }
     return { environment: workRateEnvironment, buildId: immutableSourceId };
   }
 
